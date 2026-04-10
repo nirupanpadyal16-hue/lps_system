@@ -1,0 +1,10 @@
+flask
+flask-cors
+flask-sqlalchemy
+psycopg2-binary
+flask-jwt-extended
+python-dotenv
+waitress
+redis
+celery
+flask-caching
