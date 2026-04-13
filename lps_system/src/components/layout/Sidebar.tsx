@@ -26,7 +26,7 @@ import {
     AUTH_LOGIN,
     ADMIN_LINES,
     ADMIN_MODELS,
-    ADMIN_ASSIGNMENTS,
+    // ADMIN_ASSIGNMENTS,
     ADMIN_DEMAND,
     ADMIN_ORDERS,
     ADMIN_USERS,
@@ -81,7 +81,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             items: [
                 { icon: Target, label: 'New Demand', path: ADMIN_DEMAND },
                 { icon: Activity, label: 'Production Lines', path: ADMIN_LINES },
-                { icon: Database, label: 'Car Models Assignment', path: ADMIN_ASSIGNMENTS },
+                // { icon: Database, label: 'Car Models Assignment', path: ADMIN_ASSIGNMENTS },
                 { icon: Mail, label: 'Order Requests', path: ADMIN_ORDERS },
                 { icon: Target, label: 'New Registration Car Model', path: ADMIN_MODELS },
                 { icon: Package, label: 'Inventory', path: ADMIN_INVENTORY },

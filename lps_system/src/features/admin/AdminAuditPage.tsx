@@ -157,35 +157,27 @@ const AdminAuditPage: React.FC = () => {
     };
 
     return (
-        <div className="bg-[#f8fafc] min-h-screen font-sans">
-            <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-4 pb-24 relative">
-                {/* Decorative background blurs */}
-                <div className="absolute top-0 left-10 w-72 h-72 bg-blue-400/10 rounded-full blur-3xl pointer-events-none" />
-                <div className="absolute top-40 right-10 w-96 h-96 bg-emerald-400/10 rounded-full blur-3xl pointer-events-none" />
+        <div className=" bg-ind-bg/50 ">
+            <div className=" max-w-7xl mx-auto  relative">
+
 
                 {/* Header */}
                 <motion.header
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-4"
+                    className="bg-white flex justify-between items-center p-2 border-b border-slate-100"
                 >
                     <div>
-                        <div className="flex items-center gap-2 mb-1.5">
-                            <span className="flex h-2.5 w-2.5 relative">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                            </span>
-                            <span className="text-[10px] font-bold text-ind-text2 uppercase tracking-widest">System Status</span>
-                        </div>
-                        <h1 className="text-2xl md:text-3xl font-extrabold text-ind-text tracking-tight leading-tight mb-1">
-                            System <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#F37021] to-orange-400">Audit Trail</span>
+
+                        <h1 className="text-[24px] font-black text-ind-text tracking-tight  leading-none">
+                            System Audit Trail
                         </h1>
-                        <p className="text-ind-text2 font-medium text-xs md:text-sm">Comprehensive activity monitoring and security verification across operations.</p>
+
                     </div>
 
                     <div className="flex items-center gap-3">
-                        <div className="flex flex-col items-center justify-center px-3 py-2 bg-white rounded-xl border border-ind-border/50 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
-                            <span className="text-[9px] font-bold text-ind-text3 uppercase tracking-wider mb-0.5">Live Sync</span>
+                        <div className="flex gap-2 items-center justify-center px-3 py-2 bg-white rounded-xl border border-ind-border/50 ">
+                            <span className="text-[9px] font-bold text-ind-text3 uppercase tracking-wider">Live Sync</span>
                             <span className="text-sm font-black text-slate-800 leading-none">60s</span>
                         </div>
                         <motion.button
@@ -193,7 +185,7 @@ const AdminAuditPage: React.FC = () => {
                             whileTap={{ scale: 0.95 }}
                             onClick={handleRefresh}
                             disabled={isRefreshing}
-                            className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-[13px] transition-all shadow-md hover:shadow-slate-900/20 disabled:opacity-70"
+                            className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-[13px] transition-all "
                         >
                             <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
                             Refresh Data
@@ -202,7 +194,7 @@ const AdminAuditPage: React.FC = () => {
                 </motion.header>
 
                 {/* Key Metrics Summary */}
-                <section className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-3">
+                <section className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-3 p-2">
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -270,13 +262,8 @@ const AdminAuditPage: React.FC = () => {
                 </section>
 
                 {/* Role Distribution */}
-                <section className="relative z-10">
-                    <div className="flex items-center gap-2 mb-3 mt-4">
-                        <div className="w-6 h-6 rounded bg-indigo-50 flex items-center justify-center text-indigo-600">
-                            <Shield size={12} />
-                        </div>
-                        <h2 className="text-sm font-extrabold text-ind-text tracking-tight">Role Distribution</h2>
-                    </div>
+                <section className="relative z-10 px-2 pb-2 pt-0">
+
 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         {isLoading ? (
@@ -302,7 +289,7 @@ const AdminAuditPage: React.FC = () => {
                                                     {React.cloneElement(config.icon as React.ReactElement<any>, { size: 14 })}
                                                 </div>
                                                 <div>
-                                                    <h3 className="text-[11px] font-extrabold text-slate-800 uppercase tracking-tight leading-none">{stat.role}</h3>
+                                                    <h3 className="text-xs font-bold text-black uppercase  leading-none">{stat.role}</h3>
                                                     <div className="flex items-center gap-1 mt-1">
                                                         <span className={`w-1.5 h-1.5 rounded-full ${stat.active > 0 ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>
                                                         <span className="text-[9px] font-bold text-ind-text2 uppercase tracking-wider leading-none">{stat.active > 0 ? 'Active' : 'Offline'}</span>
@@ -337,16 +324,14 @@ const AdminAuditPage: React.FC = () => {
                 </section>
 
                 {/* Audit Logs Table */}
-                <section className="relative z-10">
-                    <div className="bg-white/90 backdrop-blur-xl rounded-2xl border border-white shadow-[0_4px_20px_rgb(0,0,0,0.03)] overflow-hidden flex flex-col h-[500px]">
-                        <div className="p-4 md:p-5 border-b border-ind-border/50 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center text-white shadow-md shadow-slate-900/10">
-                                    <Clock size={18} />
-                                </div>
+                <section className="relative z-10 px-2 pt-0 pb-2">
+                    <div className="bg-white/90 backdrop-blur-xl rounded-2xl border border-white shadow-[0_4px_20px_rgb(0,0,0,0.03)] overflow-hidden flex flex-col h-[460px]">
+                        <div className="py-2 px-4 border-b border-ind-border/50 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
+                            <div className="flex items-center gap-2">
+                                <div className="w-1.5 h-6 bg-[#f37021] rounded-full"></div>
                                 <div>
-                                    <h2 className="text-base font-extrabold text-ind-text tracking-tight leading-none">Activity Ledger</h2>
-                                    <p className="text-[11px] text-ind-text2 font-medium mt-1">Real-time audit trail of system operations</p>
+                                    <h2 className="text-base font-bold text-[#f37021] tracking-tight">Activity Ledger</h2>
+
                                 </div>
                             </div>
 
@@ -364,13 +349,13 @@ const AdminAuditPage: React.FC = () => {
 
                         <div className="overflow-x-auto overflow-y-auto flex-1">
                             <table className="w-full text-left relative text-[11px]">
-                                <thead className="sticky top-0 z-20">
-                                    <tr className="bg-ind-bg/95 backdrop-blur-xl shadow-sm">
-                                        <th className="px-5 py-2.5 text-left text-[10px] font-bold text-ind-text2 capitalize tracking-wide whitespace-nowrap">Timestamp</th>
-                                        <th className="px-5 py-2.5 text-left text-[10px] font-bold text-ind-text2 capitalize tracking-wide">User Profile</th>
-                                        <th className="px-5 py-2.5 text-left text-[10px] font-bold text-ind-text2 capitalize tracking-wide">Action Performed</th>
-                                        <th className="px-5 py-2.5 text-left text-[10px] font-bold text-ind-text2 capitalize tracking-wide">Network / IP Address</th>
-                                        <th className="px-5 py-2.5 text-center text-[10px] font-bold text-ind-text2 capitalize tracking-wide">Current Status</th>
+                                <thead className="sticky top-0 z-20 bg-ind-bg text-black border-b-2 border-[#f37021] uppercase text-[11px] tracking-wider sticky top-0 z-[50]">
+                                    <tr className="">
+                                        <th className="px-5 py-2.5 text-left text-[10px] font-bold text-black capitalize tracking-wide whitespace-nowrap">Timestamp</th>
+                                        <th className="px-5 py-2.5 text-left text-[10px] font-bold text-black capitalize tracking-wide">User Profile</th>
+                                        <th className="px-5 py-2.5 text-left text-[10px] font-bold text-black capitalize tracking-wide">Action Performed</th>
+                                        <th className="px-5 py-2.5 text-left text-[10px] font-bold text-black capitalize tracking-wide">Network / IP Address</th>
+                                        <th className="px-5 py-2.5 text-center text-[10px] font-bold text-black capitalize tracking-wide">Current Status</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100/80">
@@ -445,7 +430,7 @@ const AdminAuditPage: React.FC = () => {
                         </div>
 
                         {/* Pagination */}
-                        <div className="px-8 py-5 bg-ind-bg/50 border-t border-ind-border/50 flex items-center justify-between">
+                        <div className="p-2 bg-ind-bg/50 border-t border-ind-border/50 flex items-center justify-between">
                             <div className="text-sm font-semibold text-ind-text2">
                                 Showing <span className="text-ind-text font-extrabold">Page {page}</span> of <span className="text-ind-text font-extrabold">{totalPages}</span>
                                 <span className="mx-2 text-ind-text3">|</span>

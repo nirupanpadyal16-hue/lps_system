@@ -74,18 +74,26 @@ const ModelRegisterPage = () => {
     };
 
     return (
-        <div className="w-full min-h-[calc(100vh-4rem)] flex items-start justify-center pt-24 pb-12 p-4 font-sans bg-ind-bg/50">
-        <motion.div
-            initial={{ opacity: 0, scale: 0.98, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.4, ease: "easeOut" }}
-            className="bg-white rounded-[2rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.08)] w-full max-w-lg text-left overflow-hidden relative border border-ind-border/50/60"
-        >
+        <div className="w-full min-h-[calc(100vh-4rem)] flex items-start justify-center p-2 bg-ind-bg/50">
+            {/* <div className="space-y-3">
+                            <h2 className="text-3xl font-black text-ind-text uppercase tracking-tight">Model Registered</h2>
+                            <p className="text-ind-text2 font-bold text-sm max-w-[280px] leading-relaxed">
+                                <span className="text-ind-primary">{name}</span> has been initialized with a target of <span className="text-slate-800">{quantity} units</span>.
+                            </p>
+                        </div> */}
+
+
+            <motion.div
+                initial={{ opacity: 0, scale: 0.98, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ duration: 0.4, ease: "easeOut" }}
+                className="bg-white rounded-2xl w-full text-left overflow-hidden relative border border-slate-100"
+            >
                 {showSuccess ? (
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        className="p-14 flex flex-col items-center text-center space-y-8"
+                        className="p-4 flex flex-col items-center text-center space-y-8"
                     >
                         <motion.div
                             initial={{ scale: 0 }}
@@ -96,12 +104,7 @@ const ModelRegisterPage = () => {
                             <CheckCircle2 size={48} strokeWidth={2.5} />
                         </motion.div>
 
-                        <div className="space-y-3">
-                            <h2 className="text-3xl font-black text-ind-text uppercase tracking-tight">Model Registered</h2>
-                            <p className="text-ind-text2 font-bold text-sm max-w-[280px] leading-relaxed">
-                                <span className="text-ind-primary">{name}</span> has been initialized with a target of <span className="text-slate-800">{quantity} units</span>.
-                            </p>
-                        </div>
+
 
                         <div className="w-full bg-ind-bg/50 rounded-[2rem] p-8 border border-ind-border/50/60 flex flex-col items-center justify-center text-center">
                             <span className="text-[9px] font-black text-ind-text3 uppercase tracking-widest mb-1">Target Quantity</span>
@@ -125,19 +128,14 @@ const ModelRegisterPage = () => {
                 ) : (
                     <>
                         {/* Header Section - Industrial Style */}
-                        <div className="p-8 pb-7 border-b border-slate-50 relative overflow-hidden group">
+                        <div className="px-4 py-3 border-b border-slate-50 relative overflow-hidden group">
                             <div className="absolute top-0 right-0 p-8 -mr-4 -mt-4 opacity-[0.03] group-hover:opacity-[0.05] transition-opacity duration-700 pointer-events-none">
                                 <Target size={120} strokeWidth={1} />
                             </div>
 
                             <div className="relative z-10 flex justify-between items-start">
                                 <div className="space-y-1">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <div className="bg-[#F37021] p-1.5 rounded-lg shadow-md shadow-orange-500/10">
-                                            <Target size={14} className="text-white" strokeWidth={3} />
-                                        </div>
-                                        <span className="text-[11px] font-bold tracking-wide text-ind-text3">Production setup</span>
-                                    </div>
+
                                     <h2 className="text-2xl font-black text-ind-text tracking-tight">
                                         Register model
                                     </h2>
@@ -153,17 +151,14 @@ const ModelRegisterPage = () => {
                             </div>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="p-8 space-y-6">
+                        <form onSubmit={handleSubmit} className="p-4 space-y-2">
                             {/* SECTION 1: CORE DEFINITION */}
-                            <div className="space-y-4">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-1 h-3 bg-[#F37021] rounded-full" />
-                                    <span className="text-[11px] font-bold text-ind-text3 tracking-wide">Core model definition</span>
-                                </div>
+                            <div className="space-y-2">
+
 
                                 {/* Vehicle Model Name */}
                                 <div className="space-y-1.5">
-                                    <label className="text-[11px] font-bold text-ind-text2 tracking-wide ml-1">Vehicle model name</label>
+                                    <label className="text-sm font-bold text-black tracking-wide ml-1">Vehicle Model Name</label>
                                     <div className="relative group">
                                         <div className="absolute left-5 top-1/2 -translate-y-1/2 text-ind-text3 group-focus-within:text-ind-primary transition-all duration-300">
                                             <Car size={18} strokeWidth={2.5} />
@@ -173,7 +168,7 @@ const ModelRegisterPage = () => {
                                             value={name}
                                             onChange={e => setName(e.target.value)}
                                             placeholder="e.g. Scorpio N v2.0"
-                                            className="w-full bg-ind-bg/50 border-2 border-ind-border/50 rounded-2xl py-4.5 pl-14 pr-6 text-slate-800 font-bold text-sm outline-none focus:border-ind-primary focus:bg-white focus:ring-8 focus:ring-orange-500/[0.03] transition-all placeholder:text-ind-text3 shadow-sm"
+                                            className="w-full bg-white border border-slate-200 rounded-2xl py-3 pl-14 pr-6 text-black font-medium text-sm outline-none focus:border-ind-primary focus:bg-white focus:ring-8 focus:ring-orange-500/[0.03] transition-all placeholder:text-ind-text3 "
                                             required
                                         />
                                     </div>
@@ -182,20 +177,17 @@ const ModelRegisterPage = () => {
 
                             {/* SECTION 2: LINE ASSIGNMENT & TARGETS */}
                             <div className="space-y-4 pt-1">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-1 h-3 bg-[#F37021] rounded-full" />
-                                    <span className="text-[11px] font-bold text-ind-text3 tracking-wide">Line & production targets</span>
-                                </div>
+
 
                                 <div className="space-y-1.5">
-                                    <label className="text-[11px] font-bold text-ind-text2 tracking-wide ml-1">Production target quantity</label>
+                                    <label className="text-sm font-bold text-black tracking-wide ml-1">Production target quantity</label>
                                     <div className="relative group">
                                         <input
                                             type="number"
                                             placeholder="Enter total units"
                                             value={quantity}
                                             onChange={(e) => setQuantity(e.target.value)}
-                                            className="w-full bg-ind-bg/50 border-2 border-ind-border/50 rounded-2xl py-5 px-6 text-slate-800 font-black text-center text-xl outline-none focus:border-ind-primary focus:bg-white focus:ring-8 focus:ring-orange-500/[0.03] transition-all placeholder:text-slate-200 shadow-sm"
+                                            className="w-full bg-white border border-slate-200 rounded-2xl py-3 pl-4 pr-6 text-black font-medium text-sm outline-none focus:border-ind-primary focus:bg-white focus:ring-8 focus:ring-orange-500/[0.03] transition-all placeholder:text-ind-text3 "
                                             required
                                         />
                                         <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-slate-200 group-focus-within:text-emerald-500 transition-all">
@@ -209,7 +201,7 @@ const ModelRegisterPage = () => {
                                 {/* Row: Date & Customer */}
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-1.5">
-                                        <label className="text-[11px] font-bold text-ind-text2 tracking-wide ml-1">Month (start)</label>
+                                        <label className="text-sm font-bold text-black tracking-wide ml-1">Month (start)</label>
                                         <div className="relative group">
                                             <div className="absolute left-5 top-1/2 -translate-y-1/2 pointer-events-none text-ind-text3 group-focus-within:text-ind-primary transition-all">
                                                 <Calendar size={18} strokeWidth={2.5} />
@@ -218,14 +210,14 @@ const ModelRegisterPage = () => {
                                                 type="date"
                                                 value={startDate}
                                                 onChange={(e) => setStartDate(e.target.value)}
-                                                className="w-full bg-ind-bg/50 border-2 border-ind-border/50 rounded-2xl py-4 pl-14 pr-6 text-slate-800 font-bold text-sm outline-none focus:border-ind-primary focus:bg-white focus:ring-8 focus:ring-orange-500/[0.03] transition-all tracking-tight shadow-sm"
+                                                className="w-full bg-white border border-slate-200 rounded-2xl py-3 pl-14 pr-6 text-black font-medium text-sm outline-none focus:border-ind-primary focus:bg-white focus:ring-8 focus:ring-orange-500/[0.03] transition-all placeholder:text-ind-text3 "
                                                 required
                                             />
                                         </div>
                                     </div>
 
                                     <div className="space-y-1.5">
-                                        <label className="text-[11px] font-bold text-ind-text2 tracking-wide ml-1">Customer / client</label>
+                                        <label className="text-sm font-bold text-black tracking-wide ml-1">Customer / client</label>
                                         <div className="relative group">
                                             <div className="absolute left-5 top-1/2 -translate-y-1/2 pointer-events-none text-ind-text3 group-focus-within:text-ind-primary transition-all">
                                                 <Briefcase size={18} strokeWidth={2.5} />
@@ -235,7 +227,7 @@ const ModelRegisterPage = () => {
                                                 placeholder="e.g. Export Div"
                                                 value={customer}
                                                 onChange={(e) => setCustomer(e.target.value)}
-                                                className="w-full bg-ind-bg/50 border-2 border-ind-border/50 rounded-2xl py-4 pl-14 pr-6 text-slate-800 font-bold text-sm outline-none focus:border-ind-primary focus:bg-white focus:ring-8 focus:ring-orange-500/[0.03] transition-all placeholder:text-ind-text3 shadow-sm"
+                                                className="w-full bg-white border border-slate-200 rounded-2xl py-3 pl-14 pr-6 text-black font-medium text-sm outline-none focus:border-ind-primary focus:bg-white focus:ring-8 focus:ring-orange-500/[0.03] transition-all placeholder:text-ind-text3 "
                                                 required
                                             />
                                         </div>
@@ -244,18 +236,18 @@ const ModelRegisterPage = () => {
                             </div>
 
                             {/* Actions */}
-                            <div className="flex gap-4 pt-4">
+                            <div className="flex justify-end gap-4 pt-4">
                                 <button
                                     type="button"
                                     onClick={() => navigate(-1)}
-                                    className="px-6 py-4 border-2 border-ind-border/50 text-ind-text3 rounded-2xl font-bold text-[11px] tracking-wide hover:border-ind-border hover:text-ind-text2 transition-all flex items-center justify-center shrink-0"
+                                    className="px-6 py-3 border-2 border-ind-border/50 text-ind-text3 rounded-2xl font-bold text-[11px] tracking-wide hover:border-ind-border hover:text-ind-text2 transition-all flex items-center justify-center shrink-0"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={loading}
-                                    className="flex-1 bg-gradient-to-r from-[#F37021] to-[#e65a00] text-white py-4 rounded-2xl font-bold text-[11px] tracking-widest shadow-xl shadow-orange-500/20 hover:shadow-orange-500/40 hover:-translate-y-0.5 active:scale-[0.98] transition-all flex items-center justify-center gap-3 group disabled:opacity-70 disabled:translate-y-0"
+                                    className="px-6 py-3 bg-gradient-to-r from-[#F37021] to-[#e65a00] text-white  rounded-2xl font-bold text-sm   flex items-center justify-center gap-3 group disabled:opacity-70 disabled:translate-y-0"
                                 >
                                     {loading ? (
                                         <motion.div

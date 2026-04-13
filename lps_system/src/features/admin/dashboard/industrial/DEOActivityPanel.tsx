@@ -71,7 +71,7 @@ export const DEOActivityPanel: React.FC<Props> = ({ deos, isLoading }) => {
 
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center justify-between gap-2 mb-1">
-                                            <span className="font-bold text-gray-800 text-xs truncate">{deo.name}</span>
+                                            <span className="font-bold text-gray-800 text-sm truncate capitalize">{deo.name}</span>
                                             <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded border text-[0.5rem] font-bold ${statusColor}`}>
                                                 {deo.log_status}
                                             </span>

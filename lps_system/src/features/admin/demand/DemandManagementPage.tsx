@@ -275,11 +275,11 @@ const DemandManagementPage = () => {
 
             {/* Scrollable Content Area */}
             <div className="px-2 py-2">
-                <div className="overflow-x-auto rounded-2xl border border-ind-border/50 shadow-sm">
+                <div className="overflow-x-auto rounded-2xl border border-ind-border/50 shadow-sm h-[calc(100vh-200px)] overflow-y-auto">
                     <table className="min-w-full bg-white text-sm">
 
                         {/* Header */}
-                        <thead className="bg-ind-bg text-black border-b-2 border-[#f37021] uppercase text-[11px] tracking-wider">
+                        <thead className="bg-ind-bg text-black border-b-2 border-[#f37021] uppercase text-[11px] tracking-wider sticky top-0 z-[50]">
                             <tr>
                                 <th className="px-6 py-2 text-left">Demand</th>
                                 <th className="px-6 py-2 text-center">Status</th>
@@ -420,13 +420,13 @@ const DemandManagementPage = () => {
                             exit={{ opacity: 0, scale: 0.95, y: 20 }}
                             className="fixed inset-0 z-[90] flex items-center justify-center pointer-events-none p-4"
                         >
-                            <div className="w-full max-w-2xl bg-white rounded-[3rem] shadow-2xl overflow-hidden pointer-events-auto border border-ind-border/50 relative group/modal">
+                            <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden pointer-events-auto border border-ind-border/50 relative group/modal">
                                 {/* Header Decorative Elements */}
                                 <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-br from-orange-500/5 to-transparent pointer-events-none" />
 
-                                <div className="p-10 relative">
+                                <div className="p-8 relative">
                                     {/* Modal Header */}
-                                    <div className="flex justify-between items-start mb-10">
+                                    <div className="flex justify-between items-start pb-2 mb-2 border-b border-slate-100">
                                         <div className="flex items-center gap-6">
                                             <div className="w-16 h-16 bg-[#F37021] rounded-2xl flex items-center justify-center text-white shadow-xl shadow-orange-500/20">
                                                 <Car size={32} />
@@ -452,17 +452,17 @@ const DemandManagementPage = () => {
                                     </div>
 
                                     {/* Main Content Grid */}
-                                    <div className="grid grid-cols-2 gap-8 mb-4">
+                                    <div className="grid grid-cols-2 gap-2 mb-4">
                                         {/* Left Side: General Info */}
-                                        <div className="space-y-6">
-                                            <div className="bg-ind-bg/50 rounded-3xl p-6 border border-ind-border/50/50">
-                                                <h4 className="text-[10px] font-black text-ind-text3 uppercase tracking-widest mb-6 flex items-center gap-2">
+                                        <div className="space-y-2">
+                                            <div className="bg-ind-bg/50 rounded-3xl p-6 border border-slate-100">
+                                                <h4 className="text-[10px] font-black text-black uppercase tracking-widest mb-2 flex items-center gap-2">
                                                     <MapPin size={12} className="text-ind-primary" /> Production Context
                                                 </h4>
-                                                <div className="space-y-4">
+                                                <div className="space-y-2">
                                                     <div>
                                                         <span className="text-[8px] font-black text-ind-text3 uppercase tracking-widest block mb-1">Production Line</span>
-                                                        <span className="text-xs font-black text-slate-800 uppercase italic underline decoration-orange-200">{selectedInfoDemand.line || 'No Line Assigned'}</span>
+                                                        <span className="text-xs font-bold text-slate-800 uppercase italic underline decoration-orange-200">{selectedInfoDemand.line || 'No Line Assigned'}</span>
                                                     </div>
                                                     <div>
                                                         <span className="text-[8px] font-black text-ind-text3 uppercase tracking-widest block mb-1">Customer / Division</span>
@@ -471,11 +471,11 @@ const DemandManagementPage = () => {
                                                 </div>
                                             </div>
 
-                                            <div className="bg-ind-bg/50 rounded-3xl p-6 border border-ind-border/50/50">
-                                                <h4 className="text-[10px] font-black text-ind-text3 uppercase tracking-widest mb-6 flex items-center gap-2">
+                                            <div className="bg-ind-bg/50 rounded-3xl p-6 border border-slate-100">
+                                                <h4 className="text-[10px] font-bold text-black uppercase tracking-widest mb-2 flex items-center gap-2">
                                                     <Clock size={12} className="text-ind-primary" /> Timeline Details
                                                 </h4>
-                                                <div className="space-y-4">
+                                                <div className="space-y-2">
                                                     <div className="flex justify-between items-center group/item">
                                                         <span className="text-[9px] font-black text-ind-text3 uppercase tracking-widest">Start Date</span>
                                                         <span className="text-xs font-black text-ind-text group-hover:text-ind-primary transition-colors tabular-nums">{selectedInfoDemand.start_date || '—'}</span>
@@ -491,7 +491,7 @@ const DemandManagementPage = () => {
                                         {/* Right Side: Assignment Info */}
                                         <div className="space-y-6">
                                             <div className="bg-orange-50/30 rounded-3xl p-6 border border-orange-100/50">
-                                                <h4 className="text-[10px] font-black text-ind-text3 uppercase tracking-widest mb-6 flex items-center gap-2">
+                                                <h4 className="text-[10px] font-black text-black uppercase tracking-widest mb-2 flex items-center gap-2">
                                                     <UserCheck size={12} className="text-ind-primary" /> Assigned Personnel
                                                 </h4>
 
@@ -533,7 +533,7 @@ const DemandManagementPage = () => {
                                     </div>
                                     <button
                                         onClick={() => setSelectedInfoDemand(null)}
-                                        className="w-full py-5 bg-slate-900 text-white rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-slate-900/10 hover:shadow-slate-900/20 active:scale-95 transition-all text-center"
+                                        className="bg-[#F37021] text-white py-3 px-3 rounded-2xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-orange-500/20 hover:shadow-orange-500/40 hover:-translate-y-1 transition-all flex items-center justify-center gap-3 overflow-hidden group w-full"
                                     >
                                         Close Detailed View
                                     </button>
@@ -596,7 +596,7 @@ const DemandManagementPage = () => {
                                             onClick={() => setIsDeleteModalOpen(false)}
                                             className="py-4 bg-ind-bg text-ind-text3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-ind-border/30 hover:text-ind-text2 transition-all border border-ind-border/50"
                                         >
-Cancel                                        </button>
+                                            Cancel                                        </button>
                                         <button
                                             onClick={confirmDelete}
                                             className="py-4 bg-rose-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-rose-700 shadow-lg shadow-rose-200 transition-all transform hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2"

@@ -446,12 +446,12 @@ const OrderInboxPage = () => {
                 )}
             </AnimatePresence>
 
-            <div className="bg-white border-b border-ind-border px-8 py-5 flex items-center justify-between shrink-0">
+            <div className="bg-white border-b border-ind-border px-8 py-2 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-4">
-                    <div className="bg-ind-border/30 p-2.5 rounded-lg border border-ind-border"><Inbox size={24} className="text-ind-text2" /></div>
+                    <div className="bg-ind-border/30 p-2 rounded-lg border border-ind-border"><Inbox size={24} className="text-ind-text2" /></div>
                     <div>
                         <h1 className="text-xl font-bold text-ind-text tracking-tight">Order Requests inbox</h1>
-                        <p className="text-sm font-medium text-ind-text2">Persistent mail tracking and sections</p>
+                      
                     </div>
                 </div>
                 <div className="flex items-center gap-4">
@@ -503,7 +503,7 @@ const OrderInboxPage = () => {
                 <div className="flex-1 flex flex-col bg-white m-4 rounded-xl border border-ind-border shadow-sm overflow-hidden">
                     {selectedEmail ? (
                         <>
-                            <div className="p-6 border-b border-ind-border/50 bg-ind-bg/50">
+                            <div className="px-6 py-3 border-b border-ind-border/50 bg-ind-bg/50">
                                 <div className="flex items-start justify-between">
                                     <div className="flex gap-4 items-start">
                                         <div className="w-12 h-12 rounded-full bg-ind-border/50 flex items-center justify-center text-ind-text2"><User size={24} /></div>
@@ -515,7 +515,7 @@ const OrderInboxPage = () => {
                                     </div>
                                     <button onClick={() => handleDeleteEmail(selectedEmail.id)} className="p-2 text-ind-text3 hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={18} /></button>
                                 </div>
-                                <div className="mt-6 bg-white rounded-lg p-5 border border-ind-border shadow-sm">
+                                <div className="mt-2 bg-white rounded-lg px-5 py-2 border border-ind-border shadow-sm">
                                     <div className="grid grid-cols-3 gap-6 divide-x divide-slate-100">
                                         <div className="pl-2 flex flex-col gap-1"><span className="text-[10px] font-bold text-ind-text3 uppercase tracking-widest">Model Detected</span><span className="text-sm font-bold text-ind-text">{selectedEmail.parsed_model}</span></div>
                                         <div className="pl-6 flex flex-col gap-1"><span className="text-[10px] font-bold text-ind-text3 uppercase tracking-widest">Quantity</span><span className="text-sm font-bold text-ind-text">{selectedEmail.parsed_quantity} Units</span></div>
@@ -523,8 +523,8 @@ const OrderInboxPage = () => {
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex-1 p-8 overflow-y-auto font-medium text-slate-700 text-sm whitespace-pre-wrap leading-relaxed">{selectedEmail.body}</div>
-                            <div className="p-5 bg-ind-bg border-t border-ind-border flex justify-end gap-3">
+                            <div className="break-all flex-1 p-8 overflow-y-auto font-medium text-slate-700 text-sm whitespace-pre-wrap leading-relaxed">{selectedEmail.body}</div>
+                            <div className="px-5 py-2 bg-ind-bg border-t border-ind-border flex justify-end gap-3">
                                 <button onClick={() => setIsRejectModalOpen(true)} disabled={selectedEmail.status === 'PROCESSED' || selectedEmail.status === 'REJECTED'} className="px-6 py-2.5 bg-white border border-slate-300 text-slate-700 font-bold text-sm rounded-lg hover:bg-ind-border/30 disabled:opacity-30">Reject Mail</button>
                                 <button
                                     onClick={() => setIsConfirmAuthOpen(true)}

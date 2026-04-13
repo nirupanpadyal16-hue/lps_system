@@ -48,7 +48,7 @@ export const LineStatusBoard: React.FC<Props> = ({ lines, isLoading }) => {
                 </div>
                 <div className="flex items-center gap-2">
                     {isLoading && <Loader2 size={14} className="text-indigo-400 animate-spin" />}
-                    <span className="text-[0.6rem] font-bold text-black uppercase tracking-widest">
+                    <span className="text-sm font-bold text-black uppercase tracking-widest">
                         {lines.length} Line{lines.length !== 1 ? 's' : ''}
                     </span>
                 </div>
@@ -81,7 +81,7 @@ export const LineStatusBoard: React.FC<Props> = ({ lines, isLoading }) => {
 
                                     {/* Line + Model */}
                                     <div className="mb-2">
-                                        <div className="text-[0.6rem] font-black text-black uppercase tracking-[0.15em] mb-0.5">{line.line_name}</div>
+                                        <div className="text-xs font-black text-black uppercase tracking-[0.15em] mb-0.5">{line.line_name}</div>
                                         {/* <div className="text-base font-black text-gray-800 truncate">{line.model}</div> */}
                                         {line.model_code && (
                                             <div className="text-[0.55rem] text-gray-400 font-mono">{line.model_code}</div>
@@ -92,13 +92,13 @@ export const LineStatusBoard: React.FC<Props> = ({ lines, isLoading }) => {
                                     <div className="space-y-1.5 mb-3">
                                         <div className="flex items-center gap-2">
                                             <User size={11} className="text-teal-500 shrink-0" />
-                                            <span className="text-[0.65rem] font-semibold text-gray-600 truncate">{line.deo_name}</span>
-                                            <span className="text-[0.5rem] text-gray-400 ml-auto shrink-0">DEO</span>
+                                            <span className="text-xs capitalize font-semibold text-gray-600 truncate">{line.deo_name}</span>
+                                            <span className="text-xs text-gray-800 font-medium ml-auto shrink-0">DEO</span>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <UserCheck size={11} className="text-indigo-500 shrink-0" />
-                                            <span className="text-[0.65rem] font-semibold text-gray-600 truncate">{line.supervisor_name}</span>
-                                            <span className="text-[0.5rem] text-gray-400 ml-auto shrink-0">SUP</span>
+                                            <span className="text-xs capitalize font-semibold text-gray-600 truncate">{line.supervisor_name}</span>
+                                            <span className="text-xs text-gray-800 font-medium ml-auto shrink-0">SUP</span>
                                         </div>
                                     </div>
 

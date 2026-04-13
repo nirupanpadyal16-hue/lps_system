@@ -156,7 +156,7 @@ export const DEODetailModal: React.FC<DEODetailModalProps> = ({ isOpen, onClose,
                         <div className="p-8 pt-2 pb-8">
                             <button 
                                 onClick={onClose}
-                                className="w-full py-4 bg-[#0F172A] text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-slate-900/20 hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2"
+                                className="bg-[#F37021] text-white py-3 px-3 rounded-2xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-orange-500/20 hover:shadow-orange-500/40 hover:-translate-y-1 transition-all flex items-center justify-center gap-3 overflow-hidden group w-full"
                             >
                                 Close Detailed View
                             </button>

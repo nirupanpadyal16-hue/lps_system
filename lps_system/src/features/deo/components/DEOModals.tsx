@@ -293,7 +293,7 @@ export const ModelDetailModal: React.FC<ModelDetailModalProps> = ({ model, onClo
 
                         <button
                             onClick={onClose}
-                            className="w-full py-6 bg-slate-900 text-white rounded-[1.5rem] font-black text-xs uppercase tracking-[0.2em] hover:bg-[#F37021] transition-all active:scale-95 shadow-xl shadow-slate-200 mt-6"
+                            className="bg-[#F37021] text-white py-3 px-3 rounded-2xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-orange-500/20 hover:shadow-orange-500/40 hover:-translate-y-1 transition-all flex items-center justify-center gap-3 overflow-hidden group w-full"
                         >
                             Close Detailed View
                         </button>

@@ -136,15 +136,15 @@ export const IssuesAlertTable: React.FC<Props> = ({ issues, isLoading }) => {
             {/* HIGH DENSITY TABLE CHART */}
             <div className="overflow-x-auto min-h-[400px]">
                 <table className="w-full border-collapse">
-                    <thead>
+                    <thead className='bg-white border-b-2 border-[#f37021] text-xs font-bold text-black uppercase tracking-wider'>
                         <tr className="bg-gray-50/80 border-b border-gray-100">
-                            <th className="px-6 py-3 text-left text-[0.65rem] font-black text-black uppercase tracking-[0.1em]">Details</th>
-                            <th className="px-4 py-3 text-left text-[0.65rem] font-black text-black uppercase tracking-[0.1em]">Event Type</th>
-                            <th className="px-4 py-3 text-left text-[0.65rem] font-black text-black uppercase tracking-[0.1em]">Severity</th>
-                            <th className="px-4 py-3 text-left text-[0.65rem] font-black text-black uppercase tracking-[0.1em]">Model/Line</th>
-                            <th className="px-4 py-3 text-left text-[0.65rem] font-black text-black uppercase tracking-[0.1em]">Metric / Reason</th>
-                            <th className="px-4 py-3 text-left text-[0.65rem] font-black text-black uppercase tracking-[0.1em]">Personnel</th>
-                            <th className="px-6 py-3 text-right"></th>
+                            <th className="px-6 py-2 text-left text-[0.65rem] font-black text-black uppercase tracking-[0.1em]">Details</th>
+                            <th className="px-4 py-2 text-left text-[0.65rem] font-black text-black uppercase tracking-[0.1em]">Event Type</th>
+                            <th className="px-4 py-2 text-left text-[0.65rem] font-black text-black uppercase tracking-[0.1em]">Severity</th>
+                            <th className="px-4 py-2 text-left text-[0.65rem] font-black text-black uppercase tracking-[0.1em]">Model/Line</th>
+                            <th className="px-4 py-2 text-left text-[0.65rem] font-black text-black uppercase tracking-[0.1em]">Metric / Reason</th>
+                            <th className="px-4 py-2 text-left text-[0.65rem] font-black text-black uppercase tracking-[0.1em]">Personnel</th>
+                            <th className="px-6 py-2 text-right"></th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">

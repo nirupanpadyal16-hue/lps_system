@@ -98,7 +98,7 @@ const LoginPage = () => {
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
                                     placeholder="Enter your username"
-                                    className="w-full bg-ind-bg border-2 border-ind-border/50/50 rounded-2xl py-3.5 pl-12 pr-4 text-slate-700 placeholder:text-ind-text3 focus:bg-white focus:border-ind-primary focus:ring-4 focus:ring-orange-500/10 transition-all font-bold outline-none"
+                                    className="w-full bg-ind-bg border-2 border-slate-200 rounded-2xl py-3.5 pl-12 pr-4 text-slate-700 placeholder:text-ind-text3 focus:bg-white focus:border-ind-primary focus:ring-4 focus:ring-orange-500/10 transition-all font-bold outline-none"
                                     required
                                 />
                             </div>
@@ -113,7 +113,7 @@ const LoginPage = () => {
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     placeholder="••••••••"
-                                    className="w-full bg-ind-bg border-2 border-ind-border/50/50 rounded-2xl py-3.5 pl-12 pr-4 text-slate-700 placeholder:text-ind-text3 focus:bg-white focus:border-ind-primary focus:ring-4 focus:ring-orange-500/10 transition-all font-bold outline-none"
+                                    className="w-full bg-ind-bg border-2 border-slate-200 rounded-2xl py-3.5 pl-12 pr-4 text-slate-700 placeholder:text-ind-text3 focus:bg-white focus:border-ind-primary focus:ring-4 focus:ring-orange-500/10 transition-all font-bold outline-none"
                                     required
                                 />
                             </div>
@@ -146,8 +146,8 @@ const LoginPage = () => {
                         </button>
                     </form>
 
-                    <div className="mt-12 text-center space-y-4">
-                        <p className="text-[9px] font-black text-slate-200 uppercase tracking-widest">CIE AUTOMOTIVE PRODUCTION SYSTEM V3.0</p>
+                    <div className="mt-4 text-center space-y-4">
+                        <p className="text-[9px] font-black text-slate-800 uppercase tracking-widest">CIE AUTOMOTIVE PRODUCTION SYSTEM V3.0</p>
 
                     </div>
                 </div>

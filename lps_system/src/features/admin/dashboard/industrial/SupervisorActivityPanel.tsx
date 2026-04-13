@@ -75,7 +75,7 @@ export const SupervisorActivityPanel: React.FC<Props> = ({ supervisors, isLoadin
                                 initial={{ opacity: 0, x: -12 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ delay: i * 0.06 }}
-                                className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl p-3 hover:bg-white hover:shadow-sm transition-all"
+                                className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl p-2 hover:bg-white hover:shadow-sm transition-all"
                             >
                                 {/* Avatar */}
                                 <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-[0.65rem] font-black shrink-0 shadow">
@@ -84,7 +84,7 @@ export const SupervisorActivityPanel: React.FC<Props> = ({ supervisors, isLoadin
 
                                 {/* Info */}
                                 <div className="flex-1 min-w-0">
-                                    <div className="font-bold text-gray-800 text-xs truncate">{sup.name}</div>
+                                    <div className="font-bold text-gray-800 text-sm truncate capitalize">{sup.name}</div>
                                     <div className="text-[0.55rem] text-gray-400 mb-1.5">
                                         {sup.assigned_models.length > 0
                                             ? sup.assigned_models.slice(0, 2).join(', ') + (sup.assigned_models.length > 2 ? '…' : '')
@@ -92,13 +92,13 @@ export const SupervisorActivityPanel: React.FC<Props> = ({ supervisors, isLoadin
                                     </div>
                                     {/* Stats chips */}
                                     <div className="flex items-center gap-1.5 flex-wrap">
-                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[0.5rem] font-bold bg-emerald-50 text-emerald-700">
+                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700">
                                             <CheckCircle2 size={8} /> {sup.logs_approved_today} Approved
                                         </span>
-                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[0.5rem] font-bold bg-amber-50 text-amber-700">
+                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700">
                                             <Clock size={8} /> {sup.logs_pending_review} Pending
                                         </span>
-                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[0.5rem] font-bold bg-red-50 text-red-700">
+                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-50 text-red-700">
                                             <XCircle size={8} /> {sup.logs_rejected_today} Rejected
                                         </span>
                                     </div>
