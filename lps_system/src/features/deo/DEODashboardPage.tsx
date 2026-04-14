@@ -402,7 +402,7 @@ const DEODashboardPage = () => {
 
     return (
         <div className="h-full bg-ind-bg flex flex-col overflow-hidden">
-            <div className="flex-1 max-w-[1700px] mx-auto w-full px-0 lg:px-0 flex flex-col min-h-0">
+            <div className="flex-1 max-w-[1700px] mx-auto w-full px-0 lg:px-0 flex flex-col min-h-full max-h-full">
                 <AnimatePresence mode="wait">
                     <motion.div
                         key={activeTab}
