@@ -48,8 +48,8 @@ const ProductionPlanningPage = () => {
     const navigate = useNavigate();
     const [demand, setDemand] = useState<any>(null);
     const TRANSIENT_FIELDS = [
-        "TOTAL SCHEDULE QTY", "PER DAY", "SAP Stock", "Opening Stock",
-        "Todays Stock", "Coverage Days", "Balance Qty", "Production Status",
+        "TOTAL SCHEDULE QTY", "PER DAY", 
+        "Coverage Days", "Balance Qty", "Production Status",
         "Defect Count", "Failure Reason", "Remarks"
     ];
 

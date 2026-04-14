@@ -287,7 +287,7 @@ export const MailOrderSection: React.FC<Pick<MailOrderProps, 'orders'>> = ({ ord
                         </div>
 
                         {/* 🔹 Table Body */}
-                        <div className="border-b border-ind-border">
+                        <div className="border-b border-ind-border h-[calc(100vh-400px)] overflow-y-auto">
 
                             {filteredOrders.map((o) => {
                                 const isOpen = expandedOrderId === o.id;
