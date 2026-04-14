@@ -1,7 +1,7 @@
 import {
     ClipboardCheck, Clock, CheckCircle2, ShieldCheck, ChevronLeft, Database
 } from 'lucide-react';
-import { cn } from '../../../../lib/utils';
+import { cn } from '../../../../../lib/utils';
 
 interface SupervisorVerifyLogsProps {
     verifications: any[];
@@ -17,26 +17,26 @@ export const SupervisorVerifyLogs = ({
     setSelectedLog
 }: SupervisorVerifyLogsProps) => {
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
+        <div className="space-y-4 animate-in fade-in duration-500">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-3xl font-black text-ind-text uppercase tracking-tighter flex items-center gap-3">
-                        <ClipboardCheck className="text-ind-primary" size={28} strokeWidth={2.5} />
+                    <h2 className="text-[24px] font-black text-ind-text tracking-tight  leading-none">
+                       
                         Verify Daily Production
                     </h2>
 
                 </div>
                 <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-ind-border/50 shadow-sm">
-                    <div className="px-4 py-2 text-center">
-                        <span className="block text-[8px] font-black text-ind-text3 uppercase tracking-[0.2em] mb-1">Awaiting Review</span>
+                    <div className="px-4  gap-2 items-center flex text-center">
+                        <span className="block text-[8px] font-black text-ind-text3 uppercase tracking-[0.2em]">Awaiting Review</span>
                         <span className="text-lg font-black text-ind-primary">
                             {verifications.filter(v => v.status === 'PENDING' || v.status === 'SUBMITTED' || v.status === 'REJECTED' || !v.status).length}
                         </span>
                     </div>
                     <div className="w-px h-8 bg-ind-border/30" />
-                    <div className="px-4 py-2 text-center text-emerald-500">
-                        <span className="block text-[8px] font-black text-emerald-400 uppercase tracking-[0.2em] mb-1">System Status</span>
-                        <div className="flex items-center gap-1.5 justify-center mt-1">
+                    <div className="px-4  text-center text-emerald-500 gap-2 items-center flex">
+                        <span className="block text-[8px] font-black text-emerald-400 uppercase tracking-[0.2em]">System Status</span>
+                        <div className="flex items-center gap-1.5 justify-center ">
                             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                             <span className="text-[10px] font-black uppercase tracking-widest leading-none">Live Syncing</span>
                         </div>

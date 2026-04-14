@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import {
     ClipboardCheck, ArrowLeft, Clock, Shield, ShieldAlert, AlertCircle
 } from 'lucide-react';
-import { cn } from '../../../../lib/utils';
+import { cn } from '../../../../../lib/utils';
 import { SupervisorRowVerifyModal } from './SupervisorRowVerifyModal';
 
 interface LogDetailViewProps {
@@ -11,6 +11,7 @@ interface LogDetailViewProps {
     onBulkVerify: () => Promise<void>;
     onRejectLog: (reason: string) => Promise<void>;
     onRowVerify?: (rowIndex: number, status: 'VERIFIED' | 'REJECTED', reason?: string) => Promise<void>;
+    isVerifying?: boolean;
 }
 
 export const LogDetailView = ({
@@ -18,10 +19,9 @@ export const LogDetailView = ({
     setSelectedLog,
     onBulkVerify,
     onRejectLog,
-    onRowVerify
+    onRowVerify,
+    isVerifying = false
 }: LogDetailViewProps) => {
-    const [isApproving, setIsApproving] = useState(false);
-    const [isRejecting, setIsRejecting] = useState(false);
     const [selectedRowDetail, setSelectedRowDetail] = useState<any>(null);
 
     if (!selectedLog) return null;
@@ -56,15 +56,11 @@ export const LogDetailView = ({
     }, [logData]);
 
     const handleApproveAll = async () => {
-        setIsApproving(true);
         await onBulkVerify();
-        setIsApproving(false);
     };
 
     const handleRejectSubmit = async () => {
-        setIsRejecting(true);
         await onRejectLog("Log rejected for correction by Supervisor");
-        setIsRejecting(false);
     };
 
     const handleSingleRowVerify = async (rowIndex: number, status: 'VERIFIED' | 'REJECTED', reason: string = "") => {
@@ -171,21 +167,21 @@ export const LogDetailView = ({
                 <div className="overflow-x-auto custom-scrollbar" style={{ maxHeight: '550px' }}>
                     <table className="w-full min-w-[1200px] border-separate border-spacing-0">
                         <thead className="sticky top-0 z-20">
-                            <tr className="bg-ind-bg">
+                            <tr className="bg-slate-50 border-b-2 border-slate-200">
                                 {displayColumns.map((h, i) => (
                                     <th
                                         key={h}
                                         className={cn(
-                                            "px-3 py-4 text-[11px] font-bold text-ind-text3 text-center border-b border-ind-border/50 bg-ind-bg z-30 whitespace-nowrap",
+                                            "px-3 py-4 text-[10px] font-black uppercase tracking-widest text-center border-b border-slate-200 bg-slate-50 text-black z-30 whitespace-nowrap",
                                             i === 0 && "sticky left-0 text-left z-40",
                                             i === 1 && "sticky left-[40px] text-left z-40",
-                                            (h === "Sap stock" || h === "Opening stock" || h === "Todays stock") && "text-ind-primary bg-orange-50 border-orange-100"
+                                            (h === "Sap stock" || h === "Opening stock" || h === "Todays stock") && "bg-orange-50/50"
                                         )}
                                     >
                                         {labelMap[h] || h}
                                     </th>
                                 ))}
-                                <th className="px-3 py-4 text-[11px] font-bold text-ind-text3 text-center border-b border-ind-border/50 min-w-[150px] sticky right-0 bg-ind-bg z-30">Vetting action</th>
+                                <th className="px-3 py-4 text-[10px] font-black uppercase tracking-widest text-black text-center border-b border-slate-200 min-w-[150px] sticky right-0 bg-slate-50 z-30">Vetting action</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -302,19 +298,19 @@ export const LogDetailView = ({
                         <div className="flex items-center gap-4">
                             <button
                                 onClick={handleRejectSubmit}
-                                disabled={isRejecting}
+                                disabled={isVerifying}
                                 className="group flex items-center gap-3 bg-red-50 text-red-600 border-2 border-red-200 px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-red-100 hover:border-red-300 transition-all active:scale-95 disabled:opacity-50"
                             >
                                 <ShieldAlert size={16} className="group-hover:scale-110 transition-transform" />
-                                {isRejecting ? 'Sending Back...' : 'Not Verified — Send Back'}
+                                {isVerifying ? 'Processing...' : 'Not Verified — Send Back'}
                             </button>
                             <button
                                 onClick={handleApproveAll}
-                                disabled={isApproving}
+                                disabled={isVerifying}
                                 className="group flex items-center gap-3 bg-emerald-600 text-white px-10 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-emerald-500/20 hover:bg-emerald-700 hover:shadow-emerald-500/30 hover:-translate-y-0.5 transition-all active:scale-95 disabled:opacity-50"
                             >
                                 <Shield size={16} className="group-hover:rotate-12 transition-transform" />
-                                {isApproving ? 'Approving...' : 'Approve & Verify All'}
+                                {isVerifying ? 'Approving...' : 'Approve & Verify All'}
                             </button>
                         </div>
                     </div>

@@ -1,5 +1,5 @@
-import { API_BASE } from '../../lib/apiConfig';
-import { getToken } from '../../lib/storage';
+import { API_BASE } from '../../../lib/apiConfig';
+import { getToken } from '../../../lib/storage';
 
 export async function getPendingVerifications() {
     const token = getToken();

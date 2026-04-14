@@ -1,26 +1,18 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '../../lib/utils';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-    Activity,
+    LayoutGrid, Factory, Calendar, ChevronDown, ChevronUp, Search
 } from 'lucide-react';
 import { API_BASE } from '../../lib/apiConfig';
 import { getToken } from '../../lib/storage';
 import {
     DEO_DASHBOARD,
-    DEO_MODELS,
-    DEO_ENTRY,
-    DEO_REPORTS,
-    DEO_VERIFY,
-    DEO_NOTIFICATIONS,
     DEO_SHORTAGE
 } from '../../config/routePaths';
 import { CustomModal, RejectionModal } from './components/DEOModals';
-import { DEOModelList } from './components/DEOModelList';
-import { DEOProductionEntry } from './components/DEOProductionEntry';
-import { DEOSubmissionHistory } from './components/DEOSubmissionHistory';
 import { DEOStats } from './components/DEOStats';
+import { DEOAnalytics } from './components/DEOAnalytics';
 import DEOShortageRequests from './DEOShortageRequests';
 
 interface AssignedModel {
@@ -44,67 +36,99 @@ interface AssignedModel {
     actual_qty?: number;
 }
 
+const CustomSearchDropdown = ({
+    options,
+    value,
+    onChange,
+    placeholder,
+    searchPlaceholder,
+    allLabel
+}: any) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: any) => {
+            if (containerRef.current && !containerRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const filteredOptions = options.filter((o: any) => o.label.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    const selectedLabel = value === 'all' ? allLabel : options.find((o: any) => o.id === value)?.label || placeholder;
+
+    return (
+        <div className="relative flex-1" ref={containerRef}>
+            <div
+                className="w-full bg-transparent text-xs font-semibold text-ind-text flex items-center justify-between cursor-pointer"
+                onClick={() => setIsOpen(!isOpen)}
+            >
+                <span className="truncate pr-2">{selectedLabel}</span>
+                {isOpen ? <ChevronUp size={14} className="text-ind-text3 flex-shrink-0" /> : <ChevronDown size={14} className="text-ind-text3 flex-shrink-0" />}
+            </div>
+
+            {isOpen && (
+                <div className="absolute top-full -left-2 mt-3 w-[240px] bg-white rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] border border-ind-border z-50 overflow-hidden flex flex-col pt-3 pb-1 animate-in fade-in zoom-in-95 duration-200">
+                    <div className="px-3 pb-3 border-b border-ind-border/40">
+                        <div className="relative flex items-center border border-blue-500 rounded-lg overflow-hidden group focus-within:ring-4 focus-within:ring-blue-500/10 transition-all">
+                            <Search size={13} className="text-gray-400 ml-2.5 flex-shrink-0" />
+                            <input
+                                type="text"
+                                className="w-full py-1.5 px-2.5 text-[11px] font-semibold text-gray-800 outline-none placeholder:text-gray-400"
+                                placeholder={searchPlaceholder}
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onClick={(e) => e.stopPropagation()}
+                            />
+                        </div>
+                    </div>
+                    <div className="flex-1 max-h-[220px] overflow-y-auto custom-scrollbar pt-1">
+                        <div
+                            className={`px-5 py-2.5 text-[11px] font-black uppercase tracking-wider cursor-pointer flex items-center justify-between ${value === 'all' ? 'text-blue-600 bg-blue-50/50' : 'text-gray-600 hover:bg-gray-50'}`}
+                            onClick={() => { onChange('all'); setIsOpen(false); setSearchTerm(''); }}
+                        >
+                            {allLabel}
+                            {value === 'all' && <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />}
+                        </div>
+                        {filteredOptions.map((opt: any) => (
+                            <div
+                                key={opt.id}
+                                className={`px-5 py-2.5 text-[11px] font-black uppercase tracking-wider cursor-pointer flex items-center justify-between ${value === opt.id ? 'text-blue-600 bg-blue-50/50' : 'text-gray-600 hover:bg-gray-50'}`}
+                                onClick={() => { onChange(opt.id); setIsOpen(false); setSearchTerm(''); }}
+                            >
+                                {opt.label}
+                                {value === opt.id && <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 const DEODashboardPage = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const [assignedModels, setAssignedModels] = useState<AssignedModel[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [selectedModelId, setSelectedModelId] = useState<number | null>(null);
-    const [isEditingPart, setIsEditingPart] = useState(false);
-    const [modelFilter, setModelFilter] = useState<'ALL' | 'NEW' | 'ACCEPTED' | 'READY' | 'REJECTED'>('ALL');
+    const [selectedModelName, setSelectedModelName] = useState<string | null>(null);
     const [submissionHistory, setSubmissionHistory] = useState<any[]>([]);
+    const [shortageRequests, setShortageRequests] = useState<any[]>([]);
 
-    const entryModels = useMemo(() =>
-        assignedModels.filter(m =>
-            // In entry, only show accepted models that are NOT yet finished
-            m.deo_accepted &&
-            m.status?.toUpperCase() !== 'COMPLETED' &&
-            m.status?.toUpperCase() !== 'VERIFIED'
-        ),
-        [assignedModels]
-    );
+    /* 
+    // UNUSED FEATURES COMMENTED OUT
+    // const [isEditingPart, setIsEditingPart] = useState(false);
+    // const [modelFilter, setModelFilter] = useState<'ALL' | 'NEW' | 'ACCEPTED' | 'READY' | 'REJECTED'>('ALL');
+    // const [requirements, setRequirements] = useState<any[]>([]);
+    // const [demand, setDemand] = useState<any>(null);
+    */
 
-    const verifyModels = useMemo(() =>
-        assignedModels.filter(m => {
-            const isCompleted = m.status?.toUpperCase() === 'COMPLETED' || m.status?.toUpperCase() === 'VERIFIED';
-            if (!isCompleted) return false;
-
-            // For completed models, don't show them if they are rejected in history
-            const hasRejected = submissionHistory.some(s =>
-                (s.car_model_id === m.id || s.model_name === m.name) && s.status === 'REJECTED'
-            );
-            return !hasRejected;
-        }),
-        [assignedModels, submissionHistory]
-    );
-
-    // BOM Table State
-    const [requirements, setRequirements] = useState<any[]>([]);
-    const requirementsRef = useRef<any[]>([]); // To avoid stale closures in handleCellEdit
-    const [demand, setDemand] = useState<any>(null);
-    const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'offline'>('checking');
-
-    // Keep ref in sync for debounced handlers
-    useEffect(() => {
-        requirementsRef.current = requirements;
-    }, [requirements]);
-
-    const checkApi = async () => {
-        try {
-            const res = await fetch(`${API_BASE}/health`);
-            if (res.ok) setApiStatus('online');
-            else setApiStatus('offline');
-        } catch {
-            setApiStatus('offline');
-        }
-    };
-
-    useEffect(() => {
-        // Initial data check combined with the first layout sync
-        // No redundant 10s health check needed
-    }, []);
-    const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-    const [selectedHistoryLog, setSelectedHistoryLog] = useState<any>(null);
     const [modalConfig, setModalConfig] = useState<{
         isOpen: boolean;
         title: string;
@@ -122,27 +146,44 @@ const DEODashboardPage = () => {
     });
     const [rejectionModalData, setRejectionModalData] = useState<{ part: string; reason: string } | null>(null);
 
-    // Sync management: Debounce and sequence control
-    const syncTimeoutRef = useRef<any>(null);
-    const lastSyncTimeRef = useRef<number>(0);
-    const lineDropdownRef = useRef<HTMLDivElement>(null);
-
     // Dashboard Filters
     const [selectedLine, setSelectedLine] = useState('ALL LINES');
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-    const [isLineDropdownOpen, setIsLineDropdownOpen] = useState(false);
 
     const uniqueLines = useMemo(() => {
-        const lines = Array.from(new Set(assignedModels.map(m => m.line_name).filter(Boolean)));
-        return ['ALL LINES', ...lines.sort()];
-    }, [assignedModels]);
+        const linesSet = new Set<string>();
+        assignedModels.forEach(m => { if (m.line_name) linesSet.add(m.line_name); });
+        shortageRequests.forEach(r => {
+            if (r.line_name) linesSet.add(r.line_name);
+            else if (r.inventory_item?.line_name) linesSet.add(r.inventory_item.line_name);
+        });
+        return ['ALL LINES', ...Array.from(linesSet).sort()];
+    }, [assignedModels, shortageRequests]);
+
+    const availableModels = useMemo(() => {
+        const names = new Set<string>();
+        assignedModels.forEach(m => { if (m.name) names.add(m.name); });
+        shortageRequests.forEach(r => {
+            const name = r.inventory_item?.vehicle_name || r.vehicle_name;
+            if (name) names.add(name);
+        });
+        return Array.from(names).sort().map(name => ({ id: name, name }));
+    }, [assignedModels, shortageRequests]);
 
     const filteredAssignedModels = useMemo(() => {
-        if (selectedLine === 'ALL LINES') return assignedModels;
-        return assignedModels.filter(m => m.line_name === selectedLine);
-    }, [assignedModels, selectedLine]);
+        let filtered = assignedModels;
+        if (selectedLine !== 'ALL LINES') {
+            filtered = filtered.filter(m => m.line_name === selectedLine);
+        }
+        if (selectedModelName) {
+            filtered = filtered.filter(m => m.name === selectedModelName);
+        }
+        return filtered;
+    }, [assignedModels, selectedLine, selectedModelName]);
 
     const filteredSubmissionHistory = useMemo(() => {
+        if (!selectedDate) return submissionHistory;
+
         const dateStr = new Date(selectedDate).toISOString().split('T')[0];
         let filtered = submissionHistory.filter(s => s.date?.split('T')[0] === dateStr);
 
@@ -152,532 +193,75 @@ const DEODashboardPage = () => {
                 return model?.line_name === selectedLine;
             });
         }
+        if (selectedModelName) {
+            filtered = filtered.filter(s => {
+                const model = assignedModels.find(m => m.id === s.car_model_id || m.name === s.model_name);
+                return model?.name === selectedModelName || s.model_name === selectedModelName;
+            });
+        }
         return filtered;
-    }, [submissionHistory, selectedDate, selectedLine, assignedModels]);
+    }, [submissionHistory, selectedDate, selectedLine, assignedModels, selectedModelName]);
 
-    const handleCellEdit = useCallback(async (rowId: number, colKeyOrEdits: string | Record<string, any>, value?: any) => {
-        const edits = typeof colKeyOrEdits === 'string' ? { [colKeyOrEdits]: value } : colKeyOrEdits;
+    const filteredShortages = useMemo(() => {
+        let filtered = shortageRequests;
 
-        let finalEdits = { ...edits };
-
-        // 1. Update local state first for immediate feedback
-        setRequirements(prev => {
-            return prev.map(req => {
-                if (req.id === rowId) {
-                    const tempReq = { ...req, ...edits };
-
-                    // Derived: Coverage Days
-                    if (edits['Todays Stock'] !== undefined || edits['PER DAY'] !== undefined) {
-                        const today = parseFloat(tempReq['Todays Stock'] || '0') || 0;
-                        const pDay = parseFloat(tempReq['PER DAY'] || '0') || 0;
-                        const coverage = pDay > 0 ? (today / pDay).toFixed(1) : '0.0';
-                        finalEdits['Coverage Days'] = coverage;
-                        tempReq['Coverage Days'] = coverage;
-                    }
-
-                    // Reset audit flags on any edit
-                    finalEdits['row_status'] = null;
-                    finalEdits['supervisor_reviewed'] = false;
-                    tempReq.row_status = null;
-                    tempReq.supervisor_reviewed = false;
-
-                    return tempReq;
-                }
-                return req;
-            });
-        });
-
-        // 2. Sync with backend (Debounced)
-        if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-
-        syncTimeoutRef.current = setTimeout(async () => {
-            const syncId = Date.now();
-            lastSyncTimeRef.current = syncId;
-
-            // Use the Ref to get the absolute latest row data
-            const rowData = requirementsRef.current.find((r: any) => r.id === rowId);
-            const realEntryId = rowData?._real_id ?? null;
-
-            console.log(`[SYNC] Sending sync for row: ${rowId} (Real ID: ${realEntryId})`, finalEdits);
-
-            try {
-                const token = getToken();
-                const res = await fetch(`${API_BASE}/deo/sync/${rowId}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({
-                        ...finalEdits,
-                        car_model_id: selectedModelId,
-                        demand_id: demand?.id,
-                        ...(realEntryId ? { real_entry_id: realEntryId } : {})
-                    })
-                });
-
-                // Ignore this response if a newer sync has already started
-                if (lastSyncTimeRef.current !== syncId) return;
-
-                if (!res.ok) {
-                    console.error('Failed to sync cell update');
-                } else {
-                    console.log(`[SYNC SUCCESS] Row: ${rowId}`);
-                }
-            } catch (error) {
-                console.error('Sync error:', error);
-            }
-        }, 500); // 500ms debounce
-    }, [selectedModelId, demand?.id]); // Removed requirements from dependencies to stop hook recreation
-
-
-    const handleHistoryRowUpdate = async (logId: number, rowIndex: number, colKey: string, value: string) => {
-        if (!selectedHistoryLog) return;
-        const updatedLogData = [...selectedHistoryLog.log_data];
-        const updatedRow = { ...updatedLogData[rowIndex], [colKey]: value };
-        updatedLogData[rowIndex] = updatedRow;
-        setSelectedHistoryLog({ ...selectedHistoryLog, log_data: updatedLogData });
-        try {
-            const token = getToken();
-            const res = await fetch(`${API_BASE}/deo/update-history-row`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ log_id: logId, row_index: rowIndex, updated_row_data: { [colKey]: value } })
-            });
-            if (res.ok) {
-                const result = await res.json();
-                if (result.success) {
-                    const historyRes = await fetch(`${API_BASE}/deo/history`, { headers: { 'Authorization': `Bearer ${token}` } });
-                    if (historyRes.ok) {
-                        const historyData = await historyRes.json();
-                        setSubmissionHistory(historyData.data || []);
-                        const currentLog = historyData.data.find((l: any) => l.id === logId);
-                        if (currentLog) setSelectedHistoryLog(currentLog);
-                    }
-                }
-            }
-        } catch (e) { console.error("Failed to update history row:", e); }
-    };
-
-    const isSubmittedToday = useMemo(() => {
-        const selectedModel = assignedModels.find(m => m.id === selectedModelId);
-        if (selectedModel && selectedModel.is_submitted_today) return true;
-        if (!selectedModelId || !submissionHistory.length) return false;
-        if (!selectedModel) return false;
-
-        const now = new Date();
-        const todayStr = now.toISOString().split('T')[0];
-        const localTodayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-
-        return submissionHistory.some(s => {
-            const sDate = s.date ? s.date.split('T')[0] : '';
-            const idMatch = s.car_model_id && selectedModelId && Number(s.car_model_id) === Number(selectedModelId);
-            const nameMatch = s.model_name?.toUpperCase().trim() === selectedModel.name.toUpperCase().trim();
-            const dateMatch = sDate === todayStr || sDate === localTodayStr;
-            const logDemandId = s.demand_id ? Number(s.demand_id) : null;
-            const currentDemandId = demand?.id ? Number(demand.id) : null;
-            const demandMatch = currentDemandId ? (logDemandId === currentDemandId) : (!logDemandId);
-            return (idMatch || nameMatch) && dateMatch && demandMatch && (s.status === 'PENDING' || s.status === 'VERIFIED' || s.status === 'SUBMITTED');
-        });
-    }, [selectedModelId, submissionHistory, assignedModels, demand]);
-
-    const [isSubmitting, setIsSubmitting] = useState(false);
-
-    const handleSubmitDailyLog = async () => {
-        const entryModel = assignedModels.find(m => m.id === selectedModelId);
-        if (!entryModel) return;
-
-        if (isSubmittedToday) {
-            setModalConfig({
-                isOpen: true,
-                title: 'Already Submitted',
-                message: `A daily log for ${entryModel.name} has already been submitted today and is awaiting review.`,
-                type: 'alert',
-                defaultValue: '',
-                onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false }))
-            });
-            return;
+        if (selectedLine !== 'ALL LINES') {
+            filtered = filtered.filter(r => r.line_name === selectedLine || r.inventory_item?.line_name === selectedLine);
         }
-
-        setModalConfig({
-            isOpen: true,
-            title: 'Submit Daily Log?',
-            message: `Are you sure you want to submit the Daily Production Log for ${entryModel.name}?\n\nThis will be sent to your supervisor for review.`,
-            type: 'confirm',
-            defaultValue: '',
-            onConfirm: async () => {
-                setModalConfig(prev => ({ ...prev, isOpen: false }));
-                setIsSubmitting(true);
-                try {
-                    const token = getToken();
-                    const response = await fetch(`${API_BASE}/deo/submit`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                        body: JSON.stringify({
-                            model_name: entryModel.name,
-                            car_model_id: entryModel.id,
-                            demand_id: demand?.id,
-                            log_data: requirements,
-                            is_final: true
-                        })
-                    });
-                    if (response.ok) {
-                        setModalConfig({
-                            isOpen: true,
-                            title: 'Success',
-                            message: 'Daily Progress Logged and Sent to Supervisor for Review!',
-                            type: 'alert',
-                            defaultValue: '',
-                            onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false }))
-                        });
-                        const [workRes, historyRes] = await Promise.all([
-                            fetch(`${API_BASE}/deo/assigned-work`, { headers: { 'Authorization': `Bearer ${token}` } }),
-                            fetch(`${API_BASE}/deo/history`, { headers: { 'Authorization': `Bearer ${token}` } })
-                        ]);
-                        if (workRes.ok) {
-                            const workData = await workRes.json();
-                            if (workData.success) setAssignedModels(workData.data);
-                        }
-                        if (historyRes.ok) {
-                            const historyData = await historyRes.json();
-                            setSubmissionHistory(historyData.data || []);
-                        }
-                    } else {
-                        const errorData = await response.json();
-                        setModalConfig({
-                            isOpen: true,
-                            title: 'Submission Failed',
-                            message: `Failed to submit: ${errorData.message || 'Unknown error'}`,
-                            type: 'alert',
-                            defaultValue: '',
-                            onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false }))
-                        });
-                    }
-                } catch (error) {
-                    console.error('Submission error:', error);
-                    setModalConfig({
-                        isOpen: true,
-                        title: 'Error',
-                        message: 'An error occurred during submission.',
-                        type: 'alert',
-                        defaultValue: '',
-                        onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false }))
-                    });
-                } finally { setIsSubmitting(false); }
-            }
-        });
-    };
-
-
-    const activeTab = useMemo(() => {
-        const path = location.pathname;
-        if (path === DEO_MODELS) return 'MODELS';
-        if (path === DEO_ENTRY) return 'ENTRY';
-        if (path === DEO_REPORTS) return 'REPORTS';
-        if (path === DEO_VERIFY) return 'VERIFY';
-        if (path === DEO_NOTIFICATIONS) return 'NOTIFICATIONS';
-        if (path === DEO_SHORTAGE) return 'SHORTAGE';
-        return 'DASHBOARD';
-    }, [location.pathname]);
-
-    const setActiveTab = (tab: string) => {
-        switch (tab) {
-            case 'MODELS': navigate(DEO_MODELS); break;
-            case 'ENTRY': navigate(DEO_ENTRY); break;
-            case 'REPORTS': navigate(DEO_REPORTS); break;
-            case 'VERIFY': navigate(DEO_VERIFY); break;
-            case 'NOTIFICATIONS': navigate(DEO_NOTIFICATIONS); break;
-            case 'SHORTAGE': navigate(DEO_SHORTAGE); break;
-            default: navigate(DEO_DASHBOARD); break;
+        if (selectedModelName) {
+            filtered = filtered.filter(r => (r.inventory_item?.vehicle_name === selectedModelName || r.vehicle_name === selectedModelName));
         }
-    };
-
-    useEffect(() => {
-        let currentModels = assignedModels;
-        if (activeTab === 'ENTRY') currentModels = entryModels;
-        if (activeTab === 'VERIFY') currentModels = verifyModels;
-
-        const isSelectedValid = currentModels.some(m => m.id === selectedModelId);
-        if (!isSelectedValid) {
-            if (currentModels.length > 0) {
-                const firstAccepted = currentModels.find(m => m.deo_accepted);
-                setSelectedModelId(firstAccepted ? firstAccepted.id : currentModels[0].id);
-            } else {
-                setSelectedModelId(null);
-            }
-        }
-    }, [assignedModels, entryModels, verifyModels, activeTab, selectedModelId]);
+        return filtered;
+    }, [shortageRequests, selectedLine, selectedModelName]);
 
     const fetchDashboardData = async (silent = false) => {
         if (!silent) setIsLoading(true);
         try {
             const token = getToken();
-            const [workRes, historyRes] = await Promise.all([
+            const [workRes, historyRes, shortageRes] = await Promise.all([
                 fetch(`${API_BASE}/deo/assigned-work`, { headers: { 'Authorization': `Bearer ${token}` } }),
-                fetch(`${API_BASE}/deo/history`, { headers: { 'Authorization': `Bearer ${token}` } })
+                fetch(`${API_BASE}/deo/history`, { headers: { 'Authorization': `Bearer ${token}` } }),
+                fetch(`${API_BASE}/deo/shortage-requests`, { headers: { 'Authorization': `Bearer ${token}` } })
             ]);
             if (workRes.ok) {
                 const result = await workRes.json();
                 if (result.success) {
                     setAssignedModels(result.data);
-                    setApiStatus('online'); // Success confirms online status
                 }
             }
-            // Silent fail or minimal data check
             if (historyRes.ok) {
                 const result = await historyRes.json();
                 if (result.success) setSubmissionHistory(result.data);
             }
+            if (shortageRes.ok) {
+                const result = await shortageRes.json();
+                if (result.success) setShortageRequests(result.data);
+            }
         } catch (error) {
             console.error('Failed to fetch dashboard data:', error);
-            setApiStatus('offline');
         } finally {
             if (!silent) setIsLoading(false);
         }
     };
 
-    const fetchBOM = async (silent = false) => {
-        const targetId = selectedModelId || (assignedModels.length > 0 ? assignedModels[0].id : null);
-        if (!targetId) return;
-        const selectedModel = assignedModels.find(m => m.id === targetId);
-        if (!selectedModel) return;
+    const activeTab = useMemo(() => {
+        const path = location.pathname;
+        if (path === DEO_SHORTAGE) return 'SHORTAGE';
+        return 'DASHBOARD';
+    }, [location.pathname]);
 
-        if (!silent) setIsLoading(true);
-        try {
-            const token = getToken();
-            const [demandRes, schemaRes, bomRes, histRes] = await Promise.all([
-                fetch(`${API_BASE}/admin/demands`, { headers: { 'Authorization': `Bearer ${token}` } }),
-                fetch(`${API_BASE}/manager/models/${selectedModel.name}/schema`, { headers: { 'Authorization': `Bearer ${token}` } }),
-                fetch(`${API_BASE}/manager/master-data?model=${selectedModel.name}`, { headers: { 'Authorization': `Bearer ${token}` } }),
-                fetch(`${API_BASE}/deo/history`, { headers: { 'Authorization': `Bearer ${token}` } })
-            ]);
-
-            let modelDemand: any = null;
-            if (demandRes.ok) {
-                const result = await demandRes.json();
-                const demands = result.data || [];
-                modelDemand = demands.find((d: any) => d.model_name === selectedModel.name && d.status !== 'COMPLETED') ||
-                    demands.find((d: any) => d.model_name === selectedModel.name);
-                if (modelDemand) setDemand(modelDemand);
-            }
-
-            if (schemaRes.ok) {
-                const schemaData = await schemaRes.json();
-                if (schemaData.success && schemaData.data) {
-                    // Intentionally left blank or handle schema info as needed
-                }
-            }
-
-            if (bomRes.ok) {
-                const rawData = await bomRes.json();
-                const freshHistory = histRes.ok ? (await histRes.json()).data || [] : [];
-                setSubmissionHistory(freshHistory);
-
-                // *** CRITICAL: If user is actively editing, do NOT overwrite requirements ***
-                // We'll trust the user's manual edits for now
-
-                const formatted = rawData.map((item: any, idx: number) => {
-                    const row: any = {
-                        id: 10000 + idx,
-                        ...item.production_data,
-                        ...item.material_data,
-                        "SN NO": item.production_data?.["SN NO"] || item.production_data?.["SR NO"] || (idx + 1),
-                        "PART NUMBER": item.common?.part_number,
-                        "SAP PART NUMBER": item.common?.sap_part_number,
-                        "PART DESCRIPTION": item.common?.description,
-                        "ASSEMBLY NUMBER": item.common?.assembly_number || "",
-                        "Production Status": "PENDING",
-                        "TOTAL SCHEDULE QTY": "",
-                        "PER DAY": "",
-                        "Coverage Days": "0.0"
-                    };
-                    return row;
-                });
-
-
-                // Merge with latest saved log data to restore DEO-entered values
-                const latestLog = freshHistory
-                    .filter((s: any) => {
-                        const idMatch = s.car_model_id && selectedModel.id && Number(s.car_model_id) === Number(selectedModel.id);
-                        const nameMatch = s.model_name?.toUpperCase().trim() === selectedModel.name.toUpperCase().trim();
-                        const logDemandId = s.demand_id ? Number(s.demand_id) : null;
-                        const currentDemandId = modelDemand?.id ? Number(modelDemand.id) : null;
-                        const demandMatch = currentDemandId ? (logDemandId === currentDemandId) : (!logDemandId);
-                        return (idMatch || nameMatch) && demandMatch;
-                    })
-                    .sort((a: any, b: any) => b.id - a.id)[0];
-
-                // Determine if we should restore "today's" session data or start fresh
-                // A session is "NEW" if the latest log is from a different date than the selected date
-                // Using locale-safe string comparison to avoid UTC/Local mismatches
-                const todayDateStr = selectedDate; 
-                const logDateStr = latestLog?.date ? new Date(latestLog.date).toLocaleDateString('en-CA') : '';
-                const isNewSession = latestLog && (logDateStr !== todayDateStr);
-
-                // Fields that DEO actually types in (Status is now a core data field for the session)
-                const DATA_FIELDS = ["SAP Stock", "Opening Stock", "Todays Stock", "Balance Qty", "Defect Count", "Failure Reason", "Remarks", "PER DAY", "Production Status"];
-                const RESET_FIELDS = ["row_status", "rejection_reason", "supervisor_reviewed", "deo_reply"];
-
-                let finalData = formatted;
-
-                if (latestLog && latestLog.log_data) {
-                    finalData = formatted.map((fRow: any) => {
-                        const hRow = latestLog.log_data.find((l: any) =>
-                            l["SAP PART NUMBER"] === fRow["SAP PART NUMBER"] ||
-                            l["SAP PART #"] === fRow["SAP PART NUMBER"] ||
-                            l["Part Number"] === fRow["PART NUMBER"]
-                        );
-                        if (hRow) {
-                            const newFields: any = {};
-
-                            // 1. Always restore static data fields (Stock counts etc.)
-                            DATA_FIELDS.forEach(field => {
-                                if (hRow[field] !== undefined && hRow[field] !== null) {
-                                    newFields[field] = hRow[field];
-                                }
-                            });
-
-                            // 2. Only restore status/production fields if NOT a new session (e.g. editing a DRAFT or REJECTED log)
-                            if (!isNewSession) {
-                                RESET_FIELDS.forEach(field => {
-                                    if (hRow[field] !== undefined && hRow[field] !== null && hRow[field] !== '') {
-                                        newFields[field] = hRow[field];
-                                    }
-                                });
-                            }
-
-                            // 3. Store real DB entry id separately so sync can use Mode A (direct PK lookup)
-                            //    Keep fRow.id (fake index) unchanged for URL routing
-                            if (hRow.id && typeof hRow.id === 'number') {
-                                newFields._real_id = hRow.id;
-                            }
-
-                            return { ...fRow, ...newFields };
-                        }
-                        return fRow;
-                    });
-                }
-
-                // ALWAYS apply demand calculations LAST so they can never be overwritten
-                if (modelDemand) {
-                    const reqQty = Number(modelDemand.quantity) || 0;
-                    let workingDays = 0;
-                    if (modelDemand.start_date && modelDemand.end_date) {
-                        const start = new Date(modelDemand.start_date);
-                        const end = new Date(modelDemand.end_date);
-                        if (start <= end) {
-                            const current = new Date(start);
-                            while (current <= end) {
-                                if (current.getDay() !== 0) workingDays++;
-                                current.setDate(current.getDate() + 1);
-                            }
-                        }
-                    }
-                    if (workingDays === 0) workingDays = 25;
-                    const perDay = reqQty > 0 ? (reqQty / workingDays).toFixed(2) : '0';
-
-                    finalData.forEach((row: any) => {
-                        row['TOTAL SCHEDULE QTY'] = reqQty;
-                        row['PER DAY'] = perDay;
-                        // Recalculate Coverage Days: Todays Stock / Per Day
-                        const pDay = parseFloat(perDay) || 0;
-                        const tStock = parseFloat(row['Todays Stock'] || '0') || 0;
-                        row['Coverage Days'] = pDay > 0 ? (tStock / pDay).toFixed(1) : '0.0';
-                    });
-                }
-
-                setRequirements(finalData);
-            }
-        } catch (error) {
-            console.error('Failed to fetch BOM data:', error);
-        } finally {
-            if (!silent) setIsLoading(false);
-        }
-    };
-
-    // Initial data fetch - only once
     useEffect(() => {
         fetchDashboardData();
     }, []);
 
-    // Background polling for dashboard data - pauses during editing
     useEffect(() => {
         const interval = setInterval(() => {
-            if (!modalConfig.isOpen && !isEditingPart) {
+            if (!modalConfig.isOpen) {
                 fetchDashboardData(true);
             }
-        }, 60000); // Increased from 10s to 60s
+        }, 60000);
         return () => clearInterval(interval);
-    }, [modalConfig.isOpen, isEditingPart]);
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (lineDropdownRef.current && !lineDropdownRef.current.contains(event.target as Node)) {
-                setIsLineDropdownOpen(false);
-            }
-        };
-
-        if (isLineDropdownOpen) {
-            document.addEventListener('mousedown', handleClickOutside);
-        }
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [isLineDropdownOpen]);
-
-    // Fetch BOM when model or tab changes — NOT on isEditing change
-    useEffect(() => {
-        if (activeTab === 'ENTRY' || activeTab === 'VERIFY') {
-            fetchBOM();
-        }
-    }, [selectedModelId, activeTab, assignedModels.length]);
-
-    // Background BOM polling - pauses during editing, separate from initial fetch
-    useEffect(() => {
-        if (activeTab !== 'ENTRY' && activeTab !== 'VERIFY') return;
-        const interval = setInterval(() => {
-            if (!modalConfig.isOpen && !isEditingPart) {
-                fetchBOM(true);
-            }
-        }, 120000); // Increased from 45s to 120s
-        return () => clearInterval(interval);
-    }, [activeTab, selectedModelId, modalConfig.isOpen, isEditingPart]);
-
-    useEffect(() => {
-        if (activeTab === 'REPORTS') {
-            const fetchHistory = async () => {
-                setIsLoadingHistory(true);
-                try {
-                    const token = getToken();
-                    const res = await fetch(`${API_BASE}/deo/history`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    if (res.ok) {
-                        const result = await res.json();
-                        if (result.success) setSubmissionHistory(result.data);
-                    }
-                } catch (error) {
-                    console.error('Failed to fetch submission history:', error);
-                } finally {
-                    setIsLoadingHistory(false);
-                }
-            };
-            fetchHistory();
-        }
-    }, [activeTab]);
-
-    const handleAccept = async (id: number) => {
-        try {
-            const token = getToken();
-            const res = await fetch(`${API_BASE}/deo/accept-assignment/${id}`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) {
-                setAssignedModels(prev => prev.map(m => m.id === id ? { ...m, deo_accepted: true, status: 'IN_PROGRESS' } : m));
-                setSelectedModelId(id);
-                setActiveTab('ENTRY');
-            }
-        } catch (e) { console.error(e); }
-    };
+    }, [modalConfig.isOpen]);
 
     const renderContent = () => {
         if (isLoading) {
@@ -693,203 +277,120 @@ const DEODashboardPage = () => {
         switch (activeTab) {
             case 'DASHBOARD':
                 return (
-                    <div className="space-y-10 animate-in fade-in duration-700">
-                        {/* High-Fidelity Header Overhaul - Title Left, Filters Right (Supervisor Style) */}
-                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-12 px-2">
-                            <div className="space-y-1">
-                                <h1 className="text-4xl font-black text-ind-text tracking-tight leading-none">DEO Dashboard</h1>
-                                <p className="text-[10px] font-bold text-ind-text3 uppercase tracking-[0.3em] mt-2">Operational Oversite • CIE Automotive</p>
+                    <div className="space-y-6 animate-in fade-in duration-700 px-2">
+                        {/* Admin-Standardized Filter Bar */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-2">
+                            {/* Vehicle Model Filter */}
+                            <div className="bg-white border border-ind-border rounded-[1.25rem] p-4 flex flex-col justify-between shadow-sm hover:border-ind-border2 transition-all group ">
+                                <div className="flex items-center gap-2.5 mb-2">
+                                    <div className="w-8 h-8 rounded-lg bg-blue-50/50 text-blue-500 flex items-center justify-center transition-all">
+                                        <LayoutGrid size={16} strokeWidth={2.5} />
+                                    </div>
+                                    <span className="text-sm whitespace-nowrap font-semibold">Vehicle Model</span>
+                                </div>
+                                <div className="flex items-center justify-between p-2 bg-[#f5f5f5] rounded-full">
+                                    <CustomSearchDropdown
+                                        options={availableModels.map((m: any) => ({ id: m.name, label: m.name }))}
+                                        value={selectedModelName || 'all'}
+                                        onChange={(val: any) => setSelectedModelName(val === 'all' ? null : val)}
+                                        placeholder="Select Vehicle"
+                                        searchPlaceholder="Search Vehicle Model..."
+                                        allLabel="ALL VEHICLES"
+                                    />
+                                </div>
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-3">
-                                {/* Production Line Pill Selector */}
-                                <div className="relative" ref={lineDropdownRef}>
-                                    <div
-                                        onClick={() => setIsLineDropdownOpen(!isLineDropdownOpen)}
-                                        className="bg-white rounded-xl px-6 py-3.5 border border-ind-border/50 shadow-sm flex items-center justify-between min-w-[180px] cursor-pointer hover:border-ind-border transition-all font-sans"
-                                    >
-                                        <span className="text-[10px] font-bold text-ind-text3 uppercase tracking-widest mr-4">All lines</span>
-                                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className={`text-ind-text3 transition-transform ${isLineDropdownOpen ? 'rotate-180' : ''}`} strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+                            {/* Production Line Filter */}
+                            <div className="bg-white border border-ind-border rounded-[1.25rem] p-4 flex flex-col justify-between shadow-sm hover:border-ind-border2 transition-all group">
+                                <div className="flex items-center gap-2.5 mb-3">
+                                    <div className="w-8 h-8 rounded-lg bg-slate-50 text-ind-text3 flex items-center justify-center transition-all">
+                                        <Factory size={16} strokeWidth={2.5} />
                                     </div>
-                                    {isLineDropdownOpen && (
-                                        <div className="absolute top-full right-0 mt-2 bg-white rounded-xl border border-ind-border/50 shadow-2xl z-[100] overflow-hidden py-1 min-w-full max-h-[300px] overflow-y-auto animate-in slide-in-from-top-1">
-                                            {uniqueLines.map((line) => (
-                                                <div
-                                                    key={line}
-                                                    onClick={() => {
-                                                        setSelectedLine(line);
-                                                        setIsLineDropdownOpen(false);
-                                                    }}
-                                                    className={`px-6 py-3 text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-ind-bg transition-colors ${selectedLine === line ? 'text-ind-primary bg-orange-50/30' : 'text-ind-text2'}`}
-                                                >
-                                                    {line}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
+                                    <span className="text-sm whitespace-nowrap font-semibold">Production Line</span>
+                                </div>
+                                <div className="flex items-center justify-between p-2 bg-[#f5f5f5] rounded-full">
+                                    <CustomSearchDropdown
+                                        options={uniqueLines.filter(l => l !== 'ALL LINES').map(l => ({ id: l, label: l }))}
+                                        value={selectedLine}
+                                        onChange={(val: any) => setSelectedLine(val === 'all' ? 'ALL LINES' : val)}
+                                        placeholder="Select Line"
+                                        searchPlaceholder="Search Production Line..."
+                                        allLabel="ALL PRODUCTIONS"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Time Period Filter */}
+                            <div className="bg-white border border-ind-border rounded-[1.25rem] p-4 flex flex-col justify-between shadow-sm hover:border-ind-border2 transition-all group ">
+                                <div className="flex items-center gap-2.5 mb-2">
+                                    <div className="w-8 h-8 rounded-lg bg-orange-50/50 text-ind-primary flex items-center justify-center transition-all">
+                                        <Calendar size={16} strokeWidth={2.5} />
+                                    </div>
+                                    <span className="text-sm whitespace-nowrap font-semibold">Time Period</span>
                                 </div>
 
-                                {/* Date Selector Pill */}
-                                <div className="bg-white rounded-xl px-6 py-3.5 border border-ind-border/50 shadow-sm flex items-center gap-4 min-w-[180px] relative group hover:border-ind-border transition-all font-sans">
-                                    <div className="relative flex-1 h-4 overflow-hidden">
+                                <div className="flex items-center justify-between gap-1 mt-auto">
+                                    <div className="relative flex-1">
+                                        <select
+                                            className="w-full bg-[#f5f5f5] border border-ind-border/40 rounded-lg py-1 px-2 text-[0.7rem] font-bold text-ind-text uppercase outline-none focus:ring-2 focus:ring-ind-blue/10 appearance-none cursor-pointer pr-6"
+                                        >
+                                            <option value="daily">DAILY</option>
+                                            <option value="weekly">WEEKLY</option>
+                                            <option value="monthly">MONTHLY</option>
+                                        </select>
+                                        <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-ind-text3 pointer-events-none" />
+                                    </div>
+
+                                    <div className="relative flex items-center group/cal">
                                         <input
                                             type="date"
                                             value={selectedDate}
                                             onChange={(e) => setSelectedDate(e.target.value)}
-                                            className="absolute inset-0 opacity-0 cursor-pointer z-10 w-full h-full"
+                                            className="absolute inset-0 opacity-0 cursor-pointer z-10 w-8"
                                         />
-                                        <div className="flex items-center justify-between w-full h-full pointer-events-none">
-                                            <span className="text-[10px] font-black text-ind-text tracking-widest uppercase">
-                                                {new Date(selectedDate).toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                                            </span>
-                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-ind-text3 ml-2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                                        <div className="w-8 h-8 flex items-center justify-center rounded-lg border border-ind-border bg-white text-ind-text3 hover:border-ind-blue group-hover/cal:border-ind-blue transition-all">
+                                            <Calendar size={13} strokeWidth={2.5} />
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                            
-                            <div className="flex items-center gap-4">
-                                {/* Pulse Connection Indicator */}
-                                <div className="flex items-center gap-2 bg-slate-900/5 px-3 py-1.5 rounded-full border border-slate-900/5">
-                                    <div className={cn(
-                                        "w-2 h-2 rounded-full",
-                                        apiStatus === 'online' ? "bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]" : 
-                                        apiStatus === 'offline' ? "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]" : "bg-slate-300"
-                                    )} />
-                                    <span className={cn(
-                                        "text-[9px] font-black uppercase tracking-widest",
-                                        apiStatus === 'online' ? "text-emerald-700" : 
-                                        apiStatus === 'offline' ? "text-rose-700" : "text-slate-400"
-                                    )}>
-                                        {apiStatus === 'online' ? "API LIVE" : apiStatus === 'offline' ? "API BLOCKED" : "CHECK..."}
-                                    </span>
-                                </div>
-
-                                <button 
-                                    onClick={() => {
-                                        console.log('--- MANUAL PING START ---');
-                                        checkApi();
-                                    }}
-                                    className="px-4 py-1.5 bg-orange-100 text-orange-600 rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-orange-200 transition-colors"
-                                >
-                                    Ping Backend
-                                </button>
-                            </div>
                         </div>
 
-                        <DEOStats
-                            assignedModels={filteredAssignedModels}
-                            submissionHistory={filteredSubmissionHistory}
-                            selectedDate={selectedDate}
-                        />
-                    </div>
-                );
-
-            case 'MODELS':
-                return (
-                    <DEOModelList
-                        assignedModels={assignedModels}
-                        submissionHistory={submissionHistory}
-                        modelFilter={modelFilter}
-                        setModelFilter={setModelFilter}
-                        selectedModelId={selectedModelId}
-                        setSelectedModelId={setSelectedModelId}
-                        setActiveTab={setActiveTab}
-                        handleAccept={handleAccept}
-                    />
-                );
-
-            case 'ENTRY':
-                return (
-                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
-                        {entryModels.length > 0 ? (
-                            <>
-                                <DEOProductionEntry
-                                    assignedModels={entryModels}
-                                    selectedModelId={selectedModelId}
-                                    setSelectedModelId={setSelectedModelId}
-                                    requirements={requirements}
-                                    demand={demand}
-                                    handleCellEdit={handleCellEdit}
-                                    handleSubmitDailyLog={handleSubmitDailyLog}
-                                    isSubmitting={isSubmitting}
-                                    onEditingChange={setIsEditingPart}
-                                />
-                            </>
+                        {assignedModels.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[2.5rem] border border-ind-border/50 shadow-sm border-dashed">
+                                <div className="w-16 h-16 rounded-full bg-ind-bg flex items-center justify-center text-ind-text3 mb-6">
+                                    <LayoutGrid size={32} strokeWidth={1.5} />
+                                </div>
+                                <h3 className="text-xl font-black text-ind-text uppercase tracking-tight mb-2">No Active Assignments</h3>
+                                <p className="text-sm font-medium text-ind-text3 max-w-sm text-center px-6">
+                                    You don't have any models assigned or verified for this period yet. Please check again later or contact your supervisor.
+                                </p>
+                            </div>
                         ) : (
-                            <div className="bg-white rounded-[2.5rem] border border-ind-border/50 shadow-[0_10px_30px_-15px_rgba(0,0,0,0.05)] overflow-hidden flex flex-col h-[700px] relative">
-                                <div className="w-20 h-20 bg-ind-bg rounded-full flex items-center justify-center mx-auto mb-6 text-ind-text3">
-                                    <Activity size={32} />
-                                </div>
-                                <h3 className="text-xl font-black text-ind-text uppercase tracking-tight mb-2">No Active Work Assignments</h3>
-                                <p className="text-ind-text2 font-bold max-w-xs mx-auto text-sm uppercase">You have currently completed all assigned models.</p>
-                            </div>
+                            [
+                                <DEOStats
+                                    key="stats"
+                                    assignedModels={filteredAssignedModels}
+                                    submissionHistory={filteredSubmissionHistory}
+                                    shortageRequests={filteredShortages}
+                                    selectedDate={selectedDate}
+                                />,
+                                <DEOAnalytics
+                                    key="analytics"
+                                    assignedModels={filteredAssignedModels}
+                                    submissionHistory={filteredSubmissionHistory}
+                                    shortageRequests={filteredShortages}
+                                    selectedDate={selectedDate}
+                                />
+                            ]
                         )}
-                    </motion.div>
-                );
-
-            case 'REPORTS':
-                return (
-                    <DEOSubmissionHistory
-                        isLoadingHistory={isLoadingHistory}
-                        submissionHistory={submissionHistory}
-                        selectedHistoryLog={selectedHistoryLog}
-                        setSelectedHistoryLog={setSelectedHistoryLog}
-                        handleHistoryRowUpdate={handleHistoryRowUpdate}
-                    />
-                );
-
-            case 'VERIFY':
-                const vModel = assignedModels.find(m => m.id === selectedModelId);
-                if (!vModel) return null;
-                return (
-                    <div className="space-y-8">
-                        <div className="flex items-center gap-4 pb-8">
-                            <span className="text-[10px] font-black text-ind-text3 uppercase tracking-widest">Select Model:</span>
-                            <select
-                                value={selectedModelId || ''}
-                                onChange={(e) => setSelectedModelId(Number(e.target.value))}
-                                className="bg-white border-2 border-ind-border/50 rounded-2xl px-8 py-4 text-xs font-black uppercase tracking-widest"
-                            >
-                                {verifyModels.map(model => (
-                                    <option key={model.id} value={model.id}>{model.name}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="bg-white rounded-3xl border border-ind-border p-6 shadow-sm">
-                            <h1 className="text-xl font-black uppercase tracking-tight mb-4">{vModel.name} VERIFIED DATA</h1>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left">
-                                    <thead className="bg-ind-bg">
-                                        <tr>
-                                            <th className="p-4 text-[10px] font-black uppercase tracking-widest text-ind-text3">Part No</th>
-                                            <th className="p-4 text-[10px] font-black uppercase tracking-widest text-ind-text3">Description</th>
-                                            <th className="p-4 text-[10px] font-black uppercase tracking-widest text-ind-text3">Stock</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {requirements.map(req => (
-                                            <tr key={req.id} className="border-b border-ind-border/50">
-                                                <td className="p-4 text-xs font-bold">{req["PART NUMBER"]}</td>
-                                                <td className="p-4 text-xs">{req["PART DESCRIPTION"]}</td>
-                                                <td className="p-4 text-xs font-black">{req["Todays Stock"]}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
                     </div>
                 );
 
             case 'SHORTAGE':
                 return (
-                    <div className="animate-in fade-in duration-500">
-                        <div className="mb-6">
-                            <h1 className="text-3xl font-black text-ind-text tracking-tight">Shortage Requests</h1>
-                            <p className="text-xs font-bold text-ind-text3 uppercase tracking-widest mt-1">Parts assigned by admin that need stock replenishment</p>
-                        </div>
-                        <div className="bg-white rounded-2xl border border-ind-border/50 shadow-sm p-6">
+                    <div className="animate-in fade-in duration-500 h-full flex flex-col min-h-0">
+                        <div className="bg-white border border-ind-border/50 shadow-sm p-1 flex-1 flex flex-col min-h-0 overflow-hidden">
                             <DEOShortageRequests />
                         </div>
                     </div>
@@ -900,22 +401,26 @@ const DEODashboardPage = () => {
     };
 
     return (
-        <div className="min-h-screen bg-ind-bg pb-32">
-            <div className="max-w-[1600px] mx-auto px-6 lg:px-12 pt-8">
+        <div className="h-full bg-ind-bg flex flex-col overflow-hidden">
+            <div className="flex-1 max-w-[1700px] mx-auto w-full px-0 lg:px-0 flex flex-col min-h-0">
                 <AnimatePresence mode="wait">
                     <motion.div
                         key={activeTab}
+                        className="flex-1 flex flex-col min-h-0"
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
                         transition={{ duration: 0.3 }}
                     >
-                        {renderContent()}
+                        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                            {/* Scrollable Content Area */}
+                            <div className={`flex-1 ${activeTab === 'DASHBOARD' ? 'overflow-y-scroll custom-scrollbar pr-2 pb-10 pt-2' : 'overflow-hidden flex flex-col min-h-0'}`}>
+                                {renderContent()}
+                            </div>
+                        </div>
                     </motion.div>
                 </AnimatePresence>
             </div>
-
-            {/* No Floating Nav - Tabs moved to Header or removed as per request */}
 
             <CustomModal
                 isOpen={modalConfig.isOpen}

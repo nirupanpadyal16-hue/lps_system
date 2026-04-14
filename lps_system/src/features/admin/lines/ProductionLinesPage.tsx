@@ -83,30 +83,38 @@ const ProductionLinesPage = () => {
         setSelectedLine(null);
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        try {
-            const token = getToken();
-            const url = isEditing ? `${API_BASE}/admin/lines/${selectedLine?.id}` : `${API_BASE}/admin/lines`;
-            const method = isEditing ? 'PUT' : 'POST';
+ const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-            const response = await fetch(url, {
-                method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify(formData)
-            });
+    try {
+        const token = getToken();
 
-            if (response.ok) {
-                fetchLines();
-                handleCloseModal();
-            }
-        } catch (error) {
-            console.error('Failed to save line:', error);
+        const url = isEditing
+            ? `${API_BASE}/admin/lines/${selectedLine?.id}`
+            : `${API_BASE}/admin/lines`;
+
+        const method = isEditing ? 'PUT' : 'POST';
+
+        const response = await fetch(url, {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(formData)
+        });
+
+        if (response.ok) {
+            await fetchLines(); // ✅ IMPORTANT
+            handleCloseModal();
+        } else {
+            console.error("Save failed");
         }
-    };
+
+    } catch (error) {
+        console.error('Failed to save line:', error);
+    }
+};
 
     // const handleDelete = async (id: number) => {
     //     if (!confirm('Are you sure you want to delete this production line?')) return;

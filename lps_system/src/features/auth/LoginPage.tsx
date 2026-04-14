@@ -171,8 +171,8 @@ const LoginPage = () => {
             <div className="absolute inset-0 bg-black/40" />
 
             {/* Subtle Background Elements */}
-            <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-orange-500/10 rounded-full blur-[120px] pointer-events-none" />
-            <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] bg-blue-500/10 rounded-full blur-[100px] pointer-events-none" />
+            <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-orange-500/10 rounded-full  pointer-events-none" />
+            <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] bg-blue-500/10 rounded-full  pointer-events-none" />
 
             <motion.div
                 initial={{ opacity: 0, y: 20 }}

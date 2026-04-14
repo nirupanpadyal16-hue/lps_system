@@ -103,10 +103,10 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             items: [
                 { icon: LayoutDashboard, label: 'Dashboard', path: SUPERVISOR_DASHBOARD },
                 { icon: ClipboardCheck, label: 'Verify Daily Production', path: SUPERVISOR_VERIFY },
-                { icon: Mail, label: 'Shortage Requests', path: SUPERVISOR_SHORTAGE },
-                { icon: ClipboardList, label: 'Reports', path: SUPERVISOR_REPORTS },
-                { icon: Activity, label: 'Monitoring', path: SUPERVISOR_MONITORING },
-                { icon: Mail, label: 'Alerts', path: SUPERVISOR_ALERTS },
+                { icon: Mail, label: 'Verify Shortage Requests', path: SUPERVISOR_SHORTAGE },
+                // { icon: ClipboardList, label: 'Reports', path: SUPERVISOR_REPORTS },
+                // { icon: Activity, label: 'Monitoring', path: SUPERVISOR_MONITORING },
+                // { icon: Mail, label: 'Alerts', path: SUPERVISOR_ALERTS },
             ]
         }
     ];
@@ -120,12 +120,12 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             title: 'OPERATOR CONSOLE',
             items: [
                 { icon: Activity, label: 'Dashboard', path: DEO_DASHBOARD },
-                { icon: Database, label: 'My Assigned Models', path: DEO_MODELS },
-                { icon: ClipboardList, label: 'Production Entry', path: DEO_ENTRY },
-                { icon: Mail, label: 'Shortage Requests', path: DEO_SHORTAGE },
-                { icon: ClipboardCheck, label: 'Verification', path: DEO_VERIFY },
-                { icon: ClipboardList, label: 'Reports', path: DEO_REPORTS },
-                { icon: Mail, label: 'Notifications', path: DEO_NOTIFICATIONS },
+                // { icon: Database, label: 'My Assigned Models', path: DEO_MODELS },
+                // { icon: ClipboardList, label: 'Production Entry', path: DEO_ENTRY },
+                 { icon: Mail, label: 'Shortage Requests', path: DEO_SHORTAGE },
+                // { icon: ClipboardCheck, label: 'Verification', path: DEO_VERIFY },
+                // { icon: ClipboardList, label: 'Reports', path: DEO_REPORTS },
+                // { icon: Mail, label: 'Notifications', path: DEO_NOTIFICATIONS },
             ]
         }
     ];

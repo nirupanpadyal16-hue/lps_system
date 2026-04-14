@@ -8,7 +8,7 @@ import AuthGuard from './features/auth/AuthGuard';
 import AdminDashboardPage from './features/admin/dashboard/AdminDashboardPage';
 import ManagerDashboardPage from './features/manager/ManagerDashboardPage';
 import ManagerDemandPage from './features/manager/ManagerDemandPage';
-import SupervisorDashboardPage from './features/supervisor/dashboard/SupervisorDashboardPage';
+import SupervisorDashboardPage from './features/supervisor/supervisor/dashboard/SupervisorDashboardPage';
 import UserAccountsPage from './features/admin/users/UserAccountsPage';
 import DemandManagementPage from './features/admin/demand/DemandManagementPage';
 import ModelRegisterPage from './features/admin/models/ModelRegisterPage';
@@ -17,7 +17,7 @@ import AdminAuditPage from './features/admin/AdminAuditPage';
 import ProductionLinesPage from './features/admin/lines/ProductionLinesPage';
 import AssignmentPage from './features/admin/assignments/AssignmentPage';
 import ProductionPlanningPage from './features/manager/ProductionPlanningPage';
-import TeamManagementPage from './features/supervisor/TeamManagementPage';
+import TeamManagementPage from './features/supervisor/supervisor/TeamManagementPage';
 import DEODashboardPage from './features/deo/DEODashboardPage';
 import InventoryPage from './features/admin/inventory/InventoryPage';
 

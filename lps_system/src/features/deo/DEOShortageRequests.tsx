@@ -114,11 +114,11 @@ function FillModal({ request, onClose, onSuccess }: {
                                 <TimelineBar daysRemaining={request.days_remaining} isOverdue={request.is_overdue} />
                             </div>
                         </div>
-                        
+
                         {/* Daily Metrics Panel */}
                         <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
                             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Daily Metrics</p>
-                            
+
                             <div className="flex justify-between items-center mb-2">
                                 <span className="text-xs font-semibold text-gray-600">Timeline</span>
                                 <span className="text-sm font-bold text-gray-800">{request.total_days} Days</span>
@@ -127,7 +127,7 @@ function FillModal({ request, onClose, onSuccess }: {
                                 <span className="text-xs font-semibold text-gray-600">Target Per Day</span>
                                 <span className="text-sm font-black text-blue-600">{request.per_day} units</span>
                             </div>
-                            
+
                             <div className="pt-3 border-t border-slate-200">
                                 <div className="flex justify-between items-center">
                                     <span className="text-xs font-semibold text-gray-600">Est. Coverage</span>
