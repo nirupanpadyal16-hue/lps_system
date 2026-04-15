@@ -113,7 +113,7 @@ export const DEOStats: React.FC<DEOStatsProps> = ({
                     >
                         {/* Top row: Label + Badge */}
                         <div className="flex justify-between items-center">
-                            <span className="text-[0.6rem] font-black text-black uppercase tracking-widest [font-variant:small-caps]">
+                            <span className="text-[0.6rem] font-medium text-black">
                                 {kpi.label}
                             </span>
                             <div className={`inline-block px-3 py-0.5 rounded-lg text-[0.55rem] font-black uppercase tracking-widest ${kpi.badge} [font-variant:small-caps]`}>
