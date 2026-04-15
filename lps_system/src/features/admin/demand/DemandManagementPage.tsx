@@ -155,7 +155,7 @@ const DemandManagementPage = () => {
             <div className="sticky top-0 z-30 bg-white  border-t border-ind-border/60  transition-all pb-2">
                 <div className="">
                     {/* Header Row: Title & Stats */}
-                    <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-white border-b border-slate-100 mb-2 py-1">
+                    <div className="flex  xl:flex-row xl:items-center justify-between gap-4 bg-white border-b border-slate-100 mb-2 py-1">
                         {/* <div className="flex items-center gap-4">
                             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#F37021] to-orange-600 flex items-center justify-center text-white shadow-lg shadow-orange-500/10">
                                 <Car size={24} strokeWidth={2.5} />
@@ -307,10 +307,10 @@ const DemandManagementPage = () => {
                                                     <Car size={20} />
                                                 </div>
                                                 <div>
-                                                    <div className="font-bold text-slate-800">
+                                                    <div className="font-bold text-xs text-slate-800">
                                                         {demand.model_name}
                                                     </div>
-                                                    <div className="text-[10px] text-ind-text3 font-bold uppercase">
+                                                    <div className="text-[10px] text-ind-text3 font-medium uppercase">
                                                         {demand.formatted_id || `DEM-${demand.id}`} • {demand.line}
                                                     </div>
                                                 </div>
@@ -354,7 +354,7 @@ const DemandManagementPage = () => {
 
                                         {/* Target */}
                                         <td className="px-6 py-2 text-right ">
-                                            <div className="font-bold text-slate-800">
+                                            <div className="font-bold text-xs text-slate-800">
                                                 {demand.quantity.toLocaleString()} Units
                                             </div>
 

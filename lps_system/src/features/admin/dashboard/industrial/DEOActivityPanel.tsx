@@ -43,7 +43,7 @@ export const DEOActivityPanel: React.FC<Props> = ({ deos, isLoading }) => {
                 {isLoading && <Loader2 size={14} className="text-teal-400 animate-spin" />}
             </div>
 
-            <div className="p-3 space-y-2 overflow-y-auto max-h-[480px] custom-scrollbar">
+            <div className="p-3 space-y-2 overflow-y-auto h-[calc(100vh-400px)] custom-scrollbar">
                 {deos.length === 0 ? (
                     <div className="text-center py-8 text-gray-400 text-sm">
                         {isLoading ? 'Loading DEO data…' : 'No DEO data for current filters.'}
@@ -65,7 +65,7 @@ export const DEOActivityPanel: React.FC<Props> = ({ deos, isLoading }) => {
                             >
                                 <div className="flex items-start gap-3">
                                     {/* Avatar */}
-                                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-teal-400 to-emerald-600 flex items-center justify-center text-white text-[0.65rem] font-black shrink-0 shadow">
+                                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-teal-400 to-emerald-600 flex items-center justify-center text-white text-xs font-black shrink-0 shadow">
                                         {initials}
                                     </div>
 
@@ -77,7 +77,7 @@ export const DEOActivityPanel: React.FC<Props> = ({ deos, isLoading }) => {
                                             </span>
                                         </div>
 
-                                        <div className="flex items-center gap-2 mb-2">
+                                        <div className="flex items-center gap-2 mb-1">
                                             <span className="text-[0.55rem] text-gray-500 truncate">
                                                 {deo.model !== '—' ? deo.model : 'No model'}
                                             </span>
@@ -121,7 +121,7 @@ export const DEOActivityPanel: React.FC<Props> = ({ deos, isLoading }) => {
                                 </div>
 
                                 {/* Last submission */}
-                                <div className="flex items-center gap-1 mt-2 pt-2 border-t border-gray-100">
+                                <div className="flex items-center gap-1 mt-1 pt-1 border-t border-gray-100">
                                     <Clock size={9} className="text-gray-300" />
                                     <span className="text-[0.5rem] text-gray-400">Last submission: {timeAgo(deo.last_submission)}</span>
                                     <span className="ml-auto text-[0.5rem] text-gray-400">{deo.logs_count} log{deo.logs_count !== 1 ? 's' : ''}</span>

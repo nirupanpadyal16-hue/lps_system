@@ -92,7 +92,7 @@ function FillModal({ request, onClose, onSuccess }: {
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-                <div className="flex items-center justify-between p-6 border-b border-gray-100">
+                <div className="flex items-center justify-between px-6 py-2 border-b border-gray-100">
                     <div>
                         <h2 className="text-lg font-black text-gray-900">Fill Stock Data</h2>
                         <p className="text-xs text-gray-400">{request.formatted_id} — {item?.sap_part_number}</p>
@@ -154,7 +154,7 @@ function FillModal({ request, onClose, onSuccess }: {
                                 { label: "Today's Stock", key: 'todays_stock' },
                             ].map(({ label, key }) => (
                                 <div key={key}>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">{label} *</label>
+                                    <label className="block text-xs font-bold text-black mb-1.5 uppercase tracking-wider">{label} *</label>
                                     <input
                                         type="number" min="0" step="any"
                                         value={(form as any)[key]}
@@ -166,7 +166,7 @@ function FillModal({ request, onClose, onSuccess }: {
                             ))}
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Notes</label>
+                            <label className="block text-xs font-bold text-black mb-1.5 uppercase tracking-wider">Notes</label>
                             <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2}
                                 placeholder="e.g. Parts arrived from warehouse, lot #123..."
                                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none" />

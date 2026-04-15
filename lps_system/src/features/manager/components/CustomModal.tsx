@@ -52,6 +52,18 @@ const CustomModal: React.FC<CustomModalProps> = ({
                     exit={{ opacity: 0, scale: 0.9, y: 20 }}
                     className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl border border-ind-border/50 p-8 overflow-hidden"
                 >
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-4 border-b border-slate-200">
+                        <h3 className="text-base font-bold text-slate-800 uppercase tracking-tight">
+                            {title}
+                        </h3>
+                        <button
+                            onClick={onClose}
+                            className="p-2 hover:bg-ind-border/30 rounded-full transition-colors text-ind-text3"
+                        >
+                            <X size={20} />
+                        </button>
+                    </div>
                     {/* Content type icons for success/error */}
                     {type === 'success' && (
                         <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-500 mb-6 mx-auto">
@@ -64,24 +76,13 @@ const CustomModal: React.FC<CustomModalProps> = ({
                         </div>
                     )}
 
-                    {/* Header */}
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">
-                            {title}
-                        </h3>
-                        <button
-                            onClick={onClose}
-                            className="p-2 hover:bg-ind-border/30 rounded-full transition-colors text-ind-text3"
-                        >
-                            <X size={20} />
-                        </button>
-                    </div>
+                    
 
-                    {description && (
+                    {/* {description && (
                         <p className="text-ind-text2 text-sm font-medium mb-8 leading-relaxed text-center">
                             {description}
                         </p>
-                    )}
+                    )} */}
 
                     {/* Content */}
                     <div className="mb-8">

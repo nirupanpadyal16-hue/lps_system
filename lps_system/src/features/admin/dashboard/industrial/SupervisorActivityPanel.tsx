@@ -21,7 +21,7 @@ const EfficiencyGauge: React.FC<{ pct: number }> = ({ pct }) => {
     const dashOffset = circ - (pct / 100) * circ;
 
     return (
-        <div className="relative flex items-center justify-center w-14 h-14">
+        <div className="relative flex items-center justify-center w-10 h-10">
             <svg width="56" height="56" viewBox="0 0 56 56" className="-rotate-90">
                 <circle cx="28" cy="28" r={r} fill="none" stroke="#f1f5f9" strokeWidth="5" />
                 <circle
@@ -90,7 +90,9 @@ export const SupervisorActivityPanel: React.FC<Props> = ({ supervisors, isLoadin
                                             ? sup.assigned_models.slice(0, 2).join(', ') + (sup.assigned_models.length > 2 ? '…' : '')
                                             : 'No models assigned'}
                                     </div>
-                                    {/* Stats chips */}
+                                    
+                                </div>
+{/* Stats chips */}
                                     <div className="flex items-center gap-1.5 flex-wrap">
                                         <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700">
                                             <CheckCircle2 size={8} /> {sup.logs_approved_today} Approved
@@ -102,8 +104,6 @@ export const SupervisorActivityPanel: React.FC<Props> = ({ supervisors, isLoadin
                                             <XCircle size={8} /> {sup.logs_rejected_today} Rejected
                                         </span>
                                     </div>
-                                </div>
-
                                 {/* Gauge on right */}
                                 <div className="flex flex-col items-center shrink-0">
                                     <EfficiencyGauge pct={Math.round(sup.efficiency_pct)} />

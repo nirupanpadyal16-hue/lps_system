@@ -271,7 +271,7 @@ const UserAccountsPage = () => {
                     />
                 )}
             </AnimatePresence>
-            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-white border-b border-slate-100  py-1 px-2">
+            <div className="flex xl:flex-row xl:items-center justify-between gap-4 bg-white border-b border-slate-100  py-1 px-2">
                 <h1 className="text-[24px] font-black text-ind-text tracking-tight  leading-none">
                     User Management
                 </h1>
@@ -352,7 +352,7 @@ const UserAccountsPage = () => {
 
             {/* User List Container */}
 
-            <div className="p-2 h-[calc(100vh-200px)] overflow-y-auto">
+            <div className="p-2 ">
 
                 {/* Header */}
                 <div className="grid grid-cols-12 px-6 py-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b-2 border-[#f37021] bg-white bg-white sticky top-0 z-[50]">
@@ -365,7 +365,7 @@ const UserAccountsPage = () => {
                 </div>
 
                 {/* Rows */}
-                <div>
+                <div className='h-[calc(100vh-240px)] overflow-y-auto'>
                     {isLoading ? (
                         <div className="text-center py-20 text-slate-400 font-medium">Loading users...</div>
                     ) : filteredUsers.length === 0 ? (
@@ -387,7 +387,7 @@ const UserAccountsPage = () => {
                                     </div>
 
                                     <div className="flex flex-col">
-                                        <span className="text-sm font-semibold text-slate-700">
+                                        <span className="text-xs font-semibold text-black">
                                             @{user.username}
                                         </span>
                                         <span className="text-xs text-slate-400">
@@ -405,7 +405,7 @@ const UserAccountsPage = () => {
 
                                 {/* Name */}
                                 <div className="col-span-3 text-center">
-                                    <span className="text-sm font-semibold text-slate-700">
+                                    <span className="text-xs font-semibold text-black">
                                         {user.name || 'Anonymous'}
                                     </span>
                                 </div>
@@ -578,7 +578,7 @@ const UserAccountsPage = () => {
                                 </div>
 
                                 {/* Actions */}
-                                <div className="pt-4 flex items-center justify-between gap-6">
+                                <div className="pt-2 flex items-center justify-end border-t border-slate-200 gap-6">
                                     <button
                                         type="button"
                                         onClick={() => setShowModal(false)}
@@ -588,7 +588,7 @@ const UserAccountsPage = () => {
                                     </button>
                                     <button
                                         type="submit"
-                                        className="flex-1 bg-ind-primary text-white py-3 rounded-full font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 border-[3px] border-ind-primary hover:border-ind-primary/90"
+                                        className="px-4 bg-ind-primary text-white py-3 rounded-full font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 border-[3px] border-ind-primary hover:border-ind-primary/90"
                                     >
                                         <CheckCircle size={18} strokeWidth={3} />
                                         <span>{isEditMode ? 'Update User' : 'Save New User'}</span>

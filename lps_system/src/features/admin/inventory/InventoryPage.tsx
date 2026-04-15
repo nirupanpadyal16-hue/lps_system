@@ -87,7 +87,7 @@ function ActionBadge({ action, onNewDemand }: { action: string; onNewDemand?: ()
     return (
         <button
             onClick={onNewDemand}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-bold transition-all shadow-sm hover:shadow-md active:scale-95"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-bold transition-all  active:scale-95"
         >
             <AlertTriangle size={13} />
             New Demand
@@ -151,7 +151,7 @@ function AddPartModal({ demands, onClose, onSuccess }: {
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-                <div className="flex items-center justify-between p-6 border-b border-gray-100">
+                <div className="flex items-center justify-between px-6 py-2 border-b border-gray-100">
                     <h2 className="text-lg font-black text-gray-900 flex items-center gap-2">
                         <Plus size={18} className="text-orange-500" /> Add Inventory Part
                     </h2>
@@ -159,7 +159,7 @@ function AddPartModal({ demands, onClose, onSuccess }: {
                 </div>
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Link to Demand (auto-fills vehicle & qty)</label>
+                        <label className="block text-xs font-bold text-black mb-1.5 uppercase tracking-wider">Link to Demand (auto-fills vehicle & qty)</label>
                         <select
                             value={form.demand_id}
                             onChange={e => handleDemandChange(e.target.value)}
@@ -173,29 +173,29 @@ function AddPartModal({ demands, onClose, onSuccess }: {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Vehicle Name</label>
+                            <label className="block text-xs font-bold text-black mb-1.5 uppercase tracking-wider">Vehicle Name</label>
                             <input value={form.vehicle_name} onChange={e => setForm(f => ({ ...f, vehicle_name: e.target.value }))}
                                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" required />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">SAP Part Number</label>
+                            <label className="block text-xs font-bold text-black mb-1.5 uppercase tracking-wider">SAP Part Number</label>
                             <input value={form.sap_part_number} onChange={e => setForm(f => ({ ...f, sap_part_number: e.target.value }))}
                                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" required />
                         </div>
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Part Description</label>
+                        <label className="block text-xs font-bold text-black mb-1.5 uppercase tracking-wider">Part Description</label>
                         <input value={form.part_description} onChange={e => setForm(f => ({ ...f, part_description: e.target.value }))}
                             className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Current Stock</label>
+                            <label className="block text-xs font-bold text-black mb-1.5 uppercase tracking-wider">Current Stock</label>
                             <input type="number" min="0" value={form.current_stock} onChange={e => setForm(f => ({ ...f, current_stock: e.target.value }))}
                                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" required />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Demand Quantity</label>
+                            <label className="block text-xs font-bold text-black mb-1.5 uppercase tracking-wider">Demand Quantity</label>
                             <input type="number" min="0" value={form.demand_quantity} onChange={e => setForm(f => ({ ...f, demand_quantity: e.target.value }))}
                                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" required />
                         </div>
@@ -264,7 +264,7 @@ function ShortageRequestModal({ shortageItems, deos, supervisors, lines, onClose
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-                <div className="flex items-center justify-between p-6 border-b border-gray-100 flex-shrink-0">
+                <div className="flex items-center justify-between px-6 py-2 border-b border-gray-100 flex-shrink-0">
                     <div>
                         <h2 className="text-lg font-black text-gray-900 flex items-center gap-2">
                             <AlertTriangle size={18} className="text-red-500" /> Create Part Demand
@@ -282,12 +282,12 @@ function ShortageRequestModal({ shortageItems, deos, supervisors, lines, onClose
                     {shortageItems.map(item => (
                         <div key={item.id} className="flex items-center justify-between p-3 bg-red-50 rounded-xl border border-red-100">
                             <div>
-                                <p className="text-sm font-bold text-gray-800">{item.sap_part_number}</p>
+                                <p className="text-xs font-bold text-gray-800">{item.sap_part_number}</p>
                                 <p className="text-xs text-gray-500">{item.part_description}</p>
                             </div>
                             <div className="text-right">
                                 <p className="text-xs text-gray-400">Stock / Demand</p>
-                                <p className="text-sm font-black text-red-600">
+                                <p className="text-xs font-black text-red-600">
                                     {item.current_stock} / {item.demand_quantity}
                                     <span className="ml-1 text-xs font-semibold text-red-400">(Need {item.shortage_quantity} more)</span>
                                 </p>
@@ -299,7 +299,7 @@ function ShortageRequestModal({ shortageItems, deos, supervisors, lines, onClose
                 <form onSubmit={handleSubmit} className="p-6 border-t border-gray-100 space-y-4 flex-shrink-0">
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
+                            <label className="block text-xs font-bold text-black mb-1.5 uppercase tracking-wider">
                                 Deadline / Timeline <span className="text-red-400">*</span>
                             </label>
                             <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)}
@@ -307,7 +307,7 @@ function ShortageRequestModal({ shortageItems, deos, supervisors, lines, onClose
                                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
+                            <label className="block text-xs font-bold text-black mb-1.5 uppercase tracking-wider">
                                 Assign DEO <span className="text-red-400">*</span>
                             </label>
                             <select value={deoId} onChange={e => setDeoId(e.target.value)}
@@ -317,7 +317,7 @@ function ShortageRequestModal({ shortageItems, deos, supervisors, lines, onClose
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
+                            <label className="block text-xs font-bold text-black mb-1.5 uppercase tracking-wider">
                                 Assign Supervisor <span className="text-red-400">*</span>
                             </label>
                             <select value={supervisorId} onChange={e => setSupervisorId(e.target.value)}
@@ -327,7 +327,7 @@ function ShortageRequestModal({ shortageItems, deos, supervisors, lines, onClose
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
+                            <label className="block text-xs font-bold text-black mb-1.5 uppercase tracking-wider">
                                 Assign Production Line <span className="text-red-400">*</span>
                             </label>
                             <select value={lineId} onChange={e => setLineId(e.target.value)}
@@ -384,7 +384,7 @@ function SeedModal({ demands, onClose, onSuccess }: {
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-                <div className="flex items-center justify-between p-6 border-b border-gray-100">
+                <div className="flex items-center justify-between px-6 py-2 border-b border-gray-100">
                     <h2 className="text-lg font-black text-gray-900 flex items-center gap-2">
                         <Boxes size={18} className="text-orange-500" /> Import from Demand
                     </h2>
@@ -587,34 +587,34 @@ export default function InventoryPage() {
 
             </div>
             {/* KPI Cards */}
-         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3 px-2">
-    {[
-        { label: 'Total Parts', value: totalParts, icon: Boxes, color: 'from-slate-500 to-slate-600', bg: 'bg-white',  text: 'text-slate-800' },
-        { label: 'Stock OK', value: sufficient, icon: CheckCircle2, color: 'from-emerald-500 to-emerald-600', bg: 'bg-white',  text: 'text-emerald-600' },
-        { label: 'Shortage', value: shortage, icon: AlertTriangle, color: 'from-red-500 to-red-600', bg: 'bg-white', border: 'border-red-200/60', text: 'text-red-600' },
-        { label: 'Pending DEO', value: pendingDEO, icon: Clock, color: 'from-amber-500 to-amber-600', bg: 'bg-white',  text: 'text-amber-600' },
-    ].map(card => (
-        <div
-            key={card.label}
-            className={`${card.bg} border border-gray-200 rounded-xl p-4 flex items-center gap-4  duration-200`}
-        >
-            {/* Icon */}
-            <div className={`w-11 h-11 rounded-lg bg-gradient-to-br ${card.color} flex items-center justify-center shadow-sm`}>
-                <card.icon size={18} className="text-white" />
-            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3 px-2">
+                {[
+                    { label: 'Total Parts', value: totalParts, icon: Boxes, color: 'from-slate-500 to-slate-600', bg: 'bg-white', text: 'text-slate-800' },
+                    { label: 'Stock OK', value: sufficient, icon: CheckCircle2, color: 'from-emerald-500 to-emerald-600', bg: 'bg-white', text: 'text-emerald-600' },
+                    { label: 'Shortage', value: shortage, icon: AlertTriangle, color: 'from-red-500 to-red-600', bg: 'bg-white', border: 'border-red-200/60', text: 'text-red-600' },
+                    { label: 'Pending DEO', value: pendingDEO, icon: Clock, color: 'from-amber-500 to-amber-600', bg: 'bg-white', text: 'text-amber-600' },
+                ].map(card => (
+                    <div
+                        key={card.label}
+                        className={`${card.bg} border border-gray-200 rounded-xl p-4 flex items-center gap-4  duration-200`}
+                    >
+                        {/* Icon */}
+                        <div className={`w-11 h-11 rounded-lg bg-gradient-to-br ${card.color} flex items-center justify-center shadow-sm`}>
+                            <card.icon size={18} className="text-white" />
+                        </div>
 
-            {/* Content */}
-            <div className="flex flex-col">
-                <p className="text-sm text-black font-bold tracking-wide">
-                    {card.label}
-                </p>
-                <p className={`text-xl font-semibold ${card.text} leading-tight`}>
-                    {card.value}
-                </p>
+                        {/* Content */}
+                        <div className="flex flex-col">
+                            <p className="text-sm text-black font-bold tracking-wide">
+                                {card.label}
+                            </p>
+                            <p className={`text-xl font-semibold ${card.text} leading-tight`}>
+                                {card.value}
+                            </p>
+                        </div>
+                    </div>
+                ))}
             </div>
-        </div>
-    ))}
-</div>
 
             {/* Toolbar */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 mx-2 p-2 mb-2">
@@ -683,26 +683,26 @@ export default function InventoryPage() {
                     {shortage > 0 && (
                         <button
                             onClick={handleBatchNewDemand}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-bold transition-all shadow-sm"
+                            className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
                         >
                             <AlertCircle size={15} />
                             Create Demand ({shortage} short)
                         </button>
                     )}
                     <button onClick={() => setShowSeedModal(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-semibold transition-all">
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-xs font-semibold transition-all">
                         <Boxes size={15} /> Import from Demand
                     </button>
                     <button onClick={() => setShowAddModal(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-semibold transition-all">
+                        className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-semibold transition-all">
                         <Plus size={15} /> Add Part
                     </button>
                     <button onClick={handleExport}
-                        className="flex items-center gap-2 px-4 py-2 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition-all">
+                        className="flex items-center gap-2 px-4 py-2 border border-gray-200 hover:bg-gray-50 rounded-xl text-xs font-semibold transition-all">
                         <Download size={15} /> Export
                     </button>
                     <button onClick={fetchAll} disabled={loading}
-                        className="flex items-center gap-2 px-4 py-2 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition-all">
+                        className="flex items-center gap-2 px-4 py-2 border border-gray-200 hover:bg-gray-50 rounded-xl text-xs font-semibold transition-all">
                         <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
                     </button>
                 </div>
@@ -752,14 +752,14 @@ export default function InventoryPage() {
                                             <input type="checkbox" checked={selectedIds.has(item.id)}
                                                 onChange={() => toggleSelect(item.id)} className="rounded" />
                                         </td>
-                                        <td className="px-4 py-2 text-xs font-bold text-gray-400">{item.serial_number}</td>
+                                        <td className="px-4 py-2 text-xs font-bold text-black">{item.serial_number}</td>
                                         <td className="px-4 py-2">
-                                            <span className="text-sm font-bold text-gray-800">{item.vehicle_name}</span>
+                                            <span className="text-xs font-bold text-gray-800">{item.vehicle_name}</span>
                                         </td>
                                         <td className="px-4 py-2">
                                             <span className="font-mono text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">{item.sap_part_number}</span>
                                         </td>
-                                        <td className="px-4 py-2 text-xs text-gray-600 max-w-48 truncate">{item.part_description || '—'}</td>
+                                        <td className="px-4 py-2 text-xs text-black max-w-48 truncate">{item.part_description || '—'}</td>
                                         <td className="px-4 py-2">
                                             <div className="flex flex-col gap-1">
                                                 {editingStockId === item.id ? (
@@ -774,7 +774,7 @@ export default function InventoryPage() {
                                                     />
                                                 ) : (
                                                     <span
-                                                        className={`text-sm font-black cursor-pointer hover:underline ${isShortage ? 'text-red-600' : 'text-emerald-600'}`}
+                                                        className={`text-xs font-black cursor-pointer hover:underline ${isShortage ? 'text-red-600' : 'text-emerald-600'}`}
                                                         onClick={() => { setEditingStockId(item.id); setEditStockValue(item.current_stock.toString()); }}
                                                         title="Click to edit"
                                                     >
@@ -787,19 +787,19 @@ export default function InventoryPage() {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-4 py-2 text-sm font-bold text-gray-700">{item.demand_quantity}</td>
+                                        <td className="px-4 py-2 text-xs font-bold text-gray-700">{item.demand_quantity}</td>
                                         <td className="px-4 py-2">
                                             {item.shortage_quantity > 0 ? (
-                                                <span className="text-sm font-black text-red-600">−{item.shortage_quantity}</span>
+                                                <span className="text-xs font-black text-red-600">−{item.shortage_quantity}</span>
                                             ) : (
-                                                <span className="text-sm font-bold text-emerald-500">+{Math.abs(item.current_stock - item.demand_quantity)}</span>
+                                                <span className="text-xs font-bold text-emerald-500">+{Math.abs(item.current_stock - item.demand_quantity)}</span>
                                             )}
                                         </td>
                                         <td className="px-4 py-2">
-                                            {item.status === 'SUFFICIENT' && <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">SUFFICIENT</span>}
-                                            {item.status === 'SHORTAGE' && <span className="text-[11px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded-full">SHORTAGE</span>}
-                                            {item.status === 'PENDING_DEO' && <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">PENDING DEO</span>}
-                                            {item.status === 'IN_PRODUCTION' && <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-full">IN PRODUCTION</span>}
+                                            {item.status === 'SUFFICIENT' && <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">SUFFICIENT</span>}
+                                            {item.status === 'SHORTAGE' && <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded-full">SHORTAGE</span>}
+                                            {item.status === 'PENDING_DEO' && <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">PENDING DEO</span>}
+                                            {item.status === 'IN_PRODUCTION' && <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-full">IN PRODUCTION</span>}
                                         </td>
                                         <td className="px-4 py-2">
                                             <ActionBadge

@@ -51,41 +51,50 @@ const AdminAuditPage: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [totalActionsToday, setTotalActionsToday] = useState(0);
 
-    const fetchData = async (pageNum = 1) => {
-        try {
-            const token = getToken();
-            const headers = { 'Authorization': `Bearer ${token}` };
+  const fetchData = async (pageNum = page) => {
+    try {
+        const token = getToken();
+        const headers = { 'Authorization': `Bearer ${token}` };
 
-            // Fetch Stats
-            const statsRes = await fetch(`${API_BASE}/admin/audit/stats`, { headers });
-            const statsData = await statsRes.json();
-            if (statsData.success) {
-                setStats(statsData.data);
-            }
-
-            // Fetch Logs with optional search filter
-            const searchParam = searchTerm ? `&search=${searchTerm}` : '';
-            const logsRes = await fetch(`${API_BASE}/admin/audit/list?page=${pageNum}${searchParam}`, { headers });
-            const logsData = await logsRes.json();
-            if (logsData.success) {
-                setLogs(logsData.data.logs);
-                setTotalPages(logsData.data.pages);
-                setPage(logsData.data.current_page);
-                setTotalActionsToday(logsData.data.total || logsData.data.logs.length);
-            }
-        } catch (error) {
-            console.error('Failed to fetch audit data:', error);
-        } finally {
-            setIsRefreshing(false);
-            setIsLoading(false);
+        const statsRes = await fetch(`${API_BASE}/admin/audit/stats`, { headers });
+        const statsData = await statsRes.json();
+        if (statsData.success) {
+            setStats(statsData.data);
         }
-    };
 
-    useEffect(() => {
-        fetchData();
-        const interval = setInterval(() => fetchData(page), 60000); // 1 minute
-        return () => clearInterval(interval);
-    }, [page]);
+        const searchParam = searchTerm ? `&search=${searchTerm}` : '';
+        const logsRes = await fetch(
+            `${API_BASE}/admin/audit/list?page=${pageNum}${searchParam}`,
+            { headers }
+        );
+
+        const logsData = await logsRes.json();
+
+        if (logsData.success) {
+            setLogs(logsData.data.logs);
+            setTotalPages(logsData.data.pages);
+
+            // ❌ REMOVE THIS
+            // setPage(logsData.data.current_page);
+
+            setTotalActionsToday(
+                logsData.data.total || logsData.data.logs.length
+            );
+        }
+    } catch (error) {
+        console.error('Failed to fetch audit data:', error);
+    } finally {
+        setIsRefreshing(false);
+        setIsLoading(false);
+    }
+};
+
+   useEffect(() => {
+    fetchData(page);
+
+    const interval = setInterval(() => fetchData(page), 60000);
+    return () => clearInterval(interval);
+}, [page, searchTerm]); // ✅ add searchTerm
 
     const handleRefresh = () => {
         setIsRefreshing(true);
@@ -325,7 +334,7 @@ const AdminAuditPage: React.FC = () => {
 
                 {/* Audit Logs Table */}
                 <section className="relative z-10 px-2 pt-0 pb-2">
-                    <div className="bg-white/90 backdrop-blur-xl rounded-2xl border border-white shadow-[0_4px_20px_rgb(0,0,0,0.03)] overflow-hidden flex flex-col h-[460px]">
+                    <div className="bg-white/90 backdrop-blur-xl rounded-2xl border border-white shadow-[0_4px_20px_rgb(0,0,0,0.03)] overflow-hidden flex flex-col h-[calc(100vh-300px)] overflow-y-auto">
                         <div className="py-2 px-4 border-b border-ind-border/50 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
                             <div className="flex items-center gap-2">
                                 <div className="w-1.5 h-6 bg-[#f37021] rounded-full"></div>
