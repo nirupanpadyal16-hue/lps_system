@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Car, MapPin, Users, Clock, Mail, User } from 'lucide-react';
+import { X, Car, MapPin, Users, Clock, Mail, User, LayoutGrid } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 
 interface AssignedModel {
@@ -66,7 +66,7 @@ export const DEODetailModal: React.FC<DEODetailModalProps> = ({ isOpen, onClose,
                                     </div>
                                 </div>
                             </div>
-                            <button 
+                            <button
                                 onClick={onClose}
                                 className="w-10 h-10 bg-ind-bg rounded-xl flex items-center justify-center text-ind-text3 hover:bg-ind-border/30 hover:text-ind-text2 transition-all border border-ind-border/50 shadow-sm group"
                             >
@@ -78,7 +78,7 @@ export const DEODetailModal: React.FC<DEODetailModalProps> = ({ isOpen, onClose,
                         <div className="p-8 pt-6 grid grid-cols-1 md:grid-cols-2 gap-8">
                             {/* Production Context */}
                             <div className="space-y-6">
-                                <div className="flex items-center gap-2 text-orange-500">
+                                <div className="flex items-center gap-2 text-[10px] text-ind-text3 font-bold uppercase">
                                     <MapPin size={14} />
                                     <span className="text-[9px] font-black uppercase tracking-[0.2em] text-ind-text">Production Context</span>
                                 </div>
@@ -90,7 +90,7 @@ export const DEODetailModal: React.FC<DEODetailModalProps> = ({ isOpen, onClose,
                                     <div className="h-px bg-ind-border/30 w-full" />
                                     <div>
                                         <p className="text-[8px] font-black text-ind-text3 uppercase tracking-widest mb-1">Customer / Division</p>
-                                        <p className="text-base font-black text-ind-text uppercase italic tracking-tight">{model.customer_name || 'STANDARD'}</p>
+                                        <p className="text-base font-black text-ind-text uppercase italic tracking-tight">{model.customer_name || 'STANDARD'}</span>
                                     </div>
                                 </div>
                             </div>
@@ -154,7 +154,7 @@ export const DEODetailModal: React.FC<DEODetailModalProps> = ({ isOpen, onClose,
 
                         {/* Footer Button */}
                         <div className="p-8 pt-2 pb-8">
-                            <button 
+                            <button
                                 onClick={onClose}
                                 className="w-full py-4 bg-[#0F172A] text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-slate-900/20 hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2"
                             >
