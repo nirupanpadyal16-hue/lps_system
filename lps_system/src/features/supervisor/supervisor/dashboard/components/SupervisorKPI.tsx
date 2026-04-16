@@ -20,101 +20,93 @@ export const SupervisorKPI = ({
 
     const kpis = [
         {
-            label: 'Total DEOs',
+            label: 'TOTAL DEOS',
             value: totalDeos,
-            icon: Users,
-            colorUrl: 'blue',
+            icon: <Users size={16} />,
             badgeText: 'LIVE',
-            badgeColor: 'bg-blue-50 text-blue-600',
-            iconColor: 'bg-blue-50 text-blue-600',
-            borderColor: 'border-t-blue-500',
+            color: 'blue',
             path: null,
-            glow: ''
         },
         {
-            label: 'Pending Production Logs',
+            label: 'PENDING PRODUCTION LOGS',
             value: awaitingReview,
-            icon: ClipboardCheck,
-            colorUrl: 'indigo',
+            icon: <ClipboardCheck size={16} />,
             badgeText: 'AWAITING ACTION',
-            badgeColor: 'bg-indigo-50 text-indigo-600',
-            iconColor: 'bg-indigo-50 text-indigo-600',
-            borderColor: 'border-t-indigo-500',
-            path: null, // Stays on dashboard to click a log
-            glow: ''
+            color: 'indigo',
+            path: null,
         },
         {
-            label: 'Shortage Verified',
+            label: 'SHORTAGE VERIFIED',
             value: verifiedShortages,
-            icon: ClipboardCheck,
-            colorUrl: 'emerald',
+            icon: <ClipboardCheck size={16} />,
             badgeText: 'COMPLETED',
-            badgeColor: 'bg-emerald-50 text-emerald-600',
-            iconColor: 'bg-emerald-50 text-emerald-600',
-            borderColor: 'border-t-emerald-500',
+            color: 'emerald',
             path: '/supervisor/shortage',
-            glow: ''
         },
         {
-            label: 'Verify Shortage Requests',
+            label: 'VERIFY SHORTAGE REQUESTS',
             value: pendingShortages,
-            icon: Clock,
-            colorUrl: 'orange',
+            icon: <Clock size={16} />,
             badgeText: 'ACTION NEEDED',
-            badgeColor: 'bg-orange-50 text-orange-600',
-            iconColor: 'bg-orange-50 text-orange-600',
-            borderColor: 'border-t-orange-500',
+            color: 'orange',
             path: '/supervisor/shortage',
-            glow: ''
         },
         {
-            label: 'Rejected Shortage Request',
+            label: 'REJECTED SHORTAGE REQUESTS',
             value: rejectedShortages,
-            icon: AlertTriangle,
-            colorUrl: 'red',
+            icon: <AlertTriangle size={16} />,
             badgeText: 'ALERT',
-            badgeColor: 'bg-red-50 text-red-600',
-            iconColor: 'bg-red-50 text-red-600',
-            borderColor: 'border-t-red-500',
+            color: 'red',
             path: '/supervisor/shortage',
-            glow: ''
         }
     ];
 
-    return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-            {kpis.map((kpi, index) => (
-                <div
-                    key={index}
-                    onClick={() => {
-                        if (kpi.path) {
-                            navigate(kpi.path);
-                        }
-                    }}
-                    className={`bg-white rounded-[1.25rem] p-3 border border-x-gray-200 border-b-gray-200 border-t-[4px] shadow-sm flex justify-between items-stretch transition-all duration-300 group
-                        ${kpi.borderColor} 
-                        ${kpi.path ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5' : ''}
-                    `}
-                >
-                    <div className="flex flex-col justify-between h-full gap-2">
-                        <h3 className="text-[10px] font-bold text-gray-700 capitalize  leading-none">
-                            {kpi.label}
-                        </h3>
-                        <span className="text-[2.5rem] font-bold text-gray-900 leading-none tabular-nums tracking-tighter">
-                            {kpi.value}
-                        </span>
-                    </div>
+    const getColors = (color: string) => {
+        const maps: Record<string, { border: string; icon: string; badge: string }> = {
+            blue: { border: 'border-t-blue-500', icon: 'bg-blue-50 text-blue-500', badge: 'bg-blue-50 text-blue-600' },
+            indigo: { border: 'border-t-indigo-500', icon: 'bg-indigo-50 text-indigo-500', badge: 'bg-indigo-50 text-indigo-600' },
+            emerald: { border: 'border-t-emerald-500', icon: 'bg-emerald-50 text-emerald-500', badge: 'bg-emerald-50 text-emerald-600' },
+            orange: { border: 'border-t-orange-500', icon: 'bg-orange-50 text-orange-500', badge: 'bg-orange-50 text-orange-600' },
+            red: { border: 'border-t-red-500', icon: 'bg-red-50 text-red-500', badge: 'bg-red-50 text-red-600' },
+        };
+        return maps[color] || maps.blue;
+    };
 
-                    <div className="flex flex-col items-end justify-between h-full space-y-2">
-                        <span className={`px-2.5 py-1 ${kpi.badgeColor} text-[8px] font-black uppercase tracking-widest rounded-lg`}>
-                            {kpi.badgeText}
-                        </span>
-                        <div className={`w-9 h-9 rounded-full ${kpi.iconColor} flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm`}>
-                            <kpi.icon size={16} strokeWidth={2.5} />
+    return (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 mb-2 pb-0 px-2">
+            {kpis.map((kpi, index) => {
+                const colors = getColors(kpi.color);
+                return (
+                    <div
+                        key={index}
+                        onClick={() => {
+                            if (kpi.path) {
+                                navigate(kpi.path);
+                            }
+                        }}
+                        className={`bg-white border-t-[4px] ${colors.border} rounded-2xl py-2 px-4 shadow-sm transition-all group flex flex-col justify-between
+                            ${kpi.path ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5' : ''}
+                        `}
+                    >
+                        <div className="flex justify-between items-center">
+                            <span className="text-[0.6rem] font-bold text-black tracking-wider uppercase">{kpi.label}</span>
+                            <div className="flex items-center gap-2">
+                                <span className={`inline-block px-3 py-0.5 rounded-lg text-[0.55rem] font-black [font-variant:small-caps] tracking-widest ${colors.badge}`}>
+                                    {kpi.badgeText}
+                                </span>
+                            </div>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <div className="mt-1">
+                                <div className="text-2xl font-black text-ind-text tracking-tight">{kpi.value}</div>
+                            </div>
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${colors.icon}`}>
+                                {kpi.icon}
+                            </div>
                         </div>
                     </div>
-                </div>
-            ))}
+                );
+            })}
         </div>
     );
 };

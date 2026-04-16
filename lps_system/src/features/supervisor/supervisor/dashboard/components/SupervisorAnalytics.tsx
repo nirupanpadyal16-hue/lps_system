@@ -4,31 +4,19 @@ import {
     CartesianGrid,
     Tooltip,
     ResponsiveContainer,
-    PieChart,
-    Pie,
-    Cell,
     BarChart,
     Bar,
     Legend
 } from 'recharts';
-import { Activity, Target, ClipboardList } from 'lucide-react';
+import { Activity } from 'lucide-react';
 
 interface SupervisorAnalyticsProps {
     assignedModels: any[];
     verifications: any[];
 }
 
-const COLORS = {
-    indigo: '#6366F1',
-    emerald: '#10B981',
-    amber: '#F59E0B',
-    rose: '#EF4444',
-    slate: '#94A3B8',
-    orange: '#F37021',
-};
-
 export const SupervisorAnalytics = ({ assignedModels, verifications }: SupervisorAnalyticsProps) => {
-    // 1. Line Work Progress (Actual vs Target by Line) - Grouped Bar
+    // 1. Line Work Progress — compute efficiency % per line
     const lineAggregation = assignedModels.reduce((acc, m) => {
         const line = m.line_name || 'Unassigned';
         if (!acc[line]) {
@@ -45,11 +33,18 @@ export const SupervisorAnalytics = ({ assignedModels, verifications }: Superviso
         return acc;
     }, {} as Record<string, { name: string, produced: number, planned: number }>);
 
-    const performanceData = (Object.values(lineAggregation) as { name: string, produced: number, planned: number }[])
-        .filter(l => l.planned > 0)
-        .sort((a, b) => a.name.localeCompare(b.name));
-
-    // WorkForce deployment logic removed as per user request
+    // Convert to efficiency % for the chart
+    const efficiencyData = (Object.values(lineAggregation) as { name: string, produced: number, planned: number }[])
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map(l => {
+            const efficiency = l.planned > 0 ? Math.round((l.produced / l.planned) * 100) : 0;
+            const pending = l.planned > 0 ? Math.max(0, 100 - efficiency) : 0;
+            return {
+                name: l.name.toLowerCase(),
+                'In Progress': Math.min(efficiency, 100),
+                'Pending': pending,
+            };
+        });
 
     // 3. Shop Floor Live Status Data preparation
     const activeDeos = assignedModels.filter(m => m.assigned_deo_name).map(m => {
@@ -68,44 +63,62 @@ export const SupervisorAnalytics = ({ assignedModels, verifications }: Superviso
         };
     });
 
-    const renderHeader = (title: string, subtitle: string, icon: any, bgColor: string) => (
-        <div className="flex items-center gap-3 mb-4">
-            <div className={`w-8 h-8 rounded-lg ${bgColor} flex items-center justify-center text-white shadow-sm`}>
-                {icon}
-            </div>
-            <div>
-                <h3 className="text-[11px] font-black text-slate-800 leading-none uppercase tracking-tight">{title}</h3>
-                <p className="text-[9px] font-bold text-ind-text3 mt-1">{subtitle}</p>
-            </div>
-        </div>
-    );
-
-    const cardClass = "bg-white rounded-2xl p-6 border border-ind-border/50 shadow-sm flex flex-col h-[320px] transition-all hover:shadow-md";
+    const cardClass = "bg-white rounded-2xl p-6 border border-gray-200 shadow-sm flex flex-col h-[380px] transition-all hover:shadow-md";
 
     return (
-        <div className="space-y-3 pb-8 font-sans">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                {/* 1. Line Work Progress (Grouped Bar Chart) */}
+        <div className="space-y-2 pb-2 font-sans">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 px-2">
+                {/* 1. Line Work Progress (Efficiency Bar Chart) */}
                 <div className={cardClass}>
-                    {renderHeader("Line Work Progress", "Planned vs produced output per line", <Target size={16} />, "bg-[#F37021]")}
+                    {/* Header — orange bar + title + LIVE MONITORING badge */}
+                    <div className="flex items-center justify-between mb-5">
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-1.5 h-7 bg-[#F37021] rounded-full"></div>
+                            <h3 className="text-base font-extrabold text-[#F37021] tracking-tight">Line Work Progress</h3>
+                        </div>
+                        <span className="px-4 py-1.5 rounded-full border border-gray-300 text-[10px] font-black text-gray-700 uppercase tracking-widest">
+                            Live Monitoring
+                        </span>
+                    </div>
+
+                    {/* Chart */}
                     <div className="flex-1 w-full overflow-hidden">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={performanceData} margin={{ top: 5, right: 10, left: -25, bottom: 0 }} barGap={6}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <BarChart data={efficiencyData} margin={{ top: 5, right: 15, left: 5, bottom: 5 }} barGap={4} barCategoryGap="25%">
+                                <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#E2E8F0" />
                                 <XAxis 
                                     dataKey="name" 
                                     axisLine={false} 
                                     tickLine={false} 
-                                    tick={{ fill: '#94A3B8', fontSize: 9, fontWeight: 700 }} 
+                                    tick={{ fill: '#1E293B', fontSize: 11, fontWeight: 800 }} 
                                 />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 9, fontWeight: 700 }} />
+                                <YAxis 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                    tick={{ fill: '#94A3B8', fontSize: 10, fontWeight: 700 }}
+                                    domain={[0, 100]}
+                                    ticks={[0, 25, 50, 75, 100]}
+                                    label={{ value: 'Efficiency %', angle: -90, position: 'insideLeft', offset: 10, style: { fill: '#F37021', fontSize: 11, fontWeight: 800 } }}
+                                />
                                 <Tooltip 
-                                    cursor={{ fill: '#F8FAFC' }} 
-                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 8px 24px rgba(0,0,0,0.05)', fontSize: '10px', fontWeight: 'bold' }} 
+                                    cursor={{ fill: 'rgba(243,112,33,0.04)' }} 
+                                    contentStyle={{ 
+                                        borderRadius: '12px', 
+                                        border: '1px solid #E2E8F0', 
+                                        boxShadow: '0 8px 24px rgba(0,0,0,0.08)', 
+                                        fontSize: '11px', 
+                                        fontWeight: 'bold',
+                                        padding: '10px 14px'
+                                    }}
+                                    formatter={(value: any, name: any) => [`${value}%`, name]}
                                 />
-                                <Legend iconType="circle" wrapperStyle={{ paddingTop: '8px' }} formatter={(v) => <span className="text-[9px] font-bold text-ind-text2 uppercase tracking-wide">{v} units</span>} />
-                                <Bar dataKey="produced" fill={COLORS.emerald} radius={[3, 3, 0, 0]} barSize={20} name="produced" />
-                                <Bar dataKey="planned" fill={COLORS.orange} radius={[3, 3, 0, 0]} barSize={20} name="planned" />
+                                <Legend 
+                                    iconType="circle" 
+                                    wrapperStyle={{ paddingTop: '12px' }} 
+                                    formatter={(v) => <span className="text-[11px] font-black text-gray-600 uppercase tracking-wider ml-1">{v}</span>} 
+                                />
+                                <Bar dataKey="In Progress" fill="#10B981" radius={[4, 4, 0, 0]} barSize={50} />
+                                <Bar dataKey="Pending" fill="#D1FAE5" radius={[4, 4, 0, 0]} barSize={50} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
@@ -113,7 +126,14 @@ export const SupervisorAnalytics = ({ assignedModels, verifications }: Superviso
 
                 {/* 2. Model Assignments List */}
                 <div className={cardClass}>
-                    {renderHeader("Active Assignments", "Models assigned to supervision", <Activity size={16} />, "bg-indigo-500")}
+                    <div className="flex items-center gap-2.5 mb-4">
+                        <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center text-white shadow-sm">
+                            <Activity size={16} />
+                        </div>
+                        <div>
+                            <h3 className="text-[11px] font-black text-[#F37021] leading-none uppercase tracking-tight">Active Assignments</h3>
+                        </div>
+                    </div>
                     <div className="flex-1 w-full overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin' }}>
                         <div className="space-y-2 mt-1 pb-2">
                             {assignedModels.map((m, i) => {
@@ -122,7 +142,7 @@ export const SupervisorAnalytics = ({ assignedModels, verifications }: Superviso
                                 const isComplete = actual >= planned && planned > 0;
                                 
                                 return (
-                                    <div key={i} className="flex justify-between items-center p-3 rounded-xl border border-ind-border/30 hover:border-indigo-200 transition-all group hover:bg-indigo-50/30">
+                                    <div key={i} className="flex justify-between items-center p-3 rounded-xl border border-gray-200 hover:border-indigo-200 transition-all group hover:bg-indigo-50/30">
                                         <div>
                                             <h4 className="text-[10px] font-black tracking-widest uppercase text-slate-800">{m.name}</h4>
                                             <div className="flex items-center gap-2 mt-1">
@@ -154,56 +174,70 @@ export const SupervisorAnalytics = ({ assignedModels, verifications }: Superviso
             </div>
 
             {/* 3. Shop Floor Live Status */}
-            <div className={`${cardClass} h-auto min-h-[350px] overflow-hidden`}>
-                {renderHeader("Shop Floor Live Status", "Real-time operator activity under supervision", <Activity size={16} />, "bg-emerald-500")}
-                <div className="flex-1 w-full overflow-auto mt-2 max-h-[250px] pr-1 custom-scrollbar">
-                    <table className="w-full text-left border-separate border-spacing-0 min-w-[600px]">
-                        <thead className="sticky top-0 z-10">
-                            <tr>
-                                <th className="py-3 px-4 text-[9px] font-black uppercase tracking-[0.15em] bg-slate-50 text-black border-b-2 border-slate-200">Operator (DEO)</th>
-                                <th className="py-3 px-4 text-[9px] font-black uppercase tracking-[0.15em] bg-slate-50 text-black border-b-2 border-slate-200">Line</th>
-                                <th className="py-3 px-4 text-[9px] font-black uppercase tracking-[0.15em] bg-slate-50 text-black border-b-2 border-slate-200">Model Assigned.</th>
-                                <th className="py-3 px-4 text-[9px] font-black uppercase tracking-[0.15em] bg-slate-50 text-black border-b-2 border-slate-200 w-1/4">Progress.</th>
-                                <th className="py-3 px-4 text-[9px] font-black uppercase tracking-[0.15em] bg-slate-50 text-black border-b-2 border-slate-200 text-right">State</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-ind-border/40">
-                            {activeDeos.map((deo, i) => (
-                                <tr key={i} className="hover:bg-slate-50 transition-colors">
-                                    <td className="py-3 px-4 text-[11px] font-black text-slate-800 uppercase tracking-widest">{deo.deo}</td>
-                                    <td className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">{deo.line}</td>
-                                    <td className="py-3 px-4 text-[10px] font-bold text-indigo-600 tracking-wider truncate max-w-[150px]">{deo.model}</td>
-                                    <td className="py-3 px-4">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                <div 
-                                                    className={`h-full ${deo.status === 'Complete' ? 'bg-emerald-500' : 'bg-indigo-500'}`} 
-                                                    style={{ width: `${deo.progress}%` }} 
-                                                />
-                                            </div>
-                                            <span className="text-[9px] font-bold text-slate-500 tabular-nums">{Math.round(deo.progress)}%</span>
-                                        </div>
-                                    </td>
-                                    <td className="py-3 px-4 text-right">
-                                        <span className={`inline-flex px-2 py-1 rounded shadow-sm text-[8px] font-black uppercase tracking-widest
-                                            ${deo.status === 'Active' ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' : ''}
-                                            ${deo.status === 'Idle' ? 'bg-orange-50 text-orange-600 border border-orange-100' : ''}
-                                            ${deo.status === 'Complete' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : ''}
-                                        `}>
-                                            {deo.status}
-                                        </span>
-                                    </td>
-                                </tr>
-                            ))}
-                            {activeDeos.length === 0 && (
+            <div className="px-2">
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                    {/* Section Header - matching admin LineStatusBoard style */}
+                    <div className="flex items-center justify-between px-3 py-3 border-b border-gray-100 bg-white">
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center text-white shadow-sm">
+                                <Activity size={16} />
+                            </div>
+                            <div>
+                                <h3 className="text-[11px] font-black text-[#F37021] leading-none uppercase tracking-tight">Shop Floor Live Status</h3>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Table */}
+                    <div className="w-full overflow-auto max-h-[250px] pr-1 custom-scrollbar">
+                        <table className="w-full text-left border-separate border-spacing-0 min-w-[600px]">
+                            <thead className="sticky top-0 z-10">
                                 <tr>
-                                    <td colSpan={5} className="py-8 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                        No active operators found on floor
-                                    </td>
+                                    <th className="py-3 px-4 text-xs font-bold text-black uppercase tracking-wider bg-white border-b-2 border-[#f37021]">Operator (DEO)</th>
+                                    <th className="py-3 px-4 text-xs font-bold text-black uppercase tracking-wider bg-white border-b-2 border-[#f37021]">Line</th>
+                                    <th className="py-3 px-4 text-xs font-bold text-black uppercase tracking-wider bg-white border-b-2 border-[#f37021]">Model Assigned</th>
+                                    <th className="py-3 px-4 text-xs font-bold text-black uppercase tracking-wider bg-white border-b-2 border-[#f37021] w-1/4">Progress</th>
+                                    <th className="py-3 px-4 text-xs font-bold text-black uppercase tracking-wider bg-white border-b-2 border-[#f37021] text-right">State</th>
                                 </tr>
-                            )}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {activeDeos.map((deo, i) => (
+                                    <tr key={i} className="hover:bg-slate-50 transition-colors">
+                                        <td className="py-3 px-4 text-[11px] font-black text-slate-800 uppercase tracking-widest">{deo.deo}</td>
+                                        <td className="py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">{deo.line}</td>
+                                        <td className="py-3 px-4 text-[10px] font-bold text-indigo-600 tracking-wider truncate max-w-[150px]">{deo.model}</td>
+                                        <td className="py-3 px-4">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                    <div 
+                                                        className={`h-full ${deo.status === 'Complete' ? 'bg-emerald-500' : 'bg-indigo-500'}`} 
+                                                        style={{ width: `${deo.progress}%` }} 
+                                                    />
+                                                </div>
+                                                <span className="text-[9px] font-bold text-slate-500 tabular-nums">{Math.round(deo.progress)}%</span>
+                                            </div>
+                                        </td>
+                                        <td className="py-3 px-4 text-right">
+                                            <span className={`inline-flex px-2 py-1 rounded shadow-sm text-[8px] font-black uppercase tracking-widest
+                                                ${deo.status === 'Active' ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' : ''}
+                                                ${deo.status === 'Idle' ? 'bg-orange-50 text-orange-600 border border-orange-100' : ''}
+                                                ${deo.status === 'Complete' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : ''}
+                                            `}>
+                                                {deo.status}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {activeDeos.length === 0 && (
+                                    <tr>
+                                        <td colSpan={5} className="py-8 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                            No active operators found on floor
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
