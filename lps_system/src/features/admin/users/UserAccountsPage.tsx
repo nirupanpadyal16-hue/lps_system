@@ -156,7 +156,7 @@ const UserAccountsPage = () => {
 
                 if (!response.ok) throw new Error('Failed to update user in backend');
 
-                setAlert({ message: 'User updated successfully in PostgreSQL', type: 'success' });
+                setAlert({ message: 'updated successfully', type: 'success' });
 
             } else {
                 // CREATE USER
