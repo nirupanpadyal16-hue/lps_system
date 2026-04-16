@@ -22,14 +22,14 @@ export const SupervisorAnalytics = ({ assignedModels, verifications }: Superviso
         if (!acc[line]) {
             acc[line] = { name: line, produced: 0, planned: 0 };
         }
-        
+
         const planned = m.target_quantity || m.planned_qty || 0;
         const modelLogs = verifications.filter(v => v.car_model_id === m.id || v.model_name === m.name);
         const isVerified = modelLogs.some(v => v.status === 'VERIFIED' || v.status === 'APPROVED' || v.status === 'READY' || v.status === 'DONE');
-        
+
         acc[line].planned += planned;
         acc[line].produced += isVerified ? planned : (m.actual_qty || 0);
-        
+
         return acc;
     }, {} as Record<string, { name: string, produced: number, planned: number }>);
 
@@ -86,36 +86,36 @@ export const SupervisorAnalytics = ({ assignedModels, verifications }: Superviso
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={efficiencyData} margin={{ top: 5, right: 15, left: 5, bottom: 5 }} barGap={4} barCategoryGap="25%">
                                 <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#E2E8F0" />
-                                <XAxis 
-                                    dataKey="name" 
-                                    axisLine={false} 
-                                    tickLine={false} 
-                                    tick={{ fill: '#1E293B', fontSize: 11, fontWeight: 800 }} 
+                                <XAxis
+                                    dataKey="name"
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tick={{ fill: '#1E293B', fontSize: 11, fontWeight: 800 }}
                                 />
-                                <YAxis 
-                                    axisLine={false} 
-                                    tickLine={false} 
+                                <YAxis
+                                    axisLine={false}
+                                    tickLine={false}
                                     tick={{ fill: '#94A3B8', fontSize: 10, fontWeight: 700 }}
                                     domain={[0, 100]}
                                     ticks={[0, 25, 50, 75, 100]}
                                     label={{ value: 'Efficiency %', angle: -90, position: 'insideLeft', offset: 10, style: { fill: '#F37021', fontSize: 11, fontWeight: 800 } }}
                                 />
-                                <Tooltip 
-                                    cursor={{ fill: 'rgba(243,112,33,0.04)' }} 
-                                    contentStyle={{ 
-                                        borderRadius: '12px', 
-                                        border: '1px solid #E2E8F0', 
-                                        boxShadow: '0 8px 24px rgba(0,0,0,0.08)', 
-                                        fontSize: '11px', 
+                                <Tooltip
+                                    cursor={{ fill: 'rgba(243,112,33,0.04)' }}
+                                    contentStyle={{
+                                        borderRadius: '12px',
+                                        border: '1px solid #E2E8F0',
+                                        boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
+                                        fontSize: '11px',
                                         fontWeight: 'bold',
                                         padding: '10px 14px'
                                     }}
                                     formatter={(value: any, name: any) => [`${value}%`, name]}
                                 />
-                                <Legend 
-                                    iconType="circle" 
-                                    wrapperStyle={{ paddingTop: '12px' }} 
-                                    formatter={(v) => <span className="text-[11px] font-black text-gray-600 uppercase tracking-wider ml-1">{v}</span>} 
+                                <Legend
+                                    iconType="circle"
+                                    wrapperStyle={{ paddingTop: '12px' }}
+                                    formatter={(v) => <span className="text-[11px] font-black text-gray-600 uppercase tracking-wider ml-1">{v}</span>}
                                 />
                                 <Bar dataKey="In Progress" fill="#10B981" radius={[4, 4, 0, 0]} barSize={50} />
                                 <Bar dataKey="Pending" fill="#D1FAE5" radius={[4, 4, 0, 0]} barSize={50} />
@@ -140,7 +140,7 @@ export const SupervisorAnalytics = ({ assignedModels, verifications }: Superviso
                                 const planned = m.target_quantity || m.planned_qty || 0;
                                 const actual = m.actual_qty || 0;
                                 const isComplete = actual >= planned && planned > 0;
-                                
+
                                 return (
                                     <div key={i} className="flex justify-between items-center p-3 rounded-xl border border-gray-200 hover:border-indigo-200 transition-all group hover:bg-indigo-50/30">
                                         <div>
@@ -209,9 +209,9 @@ export const SupervisorAnalytics = ({ assignedModels, verifications }: Superviso
                                         <td className="py-3 px-4">
                                             <div className="flex items-center gap-2">
                                                 <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                    <div 
-                                                        className={`h-full ${deo.status === 'Complete' ? 'bg-emerald-500' : 'bg-indigo-500'}`} 
-                                                        style={{ width: `${deo.progress}%` }} 
+                                                    <div
+                                                        className={`h-full ${deo.status === 'Complete' ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+                                                        style={{ width: `${deo.progress}%` }}
                                                     />
                                                 </div>
                                                 <span className="text-[9px] font-bold text-slate-500 tabular-nums">{Math.round(deo.progress)}%</span>

@@ -19,13 +19,7 @@ export const SupervisorVerifyLogs = ({
     return (
         <div className="space-y-4 animate-in fade-in duration-500">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h2 className="text-[24px] font-black text-ind-text tracking-tight  leading-none">
-                       
-                        Verify Daily Production
-                    </h2>
-
-                </div>
+                <div></div>
                 <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-ind-border/50 shadow-sm">
                     <div className="px-4  gap-2 items-center flex text-center">
                         <span className="block text-[8px] font-black text-ind-text3 uppercase tracking-[0.2em]">Awaiting Review</span>
