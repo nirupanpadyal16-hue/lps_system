@@ -156,7 +156,7 @@ const UserAccountsPage = () => {
 
                 if (!response.ok) throw new Error('Failed to update user in backend');
 
-                setAlert({ message: 'updated successfully', type: 'success' });
+                setAlert({ message: 'Updated Successfully', type: 'success' });
 
             } else {
                 // CREATE USER
@@ -196,6 +196,7 @@ const UserAccountsPage = () => {
             // Fallback to localDB if backend fails
             // No localDB fallback; rely on backend response
             // Errors already handled above
+
             setShowModal(false);
             loadUsers();
         } finally {
