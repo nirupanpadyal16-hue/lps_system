@@ -406,12 +406,6 @@ export default function SupervisorShortageVerify() {
     const [alertModal, setAlertModal] = useState<string | null>(null);
     const rejectInputRef = useRef<HTMLTextAreaElement>(null);
 
-    // ── Custom modal state (replaces browser prompt/confirm/alert) ──
-    const [rejectModal, setRejectModal] = useState<{ entryId: number } | null>(null);
-    const [rejectReason, setRejectReason] = useState('');
-    const [confirmModal, setConfirmModal] = useState<{ entryId: number; status: 'VERIFIED' | 'REJECTED'; reason: string } | null>(null);
-    const [alertModal, setAlertModal] = useState<string | null>(null);
-    const rejectInputRef = useRef<HTMLTextAreaElement>(null);
 
     const fetchEntries = async () => {
         setLoading(true);
