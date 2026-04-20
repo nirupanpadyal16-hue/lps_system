@@ -507,7 +507,7 @@ const UserAccountsPage = () => {
                                                 onChange={e => setFormData({ ...formData, assigned_line_id: e.target.value })}
                                             >
                                                 <option value="">Select Production Line...</option>
-                                                {productionLines.map((line: ProductionLineOption) => (
+                                                {productionLines.map(line => (
                                                     <option key={line.id} value={line.id}>{line.name}</option>
                                                 ))}
                                             </select>
