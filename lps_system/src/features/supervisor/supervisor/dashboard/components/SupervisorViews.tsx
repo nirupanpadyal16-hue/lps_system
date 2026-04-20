@@ -1,7 +1,7 @@
 import { 
     Layout, Database, Target, Activity, Users, FileSpreadsheet, Bell
 } from 'lucide-react';
-import { cn } from '../../../../lib/utils';
+import { cn } from '../../../../../lib/utils';
 
 interface MonitoringViewProps {
     assignedModels: any[];
