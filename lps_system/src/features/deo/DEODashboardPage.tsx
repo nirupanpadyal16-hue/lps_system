@@ -311,7 +311,7 @@ const DEODashboardPage = () => {
                                 <div className="flex items-center justify-between p-2 bg-[#f5f5f5] rounded-full">
                                     <CustomSearchDropdown
                                         options={uniqueLines.filter(l => l !== 'ALL LINES').map(l => ({ id: l, label: l }))}
-                                        value={selectedLine}
+                                        value={selectedLine === 'ALL LINES' ? 'all' : selectedLine}
                                         onChange={(val: any) => setSelectedLine(val === 'all' ? 'ALL LINES' : val)}
                                         placeholder="Select Line"
                                         searchPlaceholder="Search Production Line..."
@@ -356,7 +356,7 @@ const DEODashboardPage = () => {
                             </div>
                         </div>
 
-                        {assignedModels.length === 0 ? (
+                        {assignedModels.length === 0 && shortageRequests.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[2.5rem] border border-ind-border/50 shadow-sm border-dashed">
                                 <div className="w-16 h-16 rounded-full bg-ind-bg flex items-center justify-center text-ind-text3 mb-6">
                                     <LayoutGrid size={32} strokeWidth={1.5} />

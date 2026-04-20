@@ -71,7 +71,7 @@ export const IssuesAlertTable: React.FC<Props> = ({ issues, isLoading }) => {
     };
 
     return (
-        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm mb-4">
+        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
             {/* Command Header */}
             <div className="flex flex-col md:flex-row items-center justify-between px-3 py-2 border-b border-gray-100 bg-white gap-4">
                 {/* <div className="flex items-center gap-3">

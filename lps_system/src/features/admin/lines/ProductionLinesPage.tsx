@@ -158,7 +158,7 @@ const confirmDelete = async () => {
     );
 
     return (
-        <div className=" max-w-7xl mx-auto">
+        <div className=" mx-auto">
             {/* <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 mb-12">
                 <div className="flex items-center gap-5">
                     <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#F37021] to-orange-600 flex items-center justify-center text-white shadow-xl shadow-orange-500/20">
@@ -235,7 +235,7 @@ const confirmDelete = async () => {
                                 initial={{ opacity: 0, scale: 0.9 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 exit={{ opacity: 0, scale: 0.9 }}
-                                className="bg-white shadow-sm rounded-2xl border-t-4 border-[#f37021]  p-4 shadow-[0_15px_40px_-15px_rgba(0,0,0,0.03)] hover:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.08)] transition-all group relative overflow-hidden"
+                                className="bg-white shadow-sm rounded-xl border-t-4 border-[#f37021]  p-4 shadow-[0_15px_40px_-15px_rgba(0,0,0,0.03)] hover:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.08)] transition-all group relative overflow-hidden"
                             >
                                
 

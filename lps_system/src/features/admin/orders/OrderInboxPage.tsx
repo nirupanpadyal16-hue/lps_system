@@ -531,7 +531,7 @@ const OrderInboxPage = () => {
                                     disabled={selectedEmail.status === 'PROCESSED' || selectedEmail.status === 'REJECTED'}
                                     className={`px-6 py-2.5 font-bold text-sm rounded-lg flex items-center gap-2 shadow-md transition-all ${selectedEmail.status === 'REJECTED' ? 'bg-ind-border/30 text-ind-text3 border border-ind-border cursor-not-allowed' : 'bg-[#F37021] text-white hover:bg-[#d9621a] disabled:opacity-30'}`}
                                 >
-                                    {selectedEmail.status === 'PROCESSED' ? 'Order Processed' : selectedEmail.status === 'REJECTED' ? 'Request Rejected' : 'Authorize Production'} <ArrowRight size={16} />
+                                    {selectedEmail.status === 'PROCESSED' ? 'Order Processed' : selectedEmail.status === 'REJECTED' ? 'Request Rejected' : 'Create Demand'} <ArrowRight size={16} />
                                 </button>
                             </div>
                         </>

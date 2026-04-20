@@ -511,9 +511,9 @@ const SupervisorDashboardPage = () => {
     /* vidyasagar: This function controls what component is rendered based on the sidebar selection. Change routes or add new modules here. */
     const renderContent = () =>
         ROUTE_CONTENT[location.pathname] ?? (
-            <div className="space-y-3 pb-8 font-sans">
+            <div className="space-y-2 pb-2 font-sans">
                 {/* Header */}
-                <div className="flex flex-col lg:flex-row lg:items-center justify-end gap-6 px-4">                    <div className="flex items-center gap-4 relative">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-end gap-2 px-2">                    <div className="flex items-center gap-2 relative">
                     {/* Line filter */}
                     <div className="relative">
                         <div
@@ -530,8 +530,8 @@ const SupervisorDashboardPage = () => {
                         >
                             <span
                                 className={`text-[11px] font-bold ${selectedLine === 'Select Line'
-                                        ? 'text-ind-text3'
-                                        : 'text-ind-text'
+                                    ? 'text-ind-text3'
+                                    : 'text-ind-text'
                                     }`}
                             >
                                 {selectedLine === 'Select Line' ? 'All lines' : selectedLine}
@@ -574,8 +574,8 @@ const SupervisorDashboardPage = () => {
                                                 setIsLineOpen(false);
                                             }}
                                             className={`px-4 py-2.5 text-[10px] font-bold hover:bg-orange-50 hover:text-orange-900 cursor-pointer transition-colors ${selectedLine === line
-                                                    ? 'bg-orange-50 text-orange-900'
-                                                    : 'text-ind-text2'
+                                                ? 'bg-orange-50 text-orange-900'
+                                                : 'text-ind-text2'
                                                 }`}
                                         >
                                             {line}
@@ -625,13 +625,10 @@ const SupervisorDashboardPage = () => {
                 />
 
 
-                <div className="space-y-4">
-                  
-                    <SupervisorAnalytics
-                        assignedModels={filteredAssignedModels}
-                        verifications={filteredVerifications}
-                    />
-                </div>
+                <SupervisorAnalytics
+                    assignedModels={filteredAssignedModels}
+                    verifications={filteredVerifications}
+                />
             </div>
         );
 
@@ -665,8 +662,8 @@ const SupervisorDashboardPage = () => {
 
     // ── Main render ──────────────────────────────────────────────────────────
     return (
-        <div className="max-w-[1700px] mx-auto min-h-screen font-sans bg-ind-bg">
-            <div className="p-2 relative">
+        <div className="max-w-[1760px] mx-auto font-sans bg-ind-bg">
+            <div className="py-0 relative">
                 {selectedLog ? (
                     <LogDetailView
                         selectedLog={selectedLog}

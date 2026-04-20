@@ -167,7 +167,7 @@ const AdminAuditPage: React.FC = () => {
 
     return (
         <div className=" bg-ind-bg/50 ">
-            <div className=" max-w-7xl mx-auto  relative">
+            <div className=" mx-auto  relative">
 
 
                 {/* Header */}

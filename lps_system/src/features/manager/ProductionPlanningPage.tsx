@@ -725,7 +725,7 @@ const ProductionPlanningPage = () => {
             </div>
 
             {/* Main Content Area */}
-            <div className="bg-white rounded-3xl border border-ind-border shadow-sm overflow-hidden flex flex-col h-[450px]">
+            <div className="bg-white rounded-3xl border border-ind-border shadow-sm overflow-hidden flex flex-col h-[calc(100vh-280px)]">
 
                 {/* Simplified Toolbar - Matching Mockup */}
                 <div className="p-2 border-b border-ind-border/50 flex items-center justify-between gap-3 bg-white z-20">
@@ -978,15 +978,7 @@ const ProductionPlanningPage = () => {
                                                     })}
                                                 </>
                                             )}
-                                            <td className="py-2 px-2 text-center align-middle border-b border-ind-border/50">
-                                                <button
-                                                    onClick={() => deleteRow(req.id)}
-                                                    className="p-2.5 rounded-xl text-ind-text3 hover:text-rose-500 hover:bg-rose-50 transition-all opacity-0 group-hover:opacity-100"
-                                                    title="Delete Row"
-                                                >
-                                                    <Trash2 size={16} strokeWidth={2.5} />
-                                                </button>
-                                            </td>
+                                          
                                         </tr>
                                     ))}
 
