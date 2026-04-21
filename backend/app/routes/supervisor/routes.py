@@ -337,7 +337,7 @@ def verify_shortage_entry(entry_id):
             
             # Recalculate status
             if item.current_stock >= item.demand_quantity:
-                item.status = 'IN_PRODUCTION' # Action status GO_TO_PRODUCTION
+                item.status = 'COMPLETED'
                 psr.status = 'COMPLETED'
             else:
                 psr.status = 'IN_PROGRESS' # Still more to go

@@ -179,7 +179,7 @@ const SupervisorDashboardPage = () => {
                     setShortageEntries(shortData.data);
                 }
             }
-            setVerifications(data);
+            setVerifications(Array.isArray(data) ? data : (data?.data ?? []));
             if (!silent) setError(null);
         } catch (err) {
             console.error('Failed to load supervisor data', err);

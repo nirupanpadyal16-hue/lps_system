@@ -610,6 +610,8 @@ class InventoryItem(db.Model):
     @property
     def action(self):
         """Computed action status for the action column in the UI."""
+        if self.status == 'COMPLETED':
+            return 'COMPLETED'
         if self.status == 'IN_PRODUCTION':
             return 'GO_TO_PRODUCTION'
         if self.status == 'PENDING_DEO':

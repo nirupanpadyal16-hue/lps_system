@@ -241,7 +241,7 @@ const OrderInboxPage = () => {
                     const subject = `Order Authorized: ${selectedEmail.subject}`;
                     const formattedEndDate = new Date(formData.end_date || formData.start_date || new Date().toISOString()).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
                     const body = `Dear Customer,\n\nWe are pleased to inform you that your request for ${formData.model_name || 'the model'} (Quantity: ${formData.quantity || 1}) has been successfully AUTHORIZED for production.\n\n### 📦 Order Details:\n* Model: ${formData.model_name || 'Confirmed'}\n* Quantity: ${formData.quantity || 1} Units\n* Expected Completion: ${formattedEndDate}\n\nOur team has initiated the manufacturing process. You will receive further updates as production progresses.\n\nThank you for choosing LPS.\n\nBest regards,\nLPS Production Team\nThank you from LPS`;
-                    
+
                     try {
                         await fetch(`${API_BASE}/orders/send-email`, {
                             method: 'POST',
@@ -451,7 +451,7 @@ const OrderInboxPage = () => {
                     <div className="bg-ind-border/30 p-2 rounded-lg border border-ind-border"><Inbox size={24} className="text-ind-text2" /></div>
                     <div>
                         <h1 className="text-xl font-bold text-ind-text tracking-tight">Order Requests inbox</h1>
-                      
+
                     </div>
                 </div>
                 <div className="flex items-center gap-4">
@@ -531,7 +531,7 @@ const OrderInboxPage = () => {
                                     disabled={selectedEmail.status === 'PROCESSED' || selectedEmail.status === 'REJECTED'}
                                     className={`px-6 py-2.5 font-bold text-sm rounded-lg flex items-center gap-2 shadow-md transition-all ${selectedEmail.status === 'REJECTED' ? 'bg-ind-border/30 text-ind-text3 border border-ind-border cursor-not-allowed' : 'bg-[#F37021] text-white hover:bg-[#d9621a] disabled:opacity-30'}`}
                                 >
-                                    {selectedEmail.status === 'PROCESSED' ? 'Order Processed' : selectedEmail.status === 'REJECTED' ? 'Request Rejected' : 'Create Demand'} <ArrowRight size={16} />
+                                    {selectedEmail.status === 'PROCESSED' ? 'Order Processed' : selectedEmail.status === 'REJECTED' ? 'Request Rejected' : 'Send Reply'} <ArrowRight size={16} />
                                 </button>
                             </div>
                         </>

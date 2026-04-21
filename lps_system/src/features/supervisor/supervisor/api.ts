@@ -11,8 +11,8 @@ export const getPendingVerifications = async () => {
         headers: getHeaders()
     });
     if (!response.ok) throw new Error('Failed to fetch pending verifications');
-    const data = await response.json();
-    return data;
+    const result = await response.json();
+    return result.data ?? result;
 };
 
 export const verifyDailyProductionRow = async (log_id: number, row_index: number, status: string, reason?: string) => {

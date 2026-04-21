@@ -278,7 +278,7 @@ export const MailOrderSection: React.FC<Pick<MailOrderProps, 'orders'>> = ({ ord
                     <div className="bg-white rounded-2xl shadow-sm border-b border-ind-border overflow-hidden">
 
                         {/* 🔹 Table Header */}
-                        <div className="grid grid-cols-12 px-6 py-2 bg-white border-b-2 border-[#f37021] text-xs font-bold text-black uppercase tracking-wider">
+                        <div className="grid grid-cols-12 px-2 py-2 bg-white border-b-2 border-[#f37021] text-xs font-bold text-black uppercase tracking-wider">
                             <div className="col-span-5">Request</div>
                             <div className="col-span-3">Customer</div>
                             <div className="col-span-2">Date</div>
@@ -346,11 +346,11 @@ export const MailOrderSection: React.FC<Pick<MailOrderProps, 'orders'>> = ({ ord
 
                                         {/* 🔸 Expandable Content (YOUR CARD DETAILS) */}
                                         {isOpen && (
-                                            <div className="px-6 py-2 bg-white">
+                                            <div className="px-2 py-2 bg-white">
                                                 <div className="bg-white rounded-xl  p-4 shadow-sm bg-white border  border-ind-border">
 
                                                     {/* You can keep your full card UI here */}
-                                                    <div className="text-sm text-gray-700 space-y-2">
+                                                    <div className="text-sm text-gray-700 space-y-2 grid grid-cols-2">
                                                         <div className='border-b  border-ind-border p-2 rounded-lg'><strong>Company:</strong> {o.company}</div>
                                                         <div className='border-b  border-ind-border p-2 rounded-lg'><strong>Customer:</strong> {o.customer}</div>
                                                         <div className='border-b  border-ind-border p-2 rounded-lg'><strong>Email:</strong> {o.email}</div>

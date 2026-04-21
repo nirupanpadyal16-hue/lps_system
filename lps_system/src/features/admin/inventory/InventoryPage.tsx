@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
     Package, RefreshCw, Plus, Search, Filter, Download,
     CheckCircle2, AlertTriangle, Clock, ArrowRight, ChevronDown,
-    X, Loader2, Boxes, AlertCircle, Calendar
+    X, Loader2, Boxes, AlertCircle
 } from 'lucide-react';
 import { getToken } from '../../../lib/storage';
 import { API_BASE as API } from '../../../lib/apiConfig';
@@ -89,7 +89,7 @@ function ActionBadge({ action, onNewDemand }: { action: string; onNewDemand?: ()
         return (
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold animate-pulse">
                 <Clock size={13} />
-               Got to Production
+                Got to Production
             </span>
         );
     }
@@ -327,7 +327,7 @@ function ShortageRequestModal({ shortageItems, deos, supervisors, lines, onClose
                     {shortageItems.map(item => (
                         <div key={item.id} className="flex items-center justify-between p-3 bg-red-50 rounded-xl border border-red-100">
                             <div>
-                                <p className="text-sm font-bold text-gray-800">{item.sap_part_number}</p>
+                                <p className="text-xs font-bold text-gray-800">{item.sap_part_number}</p>
                                 <p className="text-xs text-gray-500">{item.part_description}</p>
                             </div>
                             <div className="text-right">
@@ -385,7 +385,7 @@ function ShortageRequestModal({ shortageItems, deos, supervisors, lines, onClose
                                 {filteredSupervisors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                             </select>
                         </div>
-                        
+
                     </div>
                     {error && <p className="text-red-500 text-sm bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
                     <div className="flex gap-3">
@@ -547,15 +547,10 @@ export default function InventoryPage() {
             || item.part_description?.toLowerCase().includes(q)
             || item.vehicle_name?.toLowerCase().includes(q);
         const matchVehicle = filterVehicle === 'ALL' || item.vehicle_name === filterVehicle;
-       
-        // Treat IN_PRODUCTION as COMPLETED for filtering purposes
-        const normalizedStatus = (item.status === 'IN_PRODUCTION') ? 'COMPLETED' : item.status;
-        const matchStatus = filterStatus === 'ALL' || normalizedStatus === filterStatus;
-
-        // item.action is already normalized by backend (IN_PRODUCTION → COMPLETED)
+        const matchStatus = filterStatus === 'ALL' || item.status === filterStatus;
         const matchAction = filterAction === 'ALL' || item.action === filterAction;
 
-                
+
 
         return matchSearch && matchVehicle && matchStatus && matchAction;
     });
@@ -600,7 +595,7 @@ export default function InventoryPage() {
                 setEditingStockId(null);
                 return;
             }
-            
+
             const res = await fetch(`${API}/admin/inventory/${id}`, {
                 method: 'PATCH',
                 headers: authHeaders(),
@@ -618,24 +613,22 @@ export default function InventoryPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50/50 p-6">
+        <div className=" bg-gray-50/50">
             {/* Header */}
-            <div className="mb-6">
-                <div className="flex items-center gap-3 mb-1">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg">
-                        <Package size={20} className="text-white" />
-                    </div>
+            <div className="mb-2 bg-white p-2">
+                <div className="flex items-center gap-3">
+
                     <div>
                         <h1 className="text-2xl font-black text-gray-900">Inventory</h1>
-                        <p className="text-xs text-gray-400">Parts stock vs. production demand — Admin only</p>
+
                     </div>
                 </div>
             </div>
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-2 px-2">
                 {[
-                    { label: 'Total Parts', value: totalParts, icon: Boxes, color: 'from-slate-500 to-slate-600', bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-700' },
+                    { label: 'Total Parts', value: totalParts, icon: Boxes, color: 'from-slate-500 to-slate-600', bg: 'bg-white', border: 'border-slate-200', text: 'text-slate-700' },
                     { label: 'Stock OK', value: sufficient, icon: CheckCircle2, color: 'from-emerald-500 to-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' },
                     { label: 'Shortage', value: shortage, icon: AlertTriangle, color: 'from-red-500 to-red-600', bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700' },
                     { label: 'Pending DEO', value: pendingDEO, icon: Clock, color: 'from-amber-500 to-amber-600', bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700' },
@@ -653,8 +646,8 @@ export default function InventoryPage() {
             </div>
 
             {/* Toolbar */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4">
-                <div className="flex flex-wrap items-center gap-3">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-2 mx-2 mb-2">
+                <div className="flex flex-wrap items-center gap-2">
                     {/* Search */}
                     <div className="relative flex-1 min-w-48">
                         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -699,7 +692,7 @@ export default function InventoryPage() {
                     </div>
 
                     {/* Action filter */}
-                    <div className="relative">
+                    {/* <div className="relative">
                         <select
                             value={filterAction}
                             onChange={e => setFilterAction(e.target.value)}
@@ -713,7 +706,7 @@ export default function InventoryPage() {
                             <option value="COMPLETED">Completed</option>
                         </select>
                         <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                    </div>
+                    </div> */}
 
                     <div className="flex-1" />
 
@@ -747,12 +740,12 @@ export default function InventoryPage() {
             </div>
 
             {/* Table */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full">
-                        <thead>
-                            <tr className="border-b border-gray-100 bg-gray-50/70">
-                                <th className="w-10 p-4">
+            <div className="bg-white rounded-2xl mx-2 shadow-sm border border-gray-100 overflow-hidden">
+                <div className="overflow-x-auto h-[calc(100vh-360px)] overflow-y-auto">
+                    <table className="w-full ">
+                        <thead className='sticky top-0 z-[50]'>
+                            <tr className="border-b-2 border-[#f37021] bg-white">
+                                <th className="w-10 p-2">
                                     <input type="checkbox"
                                         onChange={e => {
                                             if (e.target.checked) setSelectedIds(new Set(filtered.map(i => i.id)));
@@ -762,11 +755,11 @@ export default function InventoryPage() {
                                         className="rounded" />
                                 </th>
                                 {['SN', 'Vehicle', 'SAP Part No.', 'Part Description', 'Current Stock', 'Demand Qty', 'Shortage', 'Status', 'Action'].map(h => (
-                                    <th key={h} className="px-4 py-3 text-left text-[11px] font-black text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                                    <th key={h} className="px-4 py-2 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">{h}</th>
                                 ))}
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-50">
+                        <tbody className="divide-y divide-gray-50 ">
                             {loading ? (
                                 <tr><td colSpan={10} className="py-16 text-center">
                                     <Loader2 size={28} className="animate-spin text-orange-400 mx-auto mb-2" />
@@ -790,19 +783,19 @@ export default function InventoryPage() {
                                             <input type="checkbox" checked={selectedIds.has(item.id)}
                                                 onChange={() => toggleSelect(item.id)} className="rounded" />
                                         </td>
-                                        <td className="px-4 py-3 text-xs font-bold text-gray-400">{item.serial_number}</td>
-                                        <td className="px-4 py-3">
-                                            <span className="text-sm font-bold text-gray-800">{item.vehicle_name}</span>
+                                        <td className="px-4 py-2 text-xs font-bold text-gray-400">{item.serial_number}</td>
+                                        <td className="px-4 py-2">
+                                            <span className="text-xs font-bold text-gray-800">{item.vehicle_name}</span>
                                         </td>
-                                        <td className="px-4 py-3">
+                                        <td className="px-4 py-2">
                                             <span className="font-mono text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">{item.sap_part_number}</span>
                                         </td>
-                                        <td className="px-4 py-3 text-xs text-gray-600 max-w-48 truncate">{item.part_description || '—'}</td>
-                                        <td className="px-4 py-3">
+                                        <td className="px-4 py-2 text-xs text-gray-600 max-w-48 truncate">{item.part_description || '—'}</td>
+                                        <td className="px-4 py-2">
                                             <div className="flex flex-col gap-1">
                                                 {editingStockId === item.id ? (
-                                                    <input 
-                                                        type="number" 
+                                                    <input
+                                                        type="number"
                                                         value={editStockValue}
                                                         onChange={e => setEditStockValue(e.target.value)}
                                                         onBlur={() => handleSaveStock(item.id)}
@@ -811,36 +804,36 @@ export default function InventoryPage() {
                                                         className="w-20 px-2 py-1 text-sm border focus:outline-none focus:ring-2 focus:ring-orange-400 rounded-lg"
                                                     />
                                                 ) : (
-                                                    <span 
-                                                        className={`text-sm font-black cursor-pointer hover:underline ${isShortage ? 'text-red-600' : 'text-emerald-600'}`}
+                                                    <span
+                                                        className={`text-sm border py-0.5 px-2 rounded  font-black cursor-pointer hover:underline ${isShortage ? 'text-red-600' : 'text-emerald-600'}`}
                                                         onClick={() => { setEditingStockId(item.id); setEditStockValue(item.current_stock.toString()); }}
                                                         title="Click to edit"
                                                     >
                                                         {item.current_stock}
                                                     </span>
                                                 )}
-                                                <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                                <div className=" h-1.5 bg-gray-200 rounded-full overflow-hidden">
                                                     <div className={`h-full rounded-full transition-all ${isShortage ? 'bg-red-400' : 'bg-emerald-400'}`}
                                                         style={{ width: `${stockPct}%` }} />
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-4 py-3 text-sm font-bold text-gray-700">{item.demand_quantity}</td>
-                                        <td className="px-4 py-3">
+                                        <td className="px-4 py-2 text-sm font-bold text-gray-700">{item.demand_quantity}</td>
+                                        <td className="px-4 py-2">
                                             {item.shortage_quantity > 0 ? (
                                                 <span className="text-sm font-black text-red-600">−{item.shortage_quantity}</span>
                                             ) : (
                                                 <span className="text-sm font-bold text-emerald-500">+{Math.abs(item.current_stock - item.demand_quantity)}</span>
                                             )}
                                         </td>
-                                        <td className="px-4 py-3">
+                                        <td className="px-4 py-2">
                                             {item.status === 'SUFFICIENT' && <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">SUFFICIENT</span>}
                                             {item.status === 'SHORTAGE' && <span className="text-[11px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded-full">SHORTAGE</span>}
-                                            {item.status === 'PENDING_DEO' && <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">PENDING DEO</span>}
-                                            {item.status === 'IN_PRODUCTION' && <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-full">IN PRODUCTION</span>}
+                                            {item.status === 'PENDING_DEO' && <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">PENDING </span>}
+                                            {/* {item.status === 'IN_PRODUCTION' && <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-full">IN PRODUCTION</span>} */}
                                             {(item.status === 'COMPLETED' || item.status === 'IN_PRODUCTION') && <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">COMPLETED</span>}
                                         </td>
-                                        <td className="px-4 py-3">
+                                        <td className="px-4 py-2">
                                             <ActionBadge
                                                 action={item.action}
                                                 onNewDemand={() => setShortageModalItems([item])}

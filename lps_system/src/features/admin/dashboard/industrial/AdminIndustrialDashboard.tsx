@@ -112,9 +112,9 @@ export const AdminIndustrialDashboard: React.FC = () => {
                 </div>
 
                 {/* Mail Order Section */}
-                <div className="mb-2 px-2">
+                {/* <div className="mb-2 px-2">
                     <MailOrderSection orders={mailOrders} />
-                </div>
+                </div> */}
 
             </div>
 

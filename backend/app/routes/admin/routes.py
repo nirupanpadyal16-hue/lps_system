@@ -27,7 +27,7 @@ def get_staff():
     if role:
         query = query.filter(User.role.ilike(role))
     else:
-        query = query.filter(User.role.in_(['Supervisor', 'DEO']))
+        query = query.filter(User.role.in_(['Supervisor', 'DEO']), User.is_active == True)
     
     staff = query.order_by(User.name.asc()).all()
     return jsonify({
@@ -1092,7 +1092,7 @@ def approve_shortage_request(req_id):
     item = psr.inventory_item
     if item and psr.todays_stock is not None:
         item.current_stock = float(psr.todays_stock)
-        item.status = 'IN_PRODUCTION' if item.current_stock >= item.demand_quantity else 'SHORTAGE'
+        item.status = 'COMPLETED' if item.current_stock >= item.demand_quantity else 'SHORTAGE'
     psr.status = 'COMPLETED'
     psr.admin_approved_at = datetime.datetime.now()
     psr.admin_notes = data.get('admin_notes', '')
