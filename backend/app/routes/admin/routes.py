@@ -444,6 +444,7 @@ def create_user():
         role=data.get('role'),
         shop=data.get('shop'),
         is_active=data.get('isActive', True),
+        assigned_line_id=data.get('assigned_line_id')
     )
     db.session.add(new_user)
     db.session.commit()
@@ -468,6 +469,8 @@ def update_user(username):
         user.shop = updates['shop']
     if 'isActive' in updates:
         user.is_active = updates['isActive']
+    if 'assigned_line_id' in updates:
+        user.assigned_line_id = updates['assigned_line_id']
     if 'password' in updates and updates['password']:
         user.password = updates['password']  # triggers the @password.setter → hashes it
 
