@@ -511,9 +511,9 @@ const SupervisorDashboardPage = () => {
     /* vidyasagar: This function controls what component is rendered based on the sidebar selection. Change routes or add new modules here. */
     const renderContent = () =>
         ROUTE_CONTENT[location.pathname] ?? (
-            <div className="space-y-3 pb-8 font-sans">
+            <div className="space-y-2 pb-2 font-sans">
                 {/* Header */}
-                <div className="flex flex-col lg:flex-row lg:items-center justify-end gap-6 px-4">                    <div className="flex items-center gap-4 relative">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-end gap-2 px-2">                    <div className="flex items-center gap-2 relative">
                     {/* Line filter */}
                     <div className="relative">
                         <div
@@ -625,13 +625,10 @@ const SupervisorDashboardPage = () => {
                 />
 
 
-                <div className="space-y-4">
-                  
-                    <SupervisorAnalytics
-                        assignedModels={filteredAssignedModels}
-                        verifications={filteredVerifications}
-                    />
-                </div>
+                <SupervisorAnalytics
+                    assignedModels={filteredAssignedModels}
+                    verifications={filteredVerifications}
+                />
             </div>
         );
 
@@ -665,8 +662,8 @@ const SupervisorDashboardPage = () => {
 
     // ── Main render ──────────────────────────────────────────────────────────
     return (
-        <div className="max-w-[1700px] mx-auto min-h-screen font-sans bg-ind-bg">
-            <div className="p-2 relative">
+        <div className="max-w-[1760px] mx-auto min-h-screen font-sans bg-ind-bg">
+            <div className="py-2 relative">
                 {selectedLog ? (
                     <LogDetailView
                         selectedLog={selectedLog}
