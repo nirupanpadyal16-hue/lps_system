@@ -594,7 +594,7 @@ const DemandFormModal: React.FC<DemandFormModalProps> = ({ isOpen, onClose, onSu
                                         <button
                                             onClick={handleSubmit}
                                             disabled={loading}
-                                            className="bg-[#F37021] text-white py-3 rounded-2xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-orange-500/20 hover:shadow-orange-500/40 hover:-translate-y-1 transition-all flex items-center justify-center gap-3 overflow-hidden group"
+                                            className="bg-[#F37021] text-white py-3 rounded-2xl font-bold text-xs uppercase tracking-widest  transition-all flex items-center justify-center gap-3 overflow-hidden group"
                                         >
                                             {loading ? (
                                                 <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 2, ease: "linear" }}>
@@ -603,7 +603,7 @@ const DemandFormModal: React.FC<DemandFormModalProps> = ({ isOpen, onClose, onSu
                                             ) : (
                                                 <>
                                                     <Zap size={18} fill="white" strokeWidth={0} />
-                                                    AUTHORIZE PRODUCTION
+                                                   Create Demand
                                                 </>
                                             )}
                                         </button>

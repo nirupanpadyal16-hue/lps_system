@@ -170,19 +170,9 @@ const RowEditModal: React.FC<RowEditModalProps> = ({
 
                     {/* Footer */}
                     <div className="px-8 py-3 bg-ind-bg border-t border-ind-border/50 flex items-center justify-between sticky bottom-0 z-10">
-                        <button
-                            onClick={() => {
-                                if (window.confirm(`Are you sure you want to delete part ${formData["SAP PART NUMBER"] || 'this row'}?`)) {
-                                    onDelete(formData.id);
-                                }
-                            }}
-                            className="px-6 py-3 flex items-center gap-3 bg-white hover:bg-rose-50 border border-ind-border hover:border-rose-200 text-ind-text3 hover:text-rose-500 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95"
-                        >
-                            <Trash2 size={16} />
-                            Delete Row
-                        </button>
+                       
 
-                        <div className="flex gap-4">
+                        <div className="flex gap-4 justify-end w-full">
                             <button
                                 onClick={onClose}
                                 className="px-8 py-3 bg-white hover:bg-ind-border/30 border border-ind-border text-ind-text2 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95"

@@ -20,8 +20,10 @@ interface InventoryItem {
     current_stock: number;
     demand_quantity: number;
     shortage_quantity: number;
-    status: 'SUFFICIENT' | 'SHORTAGE' | 'PENDING_DEO' | 'IN_PRODUCTION';
-    action: 'STOCK_OK' | 'NEW_DEMAND' | 'PENDING_DEO' | 'GO_TO_PRODUCTION';
+    // status: 'SUFFICIENT' | 'SHORTAGE' | 'PENDING_DEO' | 'IN_PRODUCTION';
+    // action: 'STOCK_OK' | 'NEW_DEMAND' | 'PENDING_DEO' | 'GO_TO_PRODUCTION';
+    status: 'SUFFICIENT' | 'SHORTAGE' | 'PENDING_DEO' | 'IN_PRODUCTION' | 'COMPLETED';
+    action: 'STOCK_OK' | 'NEW_DEMAND' | 'PENDING_DEO' | 'GO_TO_PRODUCTION' | 'COMPLETED';
     created_at: string;
     updated_at: string;
 }
@@ -75,11 +77,19 @@ function ActionBadge({ action, onNewDemand }: { action: string; onNewDemand?: ()
             </span>
         );
     }
+    if (action === 'COMPLETED') {
+        return (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold">
+                <CheckCircle2 size={13} />
+                Completed
+            </span>
+        );
+    }
     if (action === 'PENDING_DEO') {
         return (
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold animate-pulse">
                 <Clock size={13} />
-                Pending DEO Fill
+                Got to Production
             </span>
         );
     }
@@ -87,7 +97,7 @@ function ActionBadge({ action, onNewDemand }: { action: string; onNewDemand?: ()
     return (
         <button
             onClick={onNewDemand}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-bold transition-all  active:scale-95"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-bold transition-all shadow-sm hover:shadow-md active:scale-95"
         >
             <AlertTriangle size={13} />
             New Demand
@@ -151,7 +161,7 @@ function AddPartModal({ demands, onClose, onSuccess }: {
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-                <div className="flex items-center justify-between px-6 py-2 border-b border-gray-100">
+                <div className="flex items-center justify-between p-6 border-b border-gray-100">
                     <h2 className="text-lg font-black text-gray-900 flex items-center gap-2">
                         <Plus size={18} className="text-orange-500" /> Add Inventory Part
                     </h2>
@@ -159,7 +169,7 @@ function AddPartModal({ demands, onClose, onSuccess }: {
                 </div>
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     <div>
-                        <label className="block text-xs font-bold text-black mb-1.5 uppercase tracking-wider">Link to Demand (auto-fills vehicle & qty)</label>
+                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Link to Demand (auto-fills vehicle & qty)</label>
                         <select
                             value={form.demand_id}
                             onChange={e => handleDemandChange(e.target.value)}
@@ -173,29 +183,29 @@ function AddPartModal({ demands, onClose, onSuccess }: {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-bold text-black mb-1.5 uppercase tracking-wider">Vehicle Name</label>
+                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Vehicle Name</label>
                             <input value={form.vehicle_name} onChange={e => setForm(f => ({ ...f, vehicle_name: e.target.value }))}
                                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" required />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-black mb-1.5 uppercase tracking-wider">SAP Part Number</label>
+                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">SAP Part Number</label>
                             <input value={form.sap_part_number} onChange={e => setForm(f => ({ ...f, sap_part_number: e.target.value }))}
                                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" required />
                         </div>
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-black mb-1.5 uppercase tracking-wider">Part Description</label>
+                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Part Description</label>
                         <input value={form.part_description} onChange={e => setForm(f => ({ ...f, part_description: e.target.value }))}
                             className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-bold text-black mb-1.5 uppercase tracking-wider">Current Stock</label>
+                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Current Stock</label>
                             <input type="number" min="0" value={form.current_stock} onChange={e => setForm(f => ({ ...f, current_stock: e.target.value }))}
                                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" required />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-black mb-1.5 uppercase tracking-wider">Demand Quantity</label>
+                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Demand Quantity</label>
                             <input type="number" min="0" value={form.demand_quantity} onChange={e => setForm(f => ({ ...f, demand_quantity: e.target.value }))}
                                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" required />
                         </div>
@@ -231,6 +241,41 @@ function ShortageRequestModal({ shortageItems, deos, supervisors, lines, onClose
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
 
+    // Filtered lists: show only DEOs/Supervisors assigned to the selected line
+    const [filteredDeos, setFilteredDeos] = useState<DEOUser[]>(deos);
+    const [filteredSupervisors, setFilteredSupervisors] = useState<SupervisorUser[]>(supervisors);
+    const [loadingStaff, setLoadingStaff] = useState(false);
+
+    // When production line changes, fetch filtered staff from backend
+    const handleLineChange = async (newLineId: string) => {
+        setLineId(newLineId);
+        setDeoId('');
+        setSupervisorId('');
+
+        if (!newLineId) {
+            setFilteredDeos(deos);
+            setFilteredSupervisors(supervisors);
+            return;
+        }
+
+        setLoadingStaff(true);
+        try {
+            const [deoRes, supRes] = await Promise.all([
+                fetch(`${API}/admin/identity/staff?role=DEO&line_id=${newLineId}`, { headers: authHeaders() }),
+                fetch(`${API}/admin/identity/staff?role=Supervisor&line_id=${newLineId}`, { headers: authHeaders() })
+            ]);
+            const [deoData, supData] = await Promise.all([deoRes.json(), supRes.json()]);
+            setFilteredDeos(deoData.success ? deoData.data : deos);
+            setFilteredSupervisors(supData.success ? supData.data : supervisors);
+        } catch {
+            // Fallback to full lists
+            setFilteredDeos(deos);
+            setFilteredSupervisors(supervisors);
+        } finally {
+            setLoadingStaff(false);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!deadline) { setError('Please set a deadline (timeline).'); return; }
@@ -264,7 +309,7 @@ function ShortageRequestModal({ shortageItems, deos, supervisors, lines, onClose
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-                <div className="flex items-center justify-between px-6 py-2 border-b border-gray-100 flex-shrink-0">
+                <div className="flex items-center justify-between p-6 border-b border-gray-100 flex-shrink-0">
                     <div>
                         <h2 className="text-lg font-black text-gray-900 flex items-center gap-2">
                             <AlertTriangle size={18} className="text-red-500" /> Create Part Demand
@@ -287,7 +332,7 @@ function ShortageRequestModal({ shortageItems, deos, supervisors, lines, onClose
                             </div>
                             <div className="text-right">
                                 <p className="text-xs text-gray-400">Stock / Demand</p>
-                                <p className="text-xs font-black text-red-600">
+                                <p className="text-sm font-black text-red-600">
                                     {item.current_stock} / {item.demand_quantity}
                                     <span className="ml-1 text-xs font-semibold text-red-400">(Need {item.shortage_quantity} more)</span>
                                 </p>
@@ -299,7 +344,7 @@ function ShortageRequestModal({ shortageItems, deos, supervisors, lines, onClose
                 <form onSubmit={handleSubmit} className="p-6 border-t border-gray-100 space-y-4 flex-shrink-0">
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-bold text-black mb-1.5 uppercase tracking-wider">
+                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
                                 Deadline / Timeline <span className="text-red-400">*</span>
                             </label>
                             <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)}
@@ -307,35 +352,40 @@ function ShortageRequestModal({ shortageItems, deos, supervisors, lines, onClose
                                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-black mb-1.5 uppercase tracking-wider">
-                                Assign DEO <span className="text-red-400">*</span>
-                            </label>
-                            <select value={deoId} onChange={e => setDeoId(e.target.value)}
-                                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
-                                <option value="">Select DEO...</option>
-                                {deos.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-black mb-1.5 uppercase tracking-wider">
-                                Assign Supervisor <span className="text-red-400">*</span>
-                            </label>
-                            <select value={supervisorId} onChange={e => setSupervisorId(e.target.value)}
-                                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
-                                <option value="">Select Supervisor...</option>
-                                {supervisors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-black mb-1.5 uppercase tracking-wider">
+                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
                                 Assign Production Line <span className="text-red-400">*</span>
                             </label>
-                            <select value={lineId} onChange={e => setLineId(e.target.value)}
+                            <select value={lineId} onChange={e => handleLineChange(e.target.value)}
                                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
                                 <option value="">Select Line...</option>
                                 {lines.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                             </select>
                         </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
+                                Assign DEO <span className="text-red-400">*</span>
+                                {lineId && <span className="text-orange-400 normal-case"> (filtered by line)</span>}
+                            </label>
+                            <select value={deoId} onChange={e => setDeoId(e.target.value)}
+                                disabled={loadingStaff}
+                                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-50">
+                                <option value="">{loadingStaff ? 'Loading...' : filteredDeos.length === 0 && lineId ? 'No DEO on this line' : 'Select DEO...'}</option>
+                                {filteredDeos.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
+                                Assign Supervisor <span className="text-red-400">*</span>
+                                {lineId && <span className="text-orange-400 normal-case"> (filtered by line)</span>}
+                            </label>
+                            <select value={supervisorId} onChange={e => setSupervisorId(e.target.value)}
+                                disabled={loadingStaff}
+                                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-50">
+                                <option value="">{loadingStaff ? 'Loading...' : filteredSupervisors.length === 0 && lineId ? 'No Supervisor on this line' : 'Select Supervisor...'}</option>
+                                {filteredSupervisors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            </select>
+                        </div>
+
                     </div>
                     {error && <p className="text-red-500 text-sm bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
                     <div className="flex gap-3">
@@ -384,7 +434,7 @@ function SeedModal({ demands, onClose, onSuccess }: {
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-                <div className="flex items-center justify-between px-6 py-2 border-b border-gray-100">
+                <div className="flex items-center justify-between p-6 border-b border-gray-100">
                     <h2 className="text-lg font-black text-gray-900 flex items-center gap-2">
                         <Boxes size={18} className="text-orange-500" /> Import from Demand
                     </h2>
@@ -484,7 +534,7 @@ export default function InventoryPage() {
 
     // ── Derived stats ─────────────────────────────────────────────────────
     const totalParts = items.length;
-    const sufficient = items.filter(i => i.action === 'STOCK_OK' || i.action === 'GO_TO_PRODUCTION').length;
+    const sufficient = items.filter(i => i.action === 'STOCK_OK').length;
     const shortage = items.filter(i => i.action === 'NEW_DEMAND').length;
     const pendingDEO = items.filter(i => i.action === 'PENDING_DEO').length;
 
@@ -499,6 +549,9 @@ export default function InventoryPage() {
         const matchVehicle = filterVehicle === 'ALL' || item.vehicle_name === filterVehicle;
         const matchStatus = filterStatus === 'ALL' || item.status === filterStatus;
         const matchAction = filterAction === 'ALL' || item.action === filterAction;
+
+
+
         return matchSearch && matchVehicle && matchStatus && matchAction;
     });
 
@@ -562,63 +615,39 @@ export default function InventoryPage() {
     return (
         <div className=" bg-gray-50/50">
             {/* Header */}
-            {/* <div className="mb-6">
-                <div className="flex items-center gap-3 mb-1">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg">
-                        <Package size={20} className="text-white" />
-                    </div>
+            <div className="mb-2 bg-white p-2">
+                <div className="flex items-center gap-3">
+
                     <div>
                         <h1 className="text-2xl font-black text-gray-900">Inventory</h1>
-                        <p className="text-xs text-gray-400">Parts stock vs. production demand — Admin only</p>
+
                     </div>
                 </div>
-            </div> */}
-            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-white border-b border-slate-100 mb-2 py-1">
-
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6   p-2">
-                    <div className="space-y-1">
-                        <h1 className="text-[24px] font-black text-ind-text tracking-tight  leading-none">
-                            Inventory Management
-                        </h1>
-                    </div>
-
-
-                </div>
-
             </div>
+
             {/* KPI Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3 px-2">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-2 px-2">
                 {[
-                    { label: 'Total Parts', value: totalParts, icon: Boxes, color: 'from-slate-500 to-slate-600', bg: 'bg-white', text: 'text-slate-800' },
-                    { label: 'Stock OK', value: sufficient, icon: CheckCircle2, color: 'from-emerald-500 to-emerald-600', bg: 'bg-white', text: 'text-emerald-600' },
-                    { label: 'Shortage', value: shortage, icon: AlertTriangle, color: 'from-red-500 to-red-600', bg: 'bg-white', border: 'border-red-200/60', text: 'text-red-600' },
-                    { label: 'Pending DEO', value: pendingDEO, icon: Clock, color: 'from-amber-500 to-amber-600', bg: 'bg-white', text: 'text-amber-600' },
+                    { label: 'Total Parts', value: totalParts, icon: Boxes, color: 'from-slate-500 to-slate-600', bg: 'bg-white', border: 'border-slate-200', text: 'text-slate-700' },
+                    { label: 'Stock OK', value: sufficient, icon: CheckCircle2, color: 'from-emerald-500 to-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' },
+                    { label: 'Shortage', value: shortage, icon: AlertTriangle, color: 'from-red-500 to-red-600', bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700' },
+                    { label: 'Pending DEO', value: pendingDEO, icon: Clock, color: 'from-amber-500 to-amber-600', bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700' },
                 ].map(card => (
-                    <div
-                        key={card.label}
-                        className={`${card.bg} border border-gray-200 rounded-xl p-4 flex items-center gap-4  duration-200`}
-                    >
-                        {/* Icon */}
-                        <div className={`w-11 h-11 rounded-lg bg-gradient-to-br ${card.color} flex items-center justify-center shadow-sm`}>
+                    <div key={card.label} className={`${card.bg} border ${card.border} rounded-2xl p-4 flex items-center gap-4`}>
+                        <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${card.color} flex items-center justify-center shadow`}>
                             <card.icon size={18} className="text-white" />
                         </div>
-
-                        {/* Content */}
-                        <div className="flex flex-col">
-                            <p className="text-sm text-black font-bold tracking-wide">
-                                {card.label}
-                            </p>
-                            <p className={`text-xl font-semibold ${card.text} leading-tight`}>
-                                {card.value}
-                            </p>
+                        <div>
+                            <p className="text-xs text-gray-500 font-semibold">{card.label}</p>
+                            <p className={`text-2xl font-black ${card.text}`}>{card.value}</p>
                         </div>
                     </div>
                 ))}
             </div>
 
             {/* Toolbar */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 mx-2 p-2 mb-2">
-                <div className="flex flex-wrap items-center gap-3">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-2 mx-2 mb-2">
+                <div className="flex flex-wrap items-center gap-2">
                     {/* Search */}
                     <div className="relative flex-1 min-w-48">
                         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -657,12 +686,13 @@ export default function InventoryPage() {
                             <option value="SHORTAGE">Shortage</option>
                             <option value="PENDING_DEO">Pending DEO</option>
                             <option value="IN_PRODUCTION">In Production</option>
+                            <option value="COMPLETED">Completed</option>
                         </select>
                         <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     </div>
 
                     {/* Action filter */}
-                    <div className="relative">
+                    {/* <div className="relative">
                         <select
                             value={filterAction}
                             onChange={e => setFilterAction(e.target.value)}
@@ -673,9 +703,10 @@ export default function InventoryPage() {
                             <option value="NEW_DEMAND">New Demand</option>
                             <option value="PENDING_DEO">Pending DEO</option>
                             <option value="GO_TO_PRODUCTION">Go to Production</option>
+                            <option value="COMPLETED">Completed</option>
                         </select>
                         <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                    </div>
+                    </div> */}
 
                     <div className="flex-1" />
 
@@ -683,36 +714,36 @@ export default function InventoryPage() {
                     {shortage > 0 && (
                         <button
                             onClick={handleBatchNewDemand}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
+                            className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-bold transition-all shadow-sm"
                         >
                             <AlertCircle size={15} />
                             Create Demand ({shortage} short)
                         </button>
                     )}
                     <button onClick={() => setShowSeedModal(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-xs font-semibold transition-all">
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-semibold transition-all">
                         <Boxes size={15} /> Import from Demand
                     </button>
                     <button onClick={() => setShowAddModal(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-semibold transition-all">
+                        className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-semibold transition-all">
                         <Plus size={15} /> Add Part
                     </button>
                     <button onClick={handleExport}
-                        className="flex items-center gap-2 px-4 py-2 border border-gray-200 hover:bg-gray-50 rounded-xl text-xs font-semibold transition-all">
+                        className="flex items-center gap-2 px-4 py-2 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition-all">
                         <Download size={15} /> Export
                     </button>
                     <button onClick={fetchAll} disabled={loading}
-                        className="flex items-center gap-2 px-4 py-2 border border-gray-200 hover:bg-gray-50 rounded-xl text-xs font-semibold transition-all">
+                        className="flex items-center gap-2 px-4 py-2 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition-all">
                         <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
                     </button>
                 </div>
             </div>
 
             {/* Table */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden  mx-2">
-                <div className="overflow-x-auto h-[calc(100vh-400px)] overflow-y-auto">
-                    <table className="w-full">
-                        <thead className='sticky z-[50] top-0'>
+            <div className="bg-white rounded-2xl mx-2 shadow-sm border border-gray-100 overflow-hidden">
+                <div className="overflow-x-auto h-[calc(100vh-360px)] overflow-y-auto">
+                    <table className="w-full ">
+                        <thead className='sticky top-0 z-[50]'>
                             <tr className="border-b-2 border-[#f37021] bg-white">
                                 <th className="w-10 p-2">
                                     <input type="checkbox"
@@ -724,18 +755,18 @@ export default function InventoryPage() {
                                         className="rounded" />
                                 </th>
                                 {['SN', 'Vehicle', 'SAP Part No.', 'Part Description', 'Current Stock', 'Demand Qty', 'Shortage', 'Status', 'Action'].map(h => (
-                                    <th key={h} className="px-4 py-2 text-left text-[11px] font-bold text-black uppercase tracking-wider whitespace-nowrap">{h}</th>
+                                    <th key={h} className="px-4 py-2 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">{h}</th>
                                 ))}
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-50">
+                        <tbody className="divide-y divide-gray-50 ">
                             {loading ? (
-                                <tr><td colSpan={10} className="py-2 text-center">
+                                <tr><td colSpan={10} className="py-16 text-center">
                                     <Loader2 size={28} className="animate-spin text-orange-400 mx-auto mb-2" />
                                     <p className="text-sm text-gray-400">Loading inventory...</p>
                                 </td></tr>
                             ) : filtered.length === 0 ? (
-                                <tr><td colSpan={10} className="py-2 text-center">
+                                <tr><td colSpan={10} className="py-16 text-center">
                                     <Package size={36} className="text-gray-200 mx-auto mb-3" />
                                     <p className="text-gray-400 font-semibold">No inventory items found</p>
                                     <p className="text-xs text-gray-300 mt-1">Use "Import from Demand" or "Add Part" to populate</p>
@@ -748,18 +779,18 @@ export default function InventoryPage() {
 
                                 return (
                                     <tr key={item.id} className={`transition-colors ${rowBg}`}>
-                                        <td className="px-4 py-2">
+                                        <td className="p-4">
                                             <input type="checkbox" checked={selectedIds.has(item.id)}
                                                 onChange={() => toggleSelect(item.id)} className="rounded" />
                                         </td>
-                                        <td className="px-4 py-2 text-xs font-bold text-black">{item.serial_number}</td>
+                                        <td className="px-4 py-2 text-xs font-bold text-gray-400">{item.serial_number}</td>
                                         <td className="px-4 py-2">
                                             <span className="text-xs font-bold text-gray-800">{item.vehicle_name}</span>
                                         </td>
                                         <td className="px-4 py-2">
                                             <span className="font-mono text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">{item.sap_part_number}</span>
                                         </td>
-                                        <td className="px-4 py-2 text-xs text-black max-w-48 truncate">{item.part_description || '—'}</td>
+                                        <td className="px-4 py-2 text-xs text-gray-600 max-w-48 truncate">{item.part_description || '—'}</td>
                                         <td className="px-4 py-2">
                                             <div className="flex flex-col gap-1">
                                                 {editingStockId === item.id ? (
@@ -774,32 +805,33 @@ export default function InventoryPage() {
                                                     />
                                                 ) : (
                                                     <span
-                                                        className={`text-xs font-black cursor-pointer hover:underline ${isShortage ? 'text-red-600' : 'text-emerald-600'}`}
+                                                        className={`text-sm border py-0.5 px-2 rounded  font-black cursor-pointer hover:underline ${isShortage ? 'text-red-600' : 'text-emerald-600'}`}
                                                         onClick={() => { setEditingStockId(item.id); setEditStockValue(item.current_stock.toString()); }}
                                                         title="Click to edit"
                                                     >
                                                         {item.current_stock}
                                                     </span>
                                                 )}
-                                                <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                                <div className=" h-1.5 bg-gray-200 rounded-full overflow-hidden">
                                                     <div className={`h-full rounded-full transition-all ${isShortage ? 'bg-red-400' : 'bg-emerald-400'}`}
                                                         style={{ width: `${stockPct}%` }} />
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-4 py-2 text-xs font-bold text-gray-700">{item.demand_quantity}</td>
+                                        <td className="px-4 py-2 text-sm font-bold text-gray-700">{item.demand_quantity}</td>
                                         <td className="px-4 py-2">
                                             {item.shortage_quantity > 0 ? (
-                                                <span className="text-xs font-black text-red-600">−{item.shortage_quantity}</span>
+                                                <span className="text-sm font-black text-red-600">−{item.shortage_quantity}</span>
                                             ) : (
-                                                <span className="text-xs font-bold text-emerald-500">+{Math.abs(item.current_stock - item.demand_quantity)}</span>
+                                                <span className="text-sm font-bold text-emerald-500">+{Math.abs(item.current_stock - item.demand_quantity)}</span>
                                             )}
                                         </td>
                                         <td className="px-4 py-2">
-                                            {item.status === 'SUFFICIENT' && <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">SUFFICIENT</span>}
-                                            {item.status === 'SHORTAGE' && <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded-full">SHORTAGE</span>}
-                                            {item.status === 'PENDING_DEO' && <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">PENDING DEO</span>}
-                                            {item.status === 'IN_PRODUCTION' && <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-full">IN PRODUCTION</span>}
+                                            {item.status === 'SUFFICIENT' && <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">SUFFICIENT</span>}
+                                            {item.status === 'SHORTAGE' && <span className="text-[11px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded-full">SHORTAGE</span>}
+                                            {item.status === 'PENDING_DEO' && <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">PENDING </span>}
+                                            {/* {item.status === 'IN_PRODUCTION' && <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-full">IN PRODUCTION</span>} */}
+                                            {(item.status === 'COMPLETED' || item.status === 'IN_PRODUCTION') && <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">COMPLETED</span>}
                                         </td>
                                         <td className="px-4 py-2">
                                             <ActionBadge

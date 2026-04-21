@@ -275,7 +275,7 @@ const DemandManagementPage = () => {
 
             {/* Scrollable Content Area */}
             <div className="px-2 py-2">
-                <div className="overflow-x-auto rounded-2xl border border-ind-border/50 shadow-sm h-[calc(100vh-200px)] overflow-y-auto">
+                <div className="overflow-x-auto rounded-2xl border border-ind-border/50 shadow-sm h-[calc(100vh-200px)] overflow-y-auto bg-white">
                     <table className="min-w-full bg-white text-sm">
 
                         {/* Header */}

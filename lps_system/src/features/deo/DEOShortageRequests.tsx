@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
     CheckCircle2, AlertTriangle, X, Database, LayoutGrid, Search, ChevronDown, Info, Car,
-    Loader2, Package, ChevronRight, Calendar, Timer, Clock, Zap, User, MapPin
+    Loader2, Package, ChevronRight, Calendar, Timer, Clock, Zap, User, MapPin, Eye, ClipboardCheck
 } from 'lucide-react';
 import { API_BASE } from '../../lib/apiConfig';
 import { getToken } from '../../lib/storage';
@@ -28,7 +28,7 @@ interface ShortageRequest {
     deadline: string | null;
     days_remaining: number | null;
     is_overdue: boolean;
-    status: 'PENDING' | 'IN_PROGRESS' | 'DEO_FILLED' | 'COMPLETED' | 'REJECTED';
+    status: 'PENDING' | 'IN_PROGRESS' | 'DEO_FILLED' | 'COMPLETED' | 'REJECTED' | 'VERIFIED';
     sap_stock: number | null;
     opening_stock: number | null;
     todays_stock: number | null;
@@ -69,6 +69,122 @@ function TimelineBar({ daysRemaining, isOverdue }: { daysRemaining: number | nul
         </span>
     );
 }
+
+const ViewFillModal = ({ request, onClose }: { request: ShortageRequest; onClose: () => void }) => {
+    const item = request.inventory_item;
+    const needTotal = (request.shortage_quantity && request.shortage_quantity > 0) ? request.shortage_quantity : (item?.demand_quantity || 0);
+    const perDay = (request.per_day && request.per_day > 0) ? request.per_day : needTotal;
+    const tStock = request.todays_stock || 0;
+    const coverage = (perDay > 0 ? (tStock / perDay).toFixed(1) : '0.0');
+    const isGood = Number(coverage) >= 5;
+
+    return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+            <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="bg-white rounded-[2.5rem] w-full max-w-2xl overflow-hidden shadow-2xl relative flex flex-col max-h-[98vh] border border-slate-200"
+            >
+                <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                    <div>
+                        <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">VIEW SUBMITTED DATA</h2>
+                        <p className="text-[10px] text-slate-900 font-black uppercase tracking-widest mt-1">{request.formatted_id} | {item?.sap_part_number}</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-50 rounded-lg text-slate-400 transition-colors">
+                        <X size={20} />
+                    </button>
+                </div>
+
+                <div className="flex-1 flex flex-col min-h-0 bg-white">
+                    <div className="p-6 space-y-2 overflow-y-auto custom-scrollbar flex-1">
+                        <div className="flex flex-col gap-3">
+                            <div className="flex flex-col gap-4">
+                                <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                                    <p className="text-[9px] font-black text-orange-600 uppercase tracking-widest leading-none whitespace-nowrap">PART DETAILS:</p>
+                                    <h3 className="font-black text-black text-[10px] uppercase leading-tight tracking-tight">
+                                        {item?.part_description || item?.sap_part_number}
+                                    </h3>
+                                </div>
+                                <div className="flex items-center justify-between gap-4 flex-wrap">
+                                    <div className="flex gap-6">
+                                        <p className="font-bold tracking-tight">
+                                            <span className="text-[9px] text-slate-900 font-black uppercase tracking-widest block mb-0.5">Vehicle</span>
+                                            <span className="text-xs text-black font-black uppercase">{item?.vehicle_name || 'Generic'}</span>
+                                        </p>
+                                        <p className="font-bold tracking-tight">
+                                            <span className="text-[9px] text-slate-900 font-black uppercase tracking-widest block mb-0.5">Need Total</span>
+                                            <span className="text-xs text-black font-black uppercase">{needTotal} units</span>
+                                        </p>
+                                    </div>
+                                    <TimelineBar daysRemaining={request.days_remaining} isOverdue={request.is_overdue} />
+                                </div>
+                            </div>
+
+                            <hr className="border-slate-100" />
+
+                            <div className="space-y-2">
+                                <p className="text-[10px] font-black text-slate-900 uppercase tracking-widest leading-none">Daily Metrics</p>
+                                <div className="grid grid-cols-3 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                    <div className="flex flex-col p-2 text-center sm:text-left">
+                                        <span className="text-[9px] font-black text-slate-900 uppercase tracking-widest mb-1.5">Timeline</span>
+                                        <span className="text-xs font-black text-black uppercase tracking-tight">1 Days</span>
+                                    </div>
+                                    <div className="flex flex-col p-2 border-x border-slate-200/50 text-center sm:text-left">
+                                        <span className="text-[9px] font-black text-slate-900 uppercase tracking-widest mb-1.5">Target Per Day</span>
+                                        <span className="text-xs font-black text-black uppercase tracking-tight">{perDay} units</span>
+                                    </div>
+                                    <div className="flex flex-col p-2 text-center sm:text-left">
+                                        <span className="text-[9px] font-black text-slate-900 uppercase tracking-widest mb-1.5">Est. Coverage</span>
+                                        <span className={`text-xs font-black tracking-tight ${isGood ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                            {coverage} Days
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr className="border-slate-100" />
+
+                        <div className="space-y-6">
+                            <div className="grid grid-cols-3 gap-5">
+                                {[
+                                    { label: 'SAP STOCK', value: request.sap_stock },
+                                    { label: 'OPENING STOCK', value: request.opening_stock },
+                                    { label: "TODAY'S STOCK", value: request.todays_stock },
+                                ].map(({ label, value }) => (
+                                    <div key={label}>
+                                        <label className="block text-[10px] font-black text-slate-900 mb-2 uppercase tracking-widest">{label}</label>
+                                        <div className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm font-black text-slate-900 shadow-sm min-h-[56px] flex items-center">
+                                            {value ?? '—'}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-black mb-2.5 uppercase tracking-widest">NOTES</label>
+                                <div className="w-full bg-white border border-slate-200 rounded-2xl px-5 py-4 text-sm font-black text-slate-900 shadow-sm min-h-[80px]">
+                                    {request.deo_notes || 'No notes provided'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="p-7 py-5 border-t border-gray-100 flex gap-4">
+                        <button onClick={onClose}
+                            className="flex-1 py-3.5 rounded-full border border-slate-200 text-xs font-black text-slate-500 hover:bg-slate-50 transition-all uppercase tracking-widest">
+                            CANCEL
+                        </button>
+                        <button onClick={onClose}
+                            className="flex-1 py-3.5 rounded-full bg-[#f37021] hover:bg-orange-700 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-orange-600/30 transition-all flex items-center justify-center gap-2">
+                            CLOSE VIEW
+                        </button>
+                    </div>
+                </div>
+            </motion.div>
+        </div>
+    );
+};
 
 const FillModal = ({ request, onClose, onSuccess }: {
     request: ShortageRequest;
@@ -116,7 +232,8 @@ const FillModal = ({ request, onClose, onSuccess }: {
 
     const item = request.inventory_item;
     const totalDays = request.total_days;
-    const perDay = request.per_day;
+    const needTotal = (request.shortage_quantity && request.shortage_quantity > 0) ? request.shortage_quantity : (item?.demand_quantity || 0);
+    const perDay = (request.per_day && request.per_day > 0) ? request.per_day : needTotal;
     const tStock = Number(form.todays_stock) || 0;
     const coverage = (perDay > 0 ? (tStock / perDay).toFixed(1) : '0.0');
     const isGood = Number(coverage) >= 5;
@@ -188,7 +305,7 @@ const FillModal = ({ request, onClose, onSuccess }: {
                                         </p>
                                         <p className="font-bold tracking-tight">
                                             <span className="text-[9px] text-slate-900 font-black uppercase tracking-widest block mb-0.5">Need Total</span>
-                                            <span className="text-xs text-black font-black uppercase">{request.shortage_quantity} units</span>
+                                            <span className="text-xs text-black font-black uppercase">{needTotal} units</span>
                                         </p>
                                     </div>
                                     <TimelineBar daysRemaining={request.days_remaining} isOverdue={request.is_overdue} />
@@ -391,49 +508,83 @@ text-[9px] font-black text-ind-text3 uppercase tracking-widest">Target End</span
                         </div>
                     </div>
 
-                    <div className="bg-orange-50/30 rounded-3xl p-6 border border-orange-100/50">
-                        <div className="text-[10px] font-black text-black uppercase tracking-widest mb-2 flex items-center gap-2">
-                            <Package size={11} />
-                            <span className="text-[10px] font-black text-black uppercase tracking-widest mb-2 flex items-center gap-2">Assigned Personnel</span>
+                    <div className="space-y-2">
+                        <div className="bg-orange-50/30 rounded-3xl p-6 border border-orange-100/50">
+                            <div className="text-[10px] font-black text-black uppercase tracking-widest mb-2 flex items-center gap-2">
+                                <Package size={11} />
+                                <span className="text-[10px] font-black text-black uppercase tracking-widest mb-2 flex items-center gap-2">Assigned Personnel</span>
+                            </div>
+
+                            <div className="space-y-5">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center text-orange-500 flex-shrink-0">
+                                        <User size={20} />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-[7.5px] font-black text-orange-400 uppercase tracking-widest mb-1">Supervisor</p>
+                                        <p className="text-[14px] font-black text-black uppercase tracking-tight truncate">
+                                            {request.supervisor_name || 'Unassigned'}
+                                        </p>
+                                        {request.supervisor_email && (
+                                            <p className="text-[10px] font-black text-slate-900 flex items-center gap-1.5 mt-1.5 overflow-hidden text-ellipsis">
+                                                <Info size={11} className="text-orange-400" />
+                                                {request.supervisor_email}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-4">
+                                    <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-500 flex-shrink-0">
+                                        <User size={20} />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-[7.5px] font-black text-indigo-400 uppercase tracking-widest mb-1">Data Entry Operator</p>
+                                        <p className="text-[14px] font-black text-black uppercase tracking-tight truncate">
+                                            {request.deo_name || 'Unassigned'}
+                                        </p>
+                                        {request.deo_email && (
+                                            <p className="text-[10px] font-black text-slate-900 flex items-center gap-1.5 mt-1.5 overflow-hidden text-ellipsis">
+                                                <Info size={11} className="text-indigo-400" />
+                                                {request.deo_email}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
-                        <div className="space-y-5">
-                            <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center text-orange-500 flex-shrink-0">
-                                    <User size={20} />
+                        {/* Submitted Stock Data */}
+                        {request.status !== 'PENDING' && (
+                            <div className="bg-emerald-50/30 rounded-3xl p-6 border border-emerald-100/50">
+                                <div className="text-[10px] font-black text-black uppercase tracking-widest mb-4 flex items-center gap-2">
+                                    <Database size={12} className="text-emerald-600" />
+                                    <span>Submitted Stock Data</span>
                                 </div>
-                                <div className="min-w-0">
-                                    <p className="text-[7.5px] font-black text-orange-400 uppercase tracking-widest mb-1">Supervisor</p>
-                                    <p className="text-[14px] font-black text-black uppercase tracking-tight truncate">
-                                        {request.supervisor_name || 'Unassigned'}
-                                    </p>
-                                    {request.supervisor_email && (
-                                        <p className="text-[10px] font-black text-slate-900 flex items-center gap-1.5 mt-1.5 overflow-hidden text-ellipsis">
-                                            <Info size={11} className="text-orange-400" />
-                                            {request.supervisor_email}
-                                        </p>
+                                <div className="grid grid-cols-1 gap-4">
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <div className="bg-white/60 p-3 rounded-xl border border-emerald-100/50">
+                                            <p className="text-[7px] font-black text-emerald-600 uppercase tracking-widest mb-1">SAP Stock</p>
+                                            <p className="text-[12px] font-black text-slate-900">{request.sap_stock ?? '—'}</p>
+                                        </div>
+                                        <div className="bg-white/60 p-3 rounded-xl border border-emerald-100/50">
+                                            <p className="text-[7px] font-black text-emerald-600 uppercase tracking-widest mb-1">Opening</p>
+                                            <p className="text-[12px] font-black text-slate-900">{request.opening_stock ?? '—'}</p>
+                                        </div>
+                                        <div className="bg-white/60 p-3 rounded-xl border border-emerald-100/50">
+                                            <p className="text-[7px] font-black text-emerald-600 uppercase tracking-widest mb-1">Today's</p>
+                                            <p className="text-[12px] font-black text-slate-900">{request.todays_stock ?? '—'}</p>
+                                        </div>
+                                    </div>
+                                    {request.deo_notes && (
+                                        <div className="bg-white/60 p-3 rounded-xl border border-emerald-100/50">
+                                            <p className="text-[7px] font-black text-emerald-600 uppercase tracking-widest mb-1">Notes</p>
+                                            <p className="text-[10px] font-bold text-slate-700 italic">"{request.deo_notes}"</p>
+                                        </div>
                                     )}
                                 </div>
                             </div>
-
-                            <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-500 flex-shrink-0">
-                                    <User size={20} />
-                                </div>
-                                <div className="min-w-0">
-                                    <p className="text-[7.5px] font-black text-indigo-400 uppercase tracking-widest mb-1">Data Entry Operator</p>
-                                    <p className="text-[14px] font-black text-black uppercase tracking-tight truncate">
-                                        {request.deo_name || 'Unassigned'}
-                                    </p>
-                                    {request.deo_email && (
-                                        <p className="text-[10px] font-black text-slate-900 flex items-center gap-1.5 mt-1.5 overflow-hidden text-ellipsis">
-                                            <Info size={11} className="text-indigo-400" />
-                                            {request.deo_email}
-                                        </p>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
+                        )}
                     </div>
                 </div>
 
@@ -456,6 +607,7 @@ export default function DEOShortageRequests() {
     const [loading, setLoading] = useState(true);
     const [fillRequest, setFillRequest] = useState<ShortageRequest | null>(null);
     const [infoRequest, setInfoRequest] = useState<ShortageRequest | null>(null);
+    const [viewFillRequest, setViewFillRequest] = useState<ShortageRequest | null>(null);
     const [filterStatus, setFilterStatus] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -502,9 +654,9 @@ export default function DEOShortageRequests() {
     const filteredRequests = requests.filter(r => {
         let matches = true;
         if (filterStatus === 'pending') matches = r.status === 'PENDING';
-        else if (filterStatus === 'in-progress') matches = r.status === 'IN_PROGRESS' || r.status === 'REJECTED' || r.status === 'DEO_FILLED';
+        else if (filterStatus === 'in-progress') matches = r.status === 'IN_PROGRESS' || r.status === 'REJECTED' || r.status === 'DEO_FILLED' || r.status === 'VERIFIED';
         else if (filterStatus === 'rejected') matches = r.status === 'REJECTED';
-        else if (filterStatus === 'completed') matches = r.status === 'COMPLETED';
+        else if (filterStatus === 'completed') matches = r.status === 'COMPLETED' || r.status === 'VERIFIED';
 
         if (!matches) return false;
 
@@ -551,7 +703,7 @@ export default function DEOShortageRequests() {
                     </div>
                     <div className="px-4 py-1 text-center text-emerald-500">
                         <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">COMPLETED</span>
-                        <span className="block text-lg font-black leading-none">{requests.filter(r => r.status === 'COMPLETED').length}</span>
+                        <span className="block text-lg font-black leading-none">{requests.filter(r => r.status === 'COMPLETED' || r.status === 'VERIFIED').length}</span>
                     </div>
                 </div>
             </div>
@@ -648,12 +800,17 @@ export default function DEOShortageRequests() {
 
                                         <td className="px-8 py-2.5">
                                             <div className="flex flex-col items-center gap-1">
-                                                <span className={`px-3 py-1 rounded-full text-[10px] font-bold border ${isRejected ? 'bg-rose-50 text-rose-600 border-rose-100' :
+                                                <span className={`px-3 py-1 rounded-full text-[10px] font-bold border ${
+                                                    isRejected ? 'bg-rose-50 text-rose-600 border-rose-100' :
                                                     req.status === 'PENDING' ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                                                        (req.status === 'IN_PROGRESS' || isDeoFilled) ? 'bg-blue-50 text-blue-600 border-blue-100' :
-                                                            'bg-emerald-50 text-emerald-600 border-emerald-100'
-                                                    }`}>
-                                                    {(req.status === 'DEO_FILLED' || req.status === 'IN_PROGRESS') ? 'IN PROGRESS' : req.status.replace('_', ' ')}
+                                                    (req.status === 'IN_PROGRESS' || isDeoFilled) ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                                                    (req.status === 'VERIFIED' || isCompleted) ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                                    'bg-slate-50 text-slate-600 border-slate-100'
+                                                }`}>
+                                                    {req.status === 'DEO_FILLED' ? 'SUBMITTED' :
+                                                     req.status === 'IN_PROGRESS' ? 'IN PROGRESS' :
+                                                     req.status === 'VERIFIED' ? 'COMPLETED' :
+                                                     req.status.replace('_', ' ')}
                                                 </span>
                                             </div>
                                         </td>
@@ -672,10 +829,22 @@ export default function DEOShortageRequests() {
                                         <td className="px-10 py-2.5">
                                             <div className="flex items-center justify-center gap-3 pr-4">
                                                 <button
+                                                    onClick={() => setViewFillRequest(req)}
+                                                    disabled={req.status === 'PENDING'}
+                                                    className={`w-9 h-9 rounded-lg border flex items-center justify-center transition-all ${req.status === 'PENDING'
+                                                        ? 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed'
+                                                        : 'bg-white border-ind-border/50 text-emerald-500 hover:text-emerald-700 hover:border-emerald-300 shadow-sm'
+                                                        }`}
+                                                    title="View Submitted Data"
+                                                >
+                                                    <ClipboardCheck size={16} />
+                                                </button>
+                                                <button
                                                     onClick={() => setInfoRequest(req)}
                                                     className="w-9 h-9 rounded-lg bg-white border border-ind-border/50 flex items-center justify-center text-ind-text/20 hover:text-ind-text hover:border-ind-border transition-all"
+                                                    title="View Details"
                                                 >
-                                                    <Info size={16} />
+                                                    <Eye size={16} />
                                                 </button>
                                                 <button
                                                     onClick={() => setFillRequest(req)}
@@ -683,6 +852,7 @@ export default function DEOShortageRequests() {
                                                         isDeoFilled || isCompleted ? 'bg-emerald-400 opacity-40 cursor-not-allowed pointer-events-none' :
                                                             'bg-[#10b981] hover:bg-emerald-600'
                                                         }`}
+                                                    title={isRejected ? "Needs Correction" : "Fill Data"}
                                                 >
                                                     <CheckCircle2 size={16} />
                                                 </button>
@@ -709,6 +879,13 @@ export default function DEOShortageRequests() {
                 <DetailsModal
                     request={infoRequest}
                     onClose={() => setInfoRequest(null)}
+                />
+            )}
+
+            {viewFillRequest && (
+                <ViewFillModal
+                    request={viewFillRequest}
+                    onClose={() => setViewFillRequest(null)}
                 />
             )}
         </div>

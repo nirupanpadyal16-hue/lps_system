@@ -8,7 +8,7 @@ if defined _OLD_CODEPAGE (
     "%SystemRoot%\System32\chcp.com" 65001 > nul
 )
 
-set VIRTUAL_ENV=E:\Nexvitech\final_lps\backend\venv
+set VIRTUAL_ENV=F:\Github-clonev2\lps_system\backend\venv
 
 if not defined PROMPT set PROMPT=$P$G
 

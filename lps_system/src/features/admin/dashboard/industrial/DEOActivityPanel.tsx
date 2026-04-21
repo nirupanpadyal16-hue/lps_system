@@ -43,7 +43,7 @@ export const DEOActivityPanel: React.FC<Props> = ({ deos, isLoading }) => {
                 {isLoading && <Loader2 size={14} className="text-teal-400 animate-spin" />}
             </div>
 
-            <div className="p-3 space-y-2 overflow-y-auto h-[calc(100vh-400px)] custom-scrollbar">
+            <div className="p-3 space-y-2 overflow-y-auto h-[calc(100vh-580px)] custom-scrollbar">
                 {deos.length === 0 ? (
                     <div className="text-center py-8 text-gray-400 text-sm">
                         {isLoading ? 'Loading DEO data…' : 'No DEO data for current filters.'}

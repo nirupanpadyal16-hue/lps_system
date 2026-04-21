@@ -79,7 +79,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         {
             title: 'DEMAND MANAGEMENT',
             items: [
-                 { icon: Mail, label: 'Order Requests', path: ADMIN_ORDERS },
+                 //{ icon: Mail, label: 'Order Requests', path: ADMIN_ORDERS },
                 { icon: Target, label: 'New Demand', path: ADMIN_DEMAND },
                   { icon: Package, label: 'Inventory', path: ADMIN_INVENTORY },
                 { icon: Activity, label: 'Production Lines', path: ADMIN_LINES },

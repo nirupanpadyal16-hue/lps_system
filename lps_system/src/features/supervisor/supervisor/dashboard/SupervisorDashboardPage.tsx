@@ -179,7 +179,7 @@ const SupervisorDashboardPage = () => {
                     setShortageEntries(shortData.data);
                 }
             }
-            setVerifications(data);
+            setVerifications(Array.isArray(data) ? data : (data?.data ?? []));
             if (!silent) setError(null);
         } catch (err) {
             console.error('Failed to load supervisor data', err);
@@ -530,8 +530,8 @@ const SupervisorDashboardPage = () => {
                         >
                             <span
                                 className={`text-[11px] font-bold ${selectedLine === 'Select Line'
-                                        ? 'text-ind-text3'
-                                        : 'text-ind-text'
+                                    ? 'text-ind-text3'
+                                    : 'text-ind-text'
                                     }`}
                             >
                                 {selectedLine === 'Select Line' ? 'All lines' : selectedLine}
@@ -574,8 +574,8 @@ const SupervisorDashboardPage = () => {
                                                 setIsLineOpen(false);
                                             }}
                                             className={`px-4 py-2.5 text-[10px] font-bold hover:bg-orange-50 hover:text-orange-900 cursor-pointer transition-colors ${selectedLine === line
-                                                    ? 'bg-orange-50 text-orange-900'
-                                                    : 'text-ind-text2'
+                                                ? 'bg-orange-50 text-orange-900'
+                                                : 'text-ind-text2'
                                                 }`}
                                         >
                                             {line}
@@ -662,8 +662,8 @@ const SupervisorDashboardPage = () => {
 
     // ── Main render ──────────────────────────────────────────────────────────
     return (
-        <div className="max-w-[1760px] mx-auto min-h-screen font-sans bg-ind-bg">
-            <div className="py-2 relative">
+        <div className="max-w-[1760px] mx-auto font-sans bg-ind-bg">
+            <div className="py-0 relative">
                 {selectedLog ? (
                     <LogDetailView
                         selectedLog={selectedLog}
