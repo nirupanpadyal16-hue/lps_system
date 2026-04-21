@@ -24,12 +24,6 @@ def role_required(allowed_roles):
                     "message": "User not found"
                 }), 404
 
-            if not user.is_active:
-                return jsonify({
-                    "success": False,
-                    "message": "Account is inactive. Please contact admin."
-                }), 403
-
             if user.role not in allowed_roles:
                 return jsonify({
                     "success": False,

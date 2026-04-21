@@ -27,9 +27,6 @@ def login_controller():
     if not user.check_password(password):
         return jsonify({"success": False, "message": "Invalid password"}), 401
 
-    if not user.is_active:
-        return jsonify({"success": False, "message": "Account is inactive. Please contact admin."}), 403
-
     token = create_access_token(identity=user.username)
 
     try:
