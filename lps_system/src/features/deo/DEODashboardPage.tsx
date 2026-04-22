@@ -414,7 +414,7 @@ const DEODashboardPage = () => {
                     >
                         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                             {/* Scrollable Content Area */}
-                            <div className={`flex-1 ${activeTab === 'DASHBOARD' ? 'overflow-y-scroll custom-scrollbar pr-2 pb-10 pt-2' : 'overflow-hidden flex flex-col min-h-0'}`}>
+                            <div className={`flex-1 ${activeTab === 'DASHBOARD' ? 'overflow-y-scroll custom-scrollbar pr-2 pb-2 pt-2' : 'overflow-hidden flex flex-col min-h-0'}`}>
                                 {renderContent()}
                             </div>
                         </div>
