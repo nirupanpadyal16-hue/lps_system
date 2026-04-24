@@ -44,6 +44,7 @@ interface ShortageEntry {
         deo_name?: string;
         deo_email?: string;
         deadline?: string;
+        created_at?: string;
         days_remaining?: number;
         is_overdue?: boolean;
     };
@@ -470,12 +471,24 @@ export default function SupervisorShortageVerify() {
         setConfirmModal(null);
     };
 
-    const pendingCount = entries.filter(e => e.status === 'PENDING_SUPERVISOR').length;
-    const verifiedCount = entries.filter(e => e.status === 'VERIFIED').length;
-    const rejectedCount = entries.filter(e => e.status === 'REJECTED').length;
+    const latestEntries = useMemo(() => {
+        const map = new Map<string, ShortageEntry>();
+        for (const entry of entries) {
+            const key = `${entry.shortage_request_id}-${entry.date}`;
+            const existing = map.get(key);
+            if (!existing || entry.id > existing.id) {
+                map.set(key, entry);
+            }
+        }
+        return Array.from(map.values()).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    }, [entries]);
+
+    const pendingCount = latestEntries.filter(e => e.status === 'PENDING_SUPERVISOR').length;
+    const verifiedCount = latestEntries.filter(e => e.status === 'VERIFIED').length;
+    const rejectedCount = latestEntries.filter(e => e.status === 'REJECTED').length;
 
     const filteredEntries = useMemo(() => {
-        return entries.filter(entry => {
+        return latestEntries.filter(entry => {
             const matchSearch = (
                 entry.shortage_request?.inventory_item.part_description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 entry.shortage_request?.inventory_item.sap_part_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -489,7 +502,7 @@ export default function SupervisorShortageVerify() {
             const matchDate = selectedDate ? entry.date === selectedDate || entry.created_at.startsWith(selectedDate) : true;
             return matchSearch && matchStatus && matchDate;
         });
-    }, [entries, searchQuery, statusFilter, selectedDate]);
+    }, [latestEntries, searchQuery, statusFilter, selectedDate]);
 
     if (loading) {
         return <div className="flex justify-center py-20"><Loader2 size={32} className="animate-spin text-orange-500" /></div>;
@@ -586,6 +599,7 @@ export default function SupervisorShortageVerify() {
                             <tr className="bg-ind-bg text-black border-b-2 border-[#f37021] uppercase text-[11px] tracking-wider sticky top-0 z-[50]">
                                 <th className="px-6 py-2 text-left">REQUEST</th>
                                 <th className="px-6 py-2 text-center">STATUS</th>
+                                <th className="px-6 py-2 text-center">CREATED DATE</th>
                                 <th className="px-6 py-2 text-center">TARGET</th>
                                 <th className="px-6 py-2 text-center">ACTIONS</th>
                             </tr>
@@ -618,6 +632,13 @@ export default function SupervisorShortageVerify() {
                                             </span>
                                             <p className="text-[9px] font-bold text-ind-text3 uppercase tracking-wide">
                                                 DEO: <span className="text-ind-text">{entry.deo_name}</span>
+                                            </p>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-3 text-center">
+                                        <div className="flex flex-col items-center justify-center">
+                                            <p className="text-[11px] font-black text-slate-800 uppercase tracking-widest">
+                                                {new Date(entry.shortage_request?.created_at || entry.created_at).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
                                             </p>
                                         </div>
                                     </td>

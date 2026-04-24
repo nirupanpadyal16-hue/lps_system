@@ -610,7 +610,7 @@ export default function DEOShortageRequests() {
     const [viewFillRequest, setViewFillRequest] = useState<ShortageRequest | null>(null);
     const [filterStatus, setFilterStatus] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
-    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+    const [selectedDate, setSelectedDate] = useState('');
 
     useEffect(() => {
         const parentMain = document.querySelector('main');
@@ -763,6 +763,7 @@ export default function DEOShortageRequests() {
                             <tr className="bg-ind-bg text-black border-b-2 border-[#f37021] uppercase text-[11px] tracking-wider sticky top-0 z-[50]">
                                 <th className="px-6 py-2 text-left">REQUEST</th>
                                 <th className="px-6 py-2 text-center">STATUS</th>
+                                <th className="px-6 py-2 text-center">CREATED DATE</th>
                                 <th className="px-6 py-2 text-center">TARGET</th>
                                 <th className="px-6 py-2 text-center">ACTIONS</th>
                             </tr>
@@ -800,18 +801,25 @@ export default function DEOShortageRequests() {
 
                                         <td className="px-8 py-2.5">
                                             <div className="flex flex-col items-center gap-1">
-                                                <span className={`px-3 py-1 rounded-full text-[10px] font-bold border ${
-                                                    isRejected ? 'bg-rose-50 text-rose-600 border-rose-100' :
+                                                <span className={`px-3 py-1 rounded-full text-[10px] font-bold border ${isRejected ? 'bg-rose-50 text-rose-600 border-rose-100' :
                                                     req.status === 'PENDING' ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                                                    (req.status === 'IN_PROGRESS' || isDeoFilled) ? 'bg-blue-50 text-blue-600 border-blue-100' :
-                                                    (req.status === 'VERIFIED' || isCompleted) ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                                                    'bg-slate-50 text-slate-600 border-slate-100'
-                                                }`}>
+                                                        (req.status === 'IN_PROGRESS' || isDeoFilled) ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                                                            (req.status === 'VERIFIED' || isCompleted) ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                                                'bg-slate-50 text-slate-600 border-slate-100'
+                                                    }`}>
                                                     {req.status === 'DEO_FILLED' ? 'SUBMITTED' :
-                                                     req.status === 'IN_PROGRESS' ? 'IN PROGRESS' :
-                                                     req.status === 'VERIFIED' ? 'COMPLETED' :
-                                                     req.status.replace('_', ' ')}
+                                                        req.status === 'IN_PROGRESS' ? 'IN PROGRESS' :
+                                                            req.status === 'VERIFIED' ? 'COMPLETED' :
+                                                                req.status.replace('_', ' ')}
                                                 </span>
+                                            </div>
+                                        </td>
+
+                                        <td className="px-8 py-2.5 text-center">
+                                            <div className="flex flex-col items-center justify-center">
+                                                <p className="text-[11px] font-black text-slate-800 uppercase tracking-widest">
+                                                    {req.created_at ? new Date(req.created_at).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                                                </p>
                                             </div>
                                         </td>
 
@@ -833,23 +841,23 @@ export default function DEOShortageRequests() {
                                                     disabled={req.status === 'PENDING'}
                                                     className={`w-9 h-9 rounded-lg border flex items-center justify-center transition-all ${req.status === 'PENDING'
                                                         ? 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed'
-                                                        : 'bg-white border-ind-border/50 text-emerald-500 hover:text-emerald-700 hover:border-emerald-300 shadow-sm'
+                                                        : 'bg-white border-ind-border/50 text-slate-600 hover:text-slate-900 hover:border-slate-300 shadow-sm'
                                                         }`}
                                                     title="View Submitted Data"
-                                                >
-                                                    <ClipboardCheck size={16} />
-                                                </button>
-                                                <button
-                                                    onClick={() => setInfoRequest(req)}
-                                                    className="w-9 h-9 rounded-lg bg-white border border-ind-border/50 flex items-center justify-center text-ind-text/20 hover:text-ind-text hover:border-ind-border transition-all"
-                                                    title="View Details"
                                                 >
                                                     <Eye size={16} />
                                                 </button>
                                                 <button
+                                                    onClick={() => setInfoRequest(req)}
+                                                    className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors"
+                                                    title="View Details"
+                                                >
+                                                    <Info size={18} />
+                                                </button>
+                                                <button
                                                     onClick={() => setFillRequest(req)}
                                                     className={`w-9 h-9 rounded-lg flex items-center justify-center text-white transition-all shadow-md ${isRejected ? 'bg-rose-500 hover:bg-rose-600' :
-                                                        isDeoFilled || isCompleted ? 'bg-emerald-400 opacity-40 cursor-not-allowed pointer-events-none' :
+                                                        req.status === 'IN_PROGRESS' || isDeoFilled || isCompleted ? 'bg-emerald-400 opacity-40 cursor-not-allowed pointer-events-none' :
                                                             'bg-[#10b981] hover:bg-emerald-600'
                                                         }`}
                                                     title={isRejected ? "Needs Correction" : "Fill Data"}
