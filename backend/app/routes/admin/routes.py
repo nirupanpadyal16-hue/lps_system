@@ -252,12 +252,15 @@ def delete_demand(id):
         return jsonify({"success": False, "message": "Demand not found"}), 404
     
     model_id = demand.model_id
+    from app.models import InventoryItem
     # Cleanup associated logs, work status, and unique model clone
     DailyProductionLog.query.filter_by(demand_id=id).delete()
+    InventoryItem.query.filter_by(demand_id=id).delete()
     
     if model_id:
         # Prevent foreign key constraint errors by cleaning up daily status records
         DailyWorkStatus.query.filter_by(car_model_id=model_id).delete()
+        InventoryItem.query.filter_by(car_model_id=model_id).delete()
         
     db.session.delete(demand)
     

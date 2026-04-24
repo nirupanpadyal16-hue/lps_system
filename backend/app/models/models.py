@@ -731,6 +731,7 @@ class PartShortageRequest(db.Model):
             "supervisor_name": self.supervisor.name if self.supervisor else None,
             "line_id": self.line_id,
             "line_name": self.production_line.name if self.production_line else None,
+            "rejection_reason": next((e.rejection_reason for e in sorted(self.daily_entries, key=lambda x: x.id, reverse=True) if e.rejection_reason), None)
         }
 
 # ----------------------------- ShortageDailyEntry -----------------------------
