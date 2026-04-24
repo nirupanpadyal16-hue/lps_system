@@ -173,6 +173,10 @@ class User(db.Model):
     last_activity = db.Column(db.DateTime, nullable=True)
     reset_token = db.Column(db.String(100), nullable=True)
     reset_token_expiry = db.Column(db.DateTime, nullable=True)
+    assigned_line_id = db.Column(db.Integer, db.ForeignKey('production_lines.id'), nullable=True)
+
+    # Relationships
+    assigned_line = db.relationship('ProductionLine', foreign_keys=[assigned_line_id])
 
     # ---------------------------------------------------------------------
     # Password handling helpers
@@ -199,7 +203,9 @@ class User(db.Model):
             "role": self.role,
             "shop": self.shop,
             "isActive": self.is_active,
-            "lastActivity": self.last_activity.isoformat() if self.last_activity else None
+            "lastActivity": self.last_activity.isoformat() if self.last_activity else None,
+            "assigned_line_id": self.assigned_line_id,
+            "assigned_line_name": self.assigned_line.name if self.assigned_line else None
         }
 
 # ----------------------------- AuditLog -----------------------------
