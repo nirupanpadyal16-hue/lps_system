@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
+import { Footer } from './components/layout/Footer';
 import LoginPage from './features/auth/LoginPage';
 import AuthGuard from './features/auth/AuthGuard';
 import AdminDashboardPage from './features/admin/dashboard/AdminDashboardPage';
@@ -145,6 +146,7 @@ function App() {
                       <Route path="*" element={<RoleBasedRedirect />} />
                     </Routes>
                   </main>
+                  <Footer />
                 </div>
               </div>
             }>

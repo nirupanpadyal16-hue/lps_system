@@ -741,7 +741,7 @@ export default function InventoryPage() {
 
             {/* Table */}
             <div className="bg-white rounded-2xl mx-2 shadow-sm border border-gray-100 overflow-hidden">
-                <div className="overflow-x-auto h-[calc(100vh-360px)] overflow-y-auto">
+                <div className="overflow-x-auto h-[calc(100vh-400px)] overflow-y-auto">
                     <table className="w-full ">
                         <thead className='sticky top-0 z-[50]'>
                             <tr className="border-b-2 border-[#f37021] bg-white">

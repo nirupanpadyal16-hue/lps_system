@@ -274,7 +274,7 @@ const AdminAuditPage: React.FC = () => {
                 <section className="relative z-10 px-2 pb-2 pt-0">
 
 
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                         {isLoading ? (
                             [1, 2, 3, 4].map((i) => (
                                 <div key={i} className="bg-white rounded-xl p-3 shadow-sm animate-pulse h-16 border border-ind-border/50/50" />

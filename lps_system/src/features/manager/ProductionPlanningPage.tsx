@@ -815,7 +815,7 @@ const ProductionPlanningPage = () => {
                                                     </div>
                                                 </th>
                                             )}
-                                            <th className="w-12 border-b border-ind-border bg-white"></th>
+                                            
                                         </tr>
                                     )}
 
@@ -891,7 +891,7 @@ const ProductionPlanningPage = () => {
                                                 ))}
                                             </>
                                         )}
-                                        <th className="w-12 border-b-2 border-[#f37021] bg-ind-bg/50"></th>
+                                        
                                     </tr>
                                 </thead>
                                 <tbody>
