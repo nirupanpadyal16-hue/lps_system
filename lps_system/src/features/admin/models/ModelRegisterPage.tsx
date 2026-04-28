@@ -10,11 +10,6 @@ const ModelRegisterPage = () => {
     // Model Fields
     const [name, setName] = useState('');
 
-    // Demand Fields
-    const [quantity, setQuantity] = useState('');
-    const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
-    const [customer, setCustomer] = useState('');
-
     const [loading, setLoading] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
 
@@ -40,36 +35,13 @@ const ModelRegisterPage = () => {
             });
 
             if (!modelResponse.ok) throw new Error('Failed to create vehicle model');
-            const modelData = await modelResponse.json();
-            const newModel = modelData.data;
-
-            // 2. Create Demand using the new Model
-            const demandResponse = await fetch(`${API_BASE}/admin/demands`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    model_id: newModel.id,
-                    model_name: newModel.name,
-                    quantity: Number(quantity),
-                    start_date: startDate,
-                    end_date: startDate, // Sync with start date initially
-                    customer,
-                    status: 'PENDING'
-                })
-            });
-
-            if (!demandResponse.ok) throw new Error('Failed to create production demand');
 
             setLoading(false);
             setShowSuccess(true);
-            // navigate('/admin/demand'); // Will be handled by the success view button
         } catch (error) {
             console.error('Registration failed:', error);
             setLoading(false);
-            alert('Failed to register model and demand. Please check backend connection.');
+            alert('Failed to register model. Please check backend connection.');
         }
     };
 
@@ -107,8 +79,8 @@ const ModelRegisterPage = () => {
 
 
                         <div className="w-full bg-ind-bg/50 rounded-[2rem] p-8 border border-ind-border/50/60 flex flex-col items-center justify-center text-center">
-                            <span className="text-[9px] font-black text-ind-text3 uppercase tracking-widest mb-1">Target Quantity</span>
-                            <div className="text-xl font-black text-ind-primary uppercase tracking-tight">{quantity} Units</div>
+                            <span className="text-[9px] font-black text-ind-text3 uppercase tracking-widest mb-1">Vehicle Model</span>
+                            <div className="text-xl font-black text-ind-primary uppercase tracking-tight">{name}</div>
                         </div>
 
                         <button
@@ -122,7 +94,7 @@ const ModelRegisterPage = () => {
                             }}
                             className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-slate-900/20 hover:bg-[#F37021] hover:shadow-orange-500/30 transition-all hover:-translate-y-1 active:scale-[0.98]"
                         >
-                            GO TO DEMAND LIST
+                            GO TO MODEL LIST
                         </button>
                     </motion.div>
                 ) : (
@@ -139,7 +111,7 @@ const ModelRegisterPage = () => {
                                     <h2 className="text-2xl font-black text-ind-text tracking-tight">
                                         Register model
                                     </h2>
-                                    <p className="text-ind-text3 font-bold text-[11px]">Initialize a new vehicle model with an immediate production target.</p>
+                                    <p className="text-ind-text3 font-bold text-[11px]">Register a new vehicle model in the master database.</p>
                                 </div>
 
                                 <button
@@ -171,66 +143,6 @@ const ModelRegisterPage = () => {
                                             className="w-full bg-white border border-slate-200 rounded-2xl py-3 pl-14 pr-6 text-black font-medium text-sm outline-none focus:border-ind-primary focus:bg-white focus:ring-8 focus:ring-orange-500/[0.03] transition-all placeholder:text-ind-text3 "
                                             required
                                         />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* SECTION 2: LINE ASSIGNMENT & TARGETS */}
-                            <div className="space-y-4 pt-1">
-
-
-                                <div className="space-y-1.5">
-                                    <label className="text-sm font-bold text-black tracking-wide ml-1">Production target quantity</label>
-                                    <div className="relative group">
-                                        <input
-                                            type="number"
-                                            placeholder="Enter total units"
-                                            value={quantity}
-                                            onChange={(e) => setQuantity(e.target.value)}
-                                            className="w-full bg-white border border-slate-200 rounded-2xl py-3 pl-4 pr-6 text-black font-medium text-sm outline-none focus:border-ind-primary focus:bg-white focus:ring-8 focus:ring-orange-500/[0.03] transition-all placeholder:text-ind-text3 "
-                                            required
-                                        />
-                                        <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-slate-200 group-focus-within:text-emerald-500 transition-all">
-                                            <CheckCircle2 size={24} strokeWidth={3} />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Removed Production Manager Assignment */}
-
-                                {/* Row: Date & Customer */}
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-1.5">
-                                        <label className="text-sm font-bold text-black tracking-wide ml-1">Month (start)</label>
-                                        <div className="relative group">
-                                            <div className="absolute left-5 top-1/2 -translate-y-1/2 pointer-events-none text-ind-text3 group-focus-within:text-ind-primary transition-all">
-                                                <Calendar size={18} strokeWidth={2.5} />
-                                            </div>
-                                            <input
-                                                type="date"
-                                                value={startDate}
-                                                onChange={(e) => setStartDate(e.target.value)}
-                                                className="w-full bg-white border border-slate-200 rounded-2xl py-3 pl-14 pr-6 text-black font-medium text-sm outline-none focus:border-ind-primary focus:bg-white focus:ring-8 focus:ring-orange-500/[0.03] transition-all placeholder:text-ind-text3 "
-                                                required
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-1.5">
-                                        <label className="text-sm font-bold text-black tracking-wide ml-1">Customer / client</label>
-                                        <div className="relative group">
-                                            <div className="absolute left-5 top-1/2 -translate-y-1/2 pointer-events-none text-ind-text3 group-focus-within:text-ind-primary transition-all">
-                                                <Briefcase size={18} strokeWidth={2.5} />
-                                            </div>
-                                            <input
-                                                type="text"
-                                                placeholder="e.g. Export Div"
-                                                value={customer}
-                                                onChange={(e) => setCustomer(e.target.value)}
-                                                className="w-full bg-white border border-slate-200 rounded-2xl py-3 pl-14 pr-6 text-black font-medium text-sm outline-none focus:border-ind-primary focus:bg-white focus:ring-8 focus:ring-orange-500/[0.03] transition-all placeholder:text-ind-text3 "
-                                                required
-                                            />
-                                        </div>
                                     </div>
                                 </div>
                             </div>

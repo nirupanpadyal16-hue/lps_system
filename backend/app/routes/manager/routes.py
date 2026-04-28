@@ -6,12 +6,74 @@ does not enforce role‑based checks – that can be added in the future.
 
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
-from app.models import MasterData, db
+from app.models import MasterData, Demand, InventoryItem, db
 from app.services.db_service import MasterDataDBService
 from app.middleware.auth_middleware import role_required
 from datetime import datetime
 
 manager_bp = Blueprint('manager', __name__)
+
+def sync_inventory_item(master_item):
+    """Update or create InventoryItem records whenever MasterData is changed."""
+    # Find active demands for this model
+    active_demands = Demand.query.filter(
+        Demand.model_name == master_item.model,
+        Demand.status != 'COMPLETED'
+    ).all()
+    
+    for demand in active_demands:
+        inv_item = InventoryItem.query.filter_by(
+            demand_id=demand.id,
+            sap_part_number=master_item.sap_part_number
+        ).first()
+        
+        # Extract metadata from production/material relations
+        mat_data = master_item.material_rel.to_dict() if master_item.material_rel else {}
+        prod_data = master_item.production_rel.to_dict() if master_item.production_rel else {}
+        
+        demand_qty = mat_data.get('TOTAL SCHEDULE QTY') or mat_data.get('demand_quantity') or 0
+        sn_no = prod_data.get('SN NO') or prod_data.get('SR NO') or prod_data.get('SR.NO') or 0
+        
+        try:
+            demand_qty = float(demand_qty)
+        except:
+            demand_qty = 0
+            
+        # Default to demand quantity if 0 - ensures proper management for new items
+        if demand_qty == 0:
+            demand_qty = float(demand.quantity)
+            
+        if not inv_item:
+            inv_item = InventoryItem(
+                demand_id=demand.id,
+                car_model_id=demand.model_id,
+                vehicle_name=demand.model_name,
+                sap_part_number=master_item.sap_part_number,
+                part_description=master_item.description,
+                demand_quantity=demand_qty,
+                serial_number=int(sn_no) if sn_no else None
+            )
+            db.session.add(inv_item)
+        else:
+            inv_item.part_description = master_item.description
+            inv_item.demand_quantity = demand_qty
+            inv_item.serial_number = int(sn_no) if sn_no else inv_item.serial_number
+            
+        # Update status based on stock
+        curr = inv_item.current_stock or 0.0
+        req = inv_item.demand_quantity or 0.0
+        if curr < req:
+            inv_item.status = 'SHORTAGE'
+        else:
+            inv_item.status = 'SUFFICIENT'
+            
+    demand_ids = [d.id for d in active_demands]
+    db.session.commit()
+    
+    # Check if any demands should move to COMPLETED
+    from app.models import Demand
+    for d_id in demand_ids:
+        Demand.check_and_update_status(d_id)
 
 # ---------------------------------------------------------------------------
 # Master‑Data Endpoints (same logic as before, now in a dedicated blueprint)
@@ -28,9 +90,17 @@ def get_master_data():
 @jwt_required()
 @role_required(['Manager', 'Admin', 'Supervisor', 'DEO'])
 def get_vehicle_models():
-    """Return all unique vehicle model names from MasterData for demand creation dropdown."""
-    unique_names = db.session.query(MasterData.model).distinct().order_by(MasterData.model.asc()).all()
-    models = [{'name': row[0], 'id': row[0]} for row in unique_names]
+    """Return all unique vehicle model names from both MasterData and CarModel tables."""
+    from app.models import CarModel
+    # Get from MasterData
+    master_names = db.session.query(MasterData.model).distinct().all()
+    # Get from CarModel
+    car_model_names = db.session.query(CarModel.name).distinct().all()
+    
+    # Combine and deduplicate
+    all_names = sorted(list(set([row[0] for row in master_names] + [row[0] for row in car_model_names])))
+    
+    models = [{'name': name, 'id': name} for name in all_names if name]
     return jsonify({'success': True, 'data': models})
 
 
@@ -39,19 +109,24 @@ def get_vehicle_models():
 @role_required(['Manager', 'Admin', 'Supervisor', 'DEO'])
 def update_master_item(sap_number):
     service = MasterDataDBService()
-    success = service.update_item('sap_part_number', sap_number, request.json)
-    if success:
-        return jsonify({"success": True, "message": f"Master data {sap_number} updated"})
+    updated_item = service.update_item('sap_part_number', sap_number, request.json)
+    if updated_item:
+        # Live Sync to Inventory
+        sync_inventory_item(updated_item)
+        return jsonify({"success": True, "message": f"Master data {sap_number} updated & synced to inventory"})
     return jsonify({"success": False, "message": "Item not found"}), 404
 
 @manager_bp.route('/master-data/<string:sap_number>', methods=['DELETE'])
 @jwt_required()
 @role_required(['Manager', 'Admin', 'Supervisor'])
 def delete_master_item(sap_number):
-    from app.models import MasterData
+    from app.models import MasterData, InventoryItem
     item = MasterData.query.filter_by(sap_part_number=sap_number).first()
     if not item:
         return jsonify({"success": False, "message": "Item not found"}), 404
+    
+    # Live Sync: Also remove from Inventory
+    InventoryItem.query.filter_by(sap_part_number=sap_number).delete()
     
     db.session.delete(item)
     db.session.commit()
@@ -59,7 +134,7 @@ def delete_master_item(sap_number):
     from app.utils.audit_logger import log_audit
     log_audit("DELETE_MASTER_DATA")
     
-    return jsonify({"success": True, "message": f"Master data {sap_number} deleted"})
+    return jsonify({"success": True, "message": f"Master data {sap_number} deleted & removed from inventory"})
 
 @manager_bp.route('/master-data/quick-add', methods=['POST'])
 @jwt_required()

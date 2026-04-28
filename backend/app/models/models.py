@@ -394,6 +394,31 @@ class Demand(db.Model):
             return f"{self.model.supervisor.username}@gmail.com"
         return None
 
+    @staticmethod
+    def check_and_update_status(demand_id):
+        """
+        Checks if all inventory items for a demand are SUFFICIENT.
+        If yes, moves demand status to COMPLETED.
+        """
+        if not demand_id:
+            return
+        demand = Demand.query.get(demand_id)
+        if not demand or demand.status not in [Status.IN_PROGRESS, 'IN PROGRESS']:
+            return
+            
+        from app.models.models import InventoryItem
+        items = InventoryItem.query.filter_by(demand_id=demand_id).all()
+        if not items:
+            return
+            
+        # A demand is finished if all its parts are either SUFFICIENT (original stock) 
+        # or COMPLETED/IN_PRODUCTION (from shortage requests)
+        all_finished = all(it.status in ['SUFFICIENT', 'COMPLETED', 'IN_PRODUCTION'] for it in items)
+        
+        if all_finished:
+            demand.status = 'COMPLETED'
+            db.session.commit()
+
     def __repr__(self):
         return f'<Demand {self.formatted_id} - {self.model_name} qty={self.quantity}>'
 
@@ -616,7 +641,7 @@ class InventoryItem(db.Model):
     @property
     def action(self):
         """Computed action status for the action column in the UI."""
-        if self.status == 'IN_PRODUCTION':
+        if self.status in ['IN_PRODUCTION', 'COMPLETED']:
             return 'GO_TO_PRODUCTION'
         if self.status == 'PENDING_DEO':
             return 'PENDING_DEO'

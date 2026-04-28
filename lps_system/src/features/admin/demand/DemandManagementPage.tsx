@@ -333,22 +333,6 @@ const DemandManagementPage = () => {
                                                 >
                                                     {demand.status.replace("_", " ")}
                                                 </span>
-                                                <div className="flex">
-
-
-                                                    <div className="text-[10px] text-ind-text2">
-                                                        DEO:{" "}
-                                                        <span className="font-bold">
-                                                            {demand.assigned_deo_name || "Unassigned"}
-                                                        </span>
-                                                    </div>
-                                                    <div className="text-[10px] text-ind-text2">
-                                                        SV:{" "}
-                                                        <span className="font-bold">
-                                                            {demand.supervisor_name || "Unassigned"}
-                                                        </span>
-                                                    </div>
-                                                </div>
                                             </div>
                                         </td>
 
@@ -438,8 +422,6 @@ const DemandManagementPage = () => {
                                                 </h3>
                                                 <div className="flex items-center gap-3 mt-2">
                                                     <span className="text-[10px] font-black bg-ind-border/30 text-ind-text2 px-3 py-1 rounded-full">{selectedInfoDemand.formatted_id}</span>
-                                                    <span className={`text-[10px] font-black px-3 py-1 rounded-full ${selectedInfoDemand.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
-                                                        }`}>{selectedInfoDemand.status}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -452,7 +434,7 @@ const DemandManagementPage = () => {
                                     </div>
 
                                     {/* Main Content Grid */}
-                                    <div className="grid grid-cols-2 gap-2 mb-4">
+                                    <div className="grid grid-cols-1 gap-2 mb-4">
                                         {/* Left Side: General Info */}
                                         <div className="space-y-2">
                                             <div className="bg-ind-bg/50 rounded-3xl p-6 border border-slate-100">
@@ -460,10 +442,6 @@ const DemandManagementPage = () => {
                                                     <MapPin size={12} className="text-ind-primary" /> Production Context
                                                 </h4>
                                                 <div className="space-y-2">
-                                                    <div>
-                                                        <span className="text-[8px] font-black text-ind-text3 uppercase tracking-widest block mb-1">Production Line</span>
-                                                        <span className="text-xs font-bold text-slate-800 uppercase italic underline decoration-orange-200">{selectedInfoDemand.line || 'No Line Assigned'}</span>
-                                                    </div>
                                                     <div>
                                                         <span className="text-[8px] font-black text-ind-text3 uppercase tracking-widest block mb-1">Customer / Division</span>
                                                         <span className="text-xs font-black text-slate-800 uppercase italic underline decoration-blue-200">{selectedInfoDemand.customer || 'CIE AUTOMOTIVE'}</span>
@@ -483,49 +461,6 @@ const DemandManagementPage = () => {
                                                     <div className="flex justify-between items-center group/item">
                                                         <span className="text-[9px] font-black text-ind-text3 uppercase tracking-widest">Target End</span>
                                                         <span className="text-xs font-black text-ind-text group-hover:text-ind-primary transition-colors tabular-nums">{selectedInfoDemand.end_date || '—'}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Right Side: Assignment Info */}
-                                        <div className="space-y-6">
-                                            <div className="bg-orange-50/30 rounded-3xl p-6 border border-orange-100/50">
-                                                <h4 className="text-[10px] font-black text-black uppercase tracking-widest mb-2 flex items-center gap-2">
-                                                    <UserCheck size={12} className="text-ind-primary" /> Assigned Personnel
-                                                </h4>
-
-                                                {/* Supervisor */}
-                                                <div className="mb-6 pb-6 border-b border-orange-100/50">
-                                                    <div className="flex items-start gap-4">
-                                                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-ind-primary shadow-sm border border-orange-100">
-                                                            <User size={20} />
-                                                        </div>
-                                                        <div>
-                                                            <span className="text-[8px] font-black text-ind-primary uppercase tracking-widest block mb-0.5 italic">Supervisor</span>
-                                                            <span className="text-sm font-black text-ind-text uppercase block">{selectedInfoDemand.supervisor_name || 'Unassigned'}</span>
-                                                            <div className="flex items-center gap-1.5 mt-1">
-                                                                <Mail size={10} className="text-ind-text3" />
-                                                                <span className="text-[10px] font-bold text-ind-text2 lowercase">{selectedInfoDemand.supervisor_email || '—'}</span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {/* DEO */}
-                                                <div>
-                                                    <div className="flex items-start gap-4">
-                                                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-ind-primary shadow-sm border border-orange-100">
-                                                            <User size={20} />
-                                                        </div>
-                                                        <div>
-                                                            <span className="text-[8px] font-black text-ind-primary uppercase tracking-widest block mb-0.5 italic">Data Entry Operator</span>
-                                                            <span className="text-sm font-black text-ind-text uppercase block">{selectedInfoDemand.assigned_deo_name || 'Unassigned'}</span>
-                                                            <div className="flex items-center gap-1.5 mt-1">
-                                                                <Mail size={10} className="text-ind-text3" />
-                                                                <span className="text-[10px] font-bold text-ind-text2 lowercase">{selectedInfoDemand.deo_email || '—'}</span>
-                                                            </div>
-                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>

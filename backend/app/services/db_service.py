@@ -18,11 +18,11 @@ class BaseDBService:
     def update_item(self, identity_key, identity_value, updates):
         item = self.get_by_identity(identity_key, identity_value)
         if not item:
-            return False
+            return None
         
         self.apply_updates(item, updates)
         db.session.commit()
-        return True
+        return item
 
     def apply_updates(self, item, updates):
         raise NotImplementedError
@@ -77,7 +77,8 @@ class MasterDataDBService(BaseDBService):
             if 'Target Qty' in upd: item.production_rel.target_qty = upd['Target Qty']
             if 'Today Produced' in upd: item.production_rel.today_produced = upd['Today Produced']
             if 'Remain Qty' in upd: item.production_rel.remain_qty = upd['Remain Qty']
-            if 'SN NO' in upd or 'SR NO' in upd: item.production_rel.sn_no = upd.get('SN NO') or upd.get('SR NO')
+            if 'SN NO' in upd or 'SR NO' in upd or 'SR.NO' in upd: 
+                item.production_rel.sn_no = upd.get('SN NO') or upd.get('SR NO') or upd.get('SR.NO')
             if 'row_status' in upd: item.production_rel.row_status = upd['row_status']
             
             # Handle overflow
@@ -128,7 +129,7 @@ class MasterDataDBService(BaseDBService):
         item = self.get_by_identity(identity_key, identity_value)
         if not item:
             common = updates.get('common', {})
-            new_item = MasterData(
+            item = MasterData(
                 sap_part_number=identity_value,
                 model=common.get('model'),
                 part_number=common.get('part_number'),
@@ -137,13 +138,13 @@ class MasterDataDBService(BaseDBService):
                 assembly_number=common.get('assembly_number')
             )
             # Use apply_updates to distribute into relational tables
-            self.apply_updates(new_item, updates)
-            db.session.add(new_item)
+            self.apply_updates(item, updates)
+            db.session.add(item)
         else:
             self.apply_updates(item, updates)
         
         db.session.commit()
-        return True
+        return item
 
     def seed_from_json(self, json_data):
         for entry in json_data:

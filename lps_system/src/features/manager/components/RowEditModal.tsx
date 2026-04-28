@@ -52,21 +52,45 @@ const RowEditModal: React.FC<RowEditModalProps> = ({
         });
     };
 
-    const renderInput = (label: string, icon?: any) => (
-        <div className="space-y-1 group">
-            <label className="flex items-center gap-2 text-xs font-bold text-black capitalize  pl-1">
-                {icon && React.createElement(icon, { size: 12, className: "text-ind-primary" })}
-                {label}
-            </label>
-            <input
-                type="text"
-                value={formData[label] || ''}
-                onChange={(e) => handleChange(label, e.target.value.toUpperCase())}
-                className="w-full bg-white border border-ind-border focus:border-ind-primary/30 focus:bg-white rounded-xl py-2.5 px-4 text-black capitalize  text-sm outline-none transition-all placeholder:text-slate-200"
-                placeholder={`Enter ${label.toLowerCase()}...`}
-            />
-        </div>
-    );
+    const renderInput = (label: string, icon?: any) => {
+        const isReadOnly = label === 'Coverage Days' || label === 'RM SIZE' || label === 'PER DAY' ||
+            ['SR.NO', 'SR NO', 'SR. NO.', 'SN NO', 'S.', 'SN. NO'].includes(label.toUpperCase());
+        const NUMERIC_FIELDS = [
+            "TOTAL SCHEDULE QTY", "SAP Stock", "Opening Stock", "Todays Stock",
+            "PER DAY", "Coverage Days"
+        ];
+        const isNumeric = NUMERIC_FIELDS.includes(label);
+
+        return (
+            <div className="space-y-1 group">
+                <label className="flex items-center gap-2 text-xs font-bold text-black capitalize  pl-1">
+                    {icon && React.createElement(icon, { size: 12, className: "text-ind-primary" })}
+                    {label}
+                    {['SAP PART NUMBER'].includes(label.toUpperCase()) && <span className="text-rose-500 ml-1">*</span>}
+                </label>
+                <input
+                    type="text"
+                    value={formData[label] || ''}
+                    onChange={(e) => {
+                        if (isReadOnly) return;
+                        let val = e.target.value;
+                        if (isNumeric) {
+                            // Allow only numbers and decimal point
+                            val = val.replace(/[^0-9.]/g, '');
+                            // Prevent multiple decimal points
+                            const parts = val.split('.');
+                            if (parts.length > 2) val = parts[0] + '.' + parts.slice(1).join('');
+                        }
+                        handleChange(label, isNumeric ? val : val.toUpperCase());
+                    }}
+                    readOnly={isReadOnly}
+                    className={`w-full border border-ind-border rounded-xl py-2.5 px-4 text-black capitalize text-sm outline-none transition-all placeholder:text-slate-200 ${isReadOnly ? 'bg-slate-50 cursor-not-allowed text-ind-text3 font-bold' : 'bg-white focus:border-ind-primary/30 focus:bg-white'
+                        }`}
+                    placeholder={isReadOnly ? 'Calculated automatically' : `Enter ${label.toLowerCase()}...`}
+                />
+            </div>
+        );
+    };
 
     return (
         <AnimatePresence>
@@ -95,7 +119,7 @@ const RowEditModal: React.FC<RowEditModalProps> = ({
                             </div>
                             <div>
                                 <h3 className="text-xl font-black text-ind-text uppercase tracking-tight">
-                                    Edit Component Row
+                                    {formData.row_status === 'NEW' ? 'Add Component Row' : 'Edit Component Row'}
                                 </h3>
                                 <p className="text-[10px] font-black text-ind-text3 uppercase tracking-widest mt-0.5 flex items-center gap-2">
                                     <span>Part #{formData["PART NUMBER"] || 'NEW'}</span>
@@ -117,7 +141,7 @@ const RowEditModal: React.FC<RowEditModalProps> = ({
                         {/* Section 1: Identification */}
                         <div className="space-y-3">
                             <div className="flex items-center gap-3">
-                              
+
                                 <span className="text-sm font-bold text-ind-primary uppercase ">Identification</span>
                                 <div className="h-px flex-1 bg-ind-border/30" />
                             </div>
@@ -133,7 +157,7 @@ const RowEditModal: React.FC<RowEditModalProps> = ({
                         {/* Section 2: G-Chart View Data */}
                         <div className="space-y-3">
                             <div className="flex items-center gap-3">
-                                
+
                                 <span className="text-sm font-bold text-ind-primary uppercase">Operational Targets & Stock</span>
                                 <div className="h-px flex-1 bg-ind-border/30" />
                             </div>
@@ -154,7 +178,7 @@ const RowEditModal: React.FC<RowEditModalProps> = ({
                         {/* Section 3: Material Data */}
                         <div className="space-y-3">
                             <div className="flex items-center gap-3">
-                               
+
                                 <span className="text-sm font-bold text-ind-primary uppercase">Material Data</span>
                                 <div className="h-px flex-1 bg-ind-border/30" />
                             </div>
@@ -170,7 +194,7 @@ const RowEditModal: React.FC<RowEditModalProps> = ({
 
                     {/* Footer */}
                     <div className="px-8 py-3 bg-ind-bg border-t border-ind-border/50 flex items-center justify-between sticky bottom-0 z-10">
-                       
+
 
                         <div className="flex gap-4 justify-end w-full">
                             <button

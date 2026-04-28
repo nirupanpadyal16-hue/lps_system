@@ -48,7 +48,6 @@ const ProductionPlanningPage = () => {
     const navigate = useNavigate();
     const [demand, setDemand] = useState<any>(null);
     const TRANSIENT_FIELDS = [
-        "TOTAL SCHEDULE QTY", "PER DAY", 
         "Coverage Days", "Balance Qty", "Production Status",
         "Defect Count", "Failure Reason", "Remarks"
     ];
@@ -86,7 +85,7 @@ const ProductionPlanningPage = () => {
     ]);
 
     const [commonHeaders] = useState<string[]>([
-        "SN. NO",
+        "SR.NO",
         "SAP PART NUMBER",
         "PART NUMBER",
         "PART DESCRIPTION",
@@ -137,11 +136,11 @@ const ProductionPlanningPage = () => {
                             };
 
                             if (item.common) {
-                                row["SN. NO"] = idx + 1;
-                                row["SR NO"] = row["SN. NO"];
-                                row["Sr No"] = row["SN. NO"];
-                                row["S."] = row["SN. NO"];
-                                row["SN NO"] = row["SN. NO"];
+                                row["SR.NO"] = idx + 1;
+                                row["SR NO"] = row["SR.NO"];
+                                row["Sr No"] = row["SR.NO"];
+                                row["S."] = row["SR.NO"];
+                                row["SN NO"] = row["SR.NO"];
 
                                 row["PART NUMBER"] = item.common.part_number;
                                 row["Part Number"] = item.common.part_number;
@@ -287,7 +286,14 @@ const ProductionPlanningPage = () => {
         const sapNum = updatedRow['SAP PART #'] || updatedRow.sap_part_number || updatedRow['SAP PART NUMBER'];
 
         if (!sapNum) {
-            alert("Error: SAP PART NUMBER is required to save this row to the database.");
+            setModalConfig({
+                isOpen: true,
+                title: 'MISSING DATA',
+                description: 'SAP PART NUMBER is required',
+                defaultValue: '',
+                type: 'error',
+                onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false }))
+            });
             return;
         }
         // Auto-calculate RM SIZE logic for row-level save
@@ -304,7 +310,9 @@ const ProductionPlanningPage = () => {
         setRequirements(updatedRequirements);
 
         const coreKeys = ["PART NUMBER", "PART NO", "SAP PART #", "SAP PART NUMBER", "PART DESCRIPTION", "DESCRIPTION", "SALEABLE NO", "ASSEMBLY NUMBER", "MODEL", "id"];
-        const production_data: any = {};
+        const production_data: any = {
+            "SR.NO": updatedRow["SR.NO"] || updatedRow["SR NO"]
+        };
         const material_data: any = {};
 
         // Segregate dynamic fields based on their headers, EXCLUDING transient G-Chart data
@@ -343,7 +351,7 @@ const ProductionPlanningPage = () => {
             setModalConfig({
                 isOpen: true,
                 title: 'SUCCESS',
-                description: 'Record successfully updated in the master database.',
+                description: 'SAVE SUCCESSFULLY',
                 defaultValue: '',
                 type: 'success',
                 onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false }))
@@ -388,14 +396,14 @@ const ProductionPlanningPage = () => {
         setModalConfig({
             isOpen: true,
             title: 'ADD COMPONENT',
-            description: 'Are you sure you want to add a NEW manual component to this model? You will need to fill in all the details manually.',
+            description: 'Are you sure you want to add a NEW manual component to this model?',
             defaultValue: '',
             type: 'confirm',
             onConfirm: () => {
                 const nextId = requirements.length > 0 ? Math.max(...requirements.map(r => r.id)) + 1 : 1;
                 const newRow: any = {
                     id: nextId,
-                    "SN NO": requirements.length + 1,
+                    "SR.NO": requirements.length + 1,
                     "SR NO": requirements.length + 1,
                     "S.": requirements.length + 1,
                     ...commonHeaders.reduce((acc, h) => ({ ...acc, [h]: "" }), {}),
@@ -480,7 +488,6 @@ const ProductionPlanningPage = () => {
             type: 'confirm',
             onConfirm: async () => {
                 setRequirements(prev => prev.filter(req => req.id !== id));
-                setModalConfig(prev => ({ ...prev, isOpen: false }));
 
                 if (sapNum) {
                     setIsSaving(true);
@@ -490,11 +497,37 @@ const ProductionPlanningPage = () => {
                             method: 'DELETE',
                             headers: { 'Authorization': `Bearer ${token}` }
                         });
+
+                        setModalConfig({
+                            isOpen: true,
+                            title: 'DELETE SUCCESSFUL',
+                            description: `Component ${sapNum} has been permanently removed from the database.`,
+                            defaultValue: '',
+                            type: 'success',
+                            onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false }))
+                        });
                     } catch (e) {
                         console.error("Failed to delete from DB");
+                        setModalConfig({
+                            isOpen: true,
+                            title: 'DELETE ERROR',
+                            description: 'Failed to delete from the database. Please check your connection.',
+                            defaultValue: '',
+                            type: 'error',
+                            onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false }))
+                        });
                     } finally {
                         setIsSaving(false);
                     }
+                } else {
+                    setModalConfig({
+                        isOpen: true,
+                        title: 'ROW REMOVED',
+                        description: 'The unsaved row has been removed from your local view.',
+                        defaultValue: '',
+                        type: 'success',
+                        onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false }))
+                    });
                 }
             }
         });
@@ -647,21 +680,6 @@ const ProductionPlanningPage = () => {
                         </div>
 
                         {/* Submit Action Block */}
-                        {demand.status === 'PENDING' && (
-                            <div className="flex items-center gap-3">
-                                <div className="hidden lg:flex flex-col items-end mr-2">
-                                    <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Planning Phase</span>
-                                    <span className="text-[8px] font-bold text-ind-text3 uppercase">Submit to finalize setup</span>
-                                </div>
-                                <button
-                                    onClick={markAsReady}
-                                    className="px-6 py-3 bg-emerald-500 text-white rounded-xl font-black text-[10px] uppercase tracking-[0.15em] border border-emerald-400 hover:bg-emerald-600 hover:shadow-[0_8px_20px_rgba(16,185,129,0.3)] transition-all flex items-center gap-2 active:scale-95 group shadow-lg"
-                                >
-                                    <ShieldCheck size={14} className="group-hover:scale-110 transition-transform" />
-                                    Submit for Assignment
-                                </button>
-                            </div>
-                        )}
                     </div>
 
                     {/* Middle Row: The 3 Summary Cards - Ultra Condensed */}
@@ -671,9 +689,7 @@ const ProductionPlanningPage = () => {
                             <span className="text-xs font-medium text-black uppercase  mb-1.5">Target Vehicles Production</span>
                             <div className="flex items-baseline gap-1.5">
                                 <span className="text-2xl font-bold text-ind-primary tracking-tighter">{demand.quantity}</span>
-                               
                             </div>
-                          
                         </div>
 
                         {/* 2. Total Parts */}
@@ -681,46 +697,18 @@ const ProductionPlanningPage = () => {
                             <span className="text-xs font-medium text-black uppercase  mb-1.5">Total Unique Components Parts</span>
                             <div className="flex items-baseline gap-1.5">
                                 <span className="text-2xl font-black tracking-tighter text-ind-primary">{requirements.length}</span>
-                                
                             </div>
-                          
                         </div>
 
-                        {/* 3. Total Material Units */}
+                        {/* 3. Customer Name */}
                         <div className="bg-gray-50 rounded-xl border border-ind-border/50 p-3.5 flex flex-col relative overflow-hidden group/card hover:bg-white transition-all">
-                            <span className="text-xs font-medium text-black uppercase  mb-1.5">Total Units Requirements</span>
+                            <span className="text-xs font-medium text-black uppercase  mb-1.5">Customer Name</span>
                             <div className="flex items-baseline gap-1.5">
-                                <span className="text-2xl font-black text-ind-primary tracking-tighter">
-                                    {requirements.reduce((sum, req) => {
-                                        const val = String(req.required_qty).replace(/,/g, '');
-                                        return sum + (parseFloat(val) || 0);
-                                    }, 0).toLocaleString()}
-                                </span>
-                                
+                                <span className="text-lg font-black tracking-tight text-black uppercase">{demand.customer || 'TATA MOTORS'}</span>
                             </div>
-                           
                         </div>
                     </div>
 
-                    {/* Bottom Row: Ultra Slim Metadata Inline Bar */}
-                    <div className="flex items-center gap-6 px-4 py-2 border-t border-slate-100">
-                        <div className="flex items-center gap-2">
-                            <div className="w-1 h-1 rounded-full bg-indigo-400 mr-1" />
-                            <span className="text-xs font-bold text-black uppercase ">Line:</span>
-                            <span className="text-xs font-bold text-black uppercase ">{demand.line || 'T4 LINE'}</span>
-                        </div>
-                        <div className="w-px h-2.5 bg-ind-border/50" />
-                        <div className="flex items-center gap-2">
-                            <div className="w-1 h-1 rounded-full bg-emerald-400 mr-1" />
-                            <span className="text-xs font-bold text-black uppercase ">Responsible:</span>
-                            <span className="text-xs font-bold text-black uppercase ">{demand.manager || 'RAJESH SHARMA'}</span>
-                        </div>
-                        <div className="w-px h-2.5 bg-ind-border/50" />
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-black uppercase ">Customer:</span>
-                            <span className="text-xs font-bold text-black uppercase ">{demand.customer || 'TATA MOTORS'}</span>
-                        </div>
-                    </div>
                 </div>
             </div>
 
@@ -765,7 +753,7 @@ const ProductionPlanningPage = () => {
                                 <Plus size={12} className="group-hover:rotate-90 transition-transform duration-300" />
                                 Add Component
                             </button>
-                          
+
                         </div>
 
                         {/* Search */}
@@ -788,7 +776,7 @@ const ProductionPlanningPage = () => {
                 <div className="flex-1 w-full relative bg-white overflow-hidden flex flex-col">
                     <div className="flex-1 overflow-auto w-full border-b border-ind-border/50 custom-scrollbar bg-ind-bg/20">
                         {filteredRequirements.length > 0 ? (
-                            <table className={`w-full min-w-max border-separate border-spacing-0`}>
+                            <table className="min-w-full border-separate border-spacing-0">
                                 <thead>
                                     {/* GROUP HEADERS ROW */}
                                     {viewMode === 'all' && (
@@ -815,7 +803,10 @@ const ProductionPlanningPage = () => {
                                                     </div>
                                                 </th>
                                             )}
-                                            
+
+                                            {/* Spacer for Sticky Action Column */}
+                                            <th className="bg-ind-bg/50 border-b border-ind-border w-14 min-w-[56px]"></th>
+
                                         </tr>
                                     )}
 
@@ -843,11 +834,11 @@ const ProductionPlanningPage = () => {
                                                         minWidth: width,
                                                         maxWidth: width
                                                     }}
-                                                    className={`py-2 px-2 text-[10px] font-black  uppercase tracking-widest text-left  border-b-2 border-[#f37021] group/h`}
+                                                    className={`sticky py-2 px-2 text-[10px] font-black uppercase tracking-widest text-left border-b-2 border-[#f37021] bg-white z-[60] group/h`}
                                                 >
                                                     <div className="flex items-center justify-between gap-2 pl-2">
                                                         <span className="truncate texxt-black font-bold">{h}</span>
-                                                     
+
                                                     </div>
                                                 </th>
                                             );
@@ -862,7 +853,7 @@ const ProductionPlanningPage = () => {
                                             >
                                                 <div className="flex items-center justify-between gap-2 pl-2">
                                                     <span className="truncate text-black font-bold">{h}</span>
-                                                  
+
                                                 </div>
                                             </th>
                                         ))}
@@ -875,7 +866,7 @@ const ProductionPlanningPage = () => {
                                             >
                                                 <div className="flex items-center justify-between gap-1 overflow-hidden">
                                                     <span className="flex-1 truncate text-black font-bold">{h}</span>
-                                                  
+
                                                 </div>
                                             </th>
                                         ))}
@@ -891,7 +882,10 @@ const ProductionPlanningPage = () => {
                                                 ))}
                                             </>
                                         )}
-                                        
+                                        <th className="py-2 px-2 text-[10px] font-black uppercase tracking-widest text-center border-b-2 border-[#f37021] w-14 min-w-[56px] bg-white sticky right-0 z-[60] border-l border-ind-border/10 shadow-[-10px_0_15px_-10px_rgba(0,0,0,0.1)]">
+                                            {/* Empty header for icon-only column */}
+                                        </th>
+
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -908,7 +902,7 @@ const ProductionPlanningPage = () => {
                                                 let leftOffset = 0;
                                                 for (let j = 0; j < i; j++) {
                                                     const prevH = commonHeaders[j];
-                                                    const prevIsSrNo = prevH.toUpperCase() === 'SR NO' || prevH.toUpperCase() === 'SR. NO.' || prevH.toUpperCase() === 'S.' || prevH.toUpperCase() === 'SN NO';
+                                                    const prevIsSrNo = prevH.toUpperCase() === 'SR NO' || prevH.toUpperCase() === 'SR. NO.' || prevH.toUpperCase() === 'S.' || prevH.toUpperCase() === 'SN NO' || prevH.toUpperCase() === 'SR.NO';
                                                     leftOffset += prevIsSrNo ? 60 : (prevH.includes('SAP') ? 240 : 220);
                                                 }
                                                 const width = isSrNo ? '60px' : (h.includes('SAP') ? '240px' : '220px');
@@ -917,7 +911,7 @@ const ProductionPlanningPage = () => {
                                                     <td
                                                         key={h}
                                                         style={{ left: `${leftOffset}px`, minWidth: width, maxWidth: width }}
-                                                        className={`p-1.5 align-middle  bg-white group-hover:bg-ind-bg tracking-tighter border-r border-b border-ind-border/50 last:border-r-0`}
+                                                        className={`sticky p-1.5 align-middle bg-white group-hover:bg-ind-bg tracking-tighter border-r border-b border-ind-border/50 last:border-r-0 z-[55]`}
                                                     >
                                                         <div className="relative group/idx flex items-center w-full h-full  cursor-pointer" onClick={() => handleRowEdit(req)}>
                                                             {isSrNo ? (
@@ -978,7 +972,15 @@ const ProductionPlanningPage = () => {
                                                     })}
                                                 </>
                                             )}
-                                          
+                                            <td className="p-1.5 align-middle border-b border-ind-border/50 sticky right-0 bg-white group-hover:bg-ind-bg z-[50] w-14 min-w-[56px] text-center border-l border-ind-border/10 shadow-[-10px_0_15px_-10px_rgba(0,0,0,0.1)]">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); deleteRow(req.id); }}
+                                                    className="w-8 h-8 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center mx-auto"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </td>
+
                                         </tr>
                                     ))}
 

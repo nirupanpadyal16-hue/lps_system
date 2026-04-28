@@ -394,6 +394,28 @@ class Demand(db.Model):
             return f"{self.model.supervisor.username}@gmail.com"
         return None
 
+    @staticmethod
+    def check_and_update_status(demand_id):
+        """
+        Checks if all inventory items for a demand are SUFFICIENT.
+        If yes, moves demand status to COMPLETED.
+        """
+        if not demand_id:
+            return
+        demand = Demand.query.get(demand_id)
+        if not demand or demand.status != 'IN PROGRESS':
+            return
+            
+        from models import InventoryItem
+        items = InventoryItem.query.filter_by(demand_id=demand_id).all()
+        if not items:
+            return
+            
+        all_ok = all(it.status == 'SUFFICIENT' for it in items)
+        if all_ok:
+            demand.status = 'COMPLETED'
+            db.session.commit()
+
     def __repr__(self):
         return f'<Demand {self.formatted_id} - {self.model_name} qty={self.quantity}>'
 

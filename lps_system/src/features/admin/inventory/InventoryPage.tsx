@@ -49,6 +49,7 @@ interface SupervisorUser {
 interface ProductionLine {
     id: number;
     name: string;
+    isActive?: boolean;
 }
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
@@ -539,6 +540,7 @@ export default function InventoryPage() {
     const pendingDEO = items.filter(i => i.action === 'PENDING_DEO').length;
 
     const uniqueVehicles = Array.from(new Set(items.map(i => i.vehicle_name))).sort();
+    const demandIdMap = Object.fromEntries(demands.map(d => [d.id, d.formatted_id]));
 
     // ── Filtering ─────────────────────────────────────────────────────────
     const filtered = items.filter(item => {
@@ -547,13 +549,23 @@ export default function InventoryPage() {
             || item.part_description?.toLowerCase().includes(q)
             || item.vehicle_name?.toLowerCase().includes(q);
         const matchVehicle = filterVehicle === 'ALL' || item.vehicle_name === filterVehicle;
-        const matchStatus = filterStatus === 'ALL' || item.status === filterStatus;
+        const matchStatus = filterStatus === 'ALL' ||
+            (filterStatus === 'IN_PRODUCTION' ? (item.status === 'IN_PRODUCTION' || item.status === 'COMPLETED') : item.status === filterStatus);
         const matchAction = filterAction === 'ALL' || item.action === filterAction;
 
 
 
         return matchSearch && matchVehicle && matchStatus && matchAction;
     });
+
+    // ── Filter Available Demands ──────────────────────────────────────────
+    // Get unique demand IDs already present in inventory
+    const importedDemandIds = new Set(items.map(i => i.demand_id).filter(id => id !== null));
+    // Filter demands list to exclude those already imported
+    const availableDemands = demands.filter(d => !importedDemandIds.has(d.id));
+
+    // ── Filter Active Lines ──────────────────────────────────────────────
+    const activeLines = lines.filter(l => l.isActive !== false);
 
     // ── Batch shortage handler ─────────────────────────────────────────────
     const handleBatchNewDemand = () => {
@@ -684,9 +696,8 @@ export default function InventoryPage() {
                             <option value="ALL">All Statuses</option>
                             <option value="SUFFICIENT">Sufficient</option>
                             <option value="SHORTAGE">Shortage</option>
-                            <option value="PENDING_DEO">Pending DEO</option>
-                            <option value="IN_PRODUCTION">In Production</option>
-                            <option value="COMPLETED">Completed</option>
+                            <option value="PENDING_DEO">Pending</option>
+                            <option value="IN_PRODUCTION">Completed</option>
                         </select>
                         <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     </div>
@@ -724,10 +735,6 @@ export default function InventoryPage() {
                         className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-semibold transition-all">
                         <Boxes size={15} /> Import from Demand
                     </button>
-                    <button onClick={() => setShowAddModal(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-semibold transition-all">
-                        <Plus size={15} /> Add Part
-                    </button>
                     <button onClick={handleExport}
                         className="flex items-center gap-2 px-4 py-2 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition-all">
                         <Download size={15} /> Export
@@ -754,7 +761,7 @@ export default function InventoryPage() {
                                         checked={selectedIds.size === filtered.length && filtered.length > 0}
                                         className="rounded" />
                                 </th>
-                                {['SN', 'Vehicle', 'SAP Part No.', 'Part Description', 'Current Stock', 'Demand Qty', 'Shortage', 'Status', 'Action'].map(h => (
+                                {['Sr.No', 'Vehicle', 'SAP Part No.', 'Part Description', 'Current Stock', 'Demand Qty', 'Shortage', 'Status', 'Action'].map(h => (
                                     <th key={h} className="px-4 py-2 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">{h}</th>
                                 ))}
                             </tr>
@@ -785,7 +792,14 @@ export default function InventoryPage() {
                                         </td>
                                         <td className="px-4 py-2 text-xs font-bold text-gray-400">{item.serial_number}</td>
                                         <td className="px-4 py-2">
-                                            <span className="text-xs font-bold text-gray-800">{item.vehicle_name}</span>
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-black text-gray-800">{item.vehicle_name}</span>
+                                                {item.demand_id && demandIdMap[item.demand_id] && (
+                                                    <span className="text-[10px] font-black text-gray-400 mt-0.5">
+                                                        {demandIdMap[item.demand_id]}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="px-4 py-2">
                                             <span className="font-mono text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">{item.sap_part_number}</span>
@@ -827,11 +841,10 @@ export default function InventoryPage() {
                                             )}
                                         </td>
                                         <td className="px-4 py-2">
-                                            {item.status === 'SUFFICIENT' && <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">SUFFICIENT</span>}
-                                            {item.status === 'SHORTAGE' && <span className="text-[11px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded-full">SHORTAGE</span>}
-                                            {item.status === 'PENDING_DEO' && <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">PENDING </span>}
-                                            {/* {item.status === 'IN_PRODUCTION' && <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-full">IN PRODUCTION</span>} */}
-                                            {(item.status === 'COMPLETED' || item.status === 'IN_PRODUCTION') && <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">COMPLETED</span>}
+                                            {item.status === 'SUFFICIENT' && <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full uppercase">Sufficient</span>}
+                                            {item.status === 'SHORTAGE' && <span className="text-[11px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded-full uppercase">Shortage</span>}
+                                            {item.status === 'PENDING_DEO' && <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full uppercase">Pending</span>}
+                                            {(item.status === 'COMPLETED' || item.status === 'IN_PRODUCTION') && <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full uppercase">Completed</span>}
                                         </td>
                                         <td className="px-4 py-2">
                                             <ActionBadge
@@ -865,17 +878,17 @@ export default function InventoryPage() {
 
             {/* Modals */}
             {showAddModal && (
-                <AddPartModal demands={demands} onClose={() => setShowAddModal(false)} onSuccess={fetchAll} />
+                <AddPartModal demands={availableDemands} onClose={() => setShowAddModal(false)} onSuccess={fetchAll} />
             )}
             {showSeedModal && (
-                <SeedModal demands={demands} onClose={() => setShowSeedModal(false)} onSuccess={fetchAll} />
+                <SeedModal demands={availableDemands} onClose={() => setShowSeedModal(false)} onSuccess={fetchAll} />
             )}
             {shortageModalItems && (
                 <ShortageRequestModal
                     shortageItems={shortageModalItems}
                     deos={deos}
                     supervisors={supervisors}
-                    lines={lines}
+                    lines={activeLines}
                     onClose={() => setShortageModalItems(null)}
                     onSuccess={fetchAll}
                 />

@@ -23,11 +23,15 @@ admin_bp = Blueprint('admin', __name__)
 @role_required(['Admin', 'Manager', 'Supervisor'])
 def get_staff():
     role = request.args.get('role')
+    line_id = request.args.get('line_id')
     query = User.query
     if role:
         query = query.filter(User.role.ilike(role))
     else:
         query = query.filter(User.role.in_(['Supervisor', 'DEO']))
+    
+    if line_id:
+        query = query.filter(User.assigned_line_id == line_id)
     
     staff = query.order_by(User.name.asc()).all()
     return jsonify({
@@ -172,6 +176,13 @@ def get_demands():
     if manager_filter:
         query = query.filter(Demand.manager.ilike(manager_filter))
     demands = query.order_by(Demand.id.desc()).all()
+    
+    # Auto-sync completion status for active demands
+    for d in demands:
+        if d.status in [Status.IN_PROGRESS, 'IN PROGRESS']:
+            Demand.check_and_update_status(d.id)
+            
+    # Re-fetch or use session objects to ensure fresh data
     return jsonify({"success": True, "data": [d.to_dict() for d in demands]})
 
 @admin_bp.route('/demands', methods=['POST'])
@@ -440,14 +451,19 @@ def create_user():
     existing = User.query.filter_by(username=data['username']).first()
     if existing:
         return jsonify({"success": False, "message": "Username already exists"}), 400
+    role = data.get('role')
+    line_id = data.get('assigned_line_id')
+    if role in ['Supervisor', 'DEO'] and not line_id:
+        return jsonify({"success": False, "message": f"Production line assignment is required for {role} role"}), 400
+
     new_user = User(
         username=data['username'],
         name=data.get('name', data['username']),
         password=data.get('password'),  # setter hashes automatically
-        role=data.get('role'),
+        role=role,
         shop=data.get('shop'),
         is_active=data.get('isActive', True),
-        assigned_line_id=data.get('assigned_line_id')
+        assigned_line_id=line_id
     )
     db.session.add(new_user)
     db.session.commit()
@@ -468,14 +484,22 @@ def update_user(username):
         user.name = updates['name']
     if 'role' in updates:
         user.role = updates['role']
+    
+    # Enforce line assignment for staff roles
+    if user.role in ['Supervisor', 'DEO']:
+        line_id = updates.get('assigned_line_id') or user.assigned_line_id
+        if not line_id:
+            return jsonify({"success": False, "message": f"Production line assignment is required for {user.role} role"}), 400
+        user.assigned_line_id = line_id
+
+    if 'name' in updates:
+        user.name = updates['name']
     if 'shop' in updates:
         user.shop = updates['shop']
     if 'isActive' in updates:
         user.is_active = updates['isActive']
-    if 'assigned_line_id' in updates:
-        user.assigned_line_id = updates['assigned_line_id']
     if 'password' in updates and updates['password']:
-        user.password = updates['password']  # triggers the @password.setter → hashes it
+        user.password = updates['password']
 
     db.session.commit()
     log_audit("UPDATE_USER")
@@ -918,6 +942,9 @@ def seed_inventory_from_demand(demand_id):
         return jsonify({"success": False, "message": "Demand not found"}), 404
     model_name = demand.model_name
     order_qty = float(demand.quantity or 0)
+    
+    # Transition demand status to IN_PROGRESS when imported to inventory
+    demand.status = 'IN_PROGRESS'
     parts = MasterData.query.filter(MasterData.model.ilike(f'%{model_name}%')).all()
     if not parts:
         return jsonify({"success": False, "message": f"No MasterData parts found for model '{model_name}'."}), 404
@@ -928,14 +955,24 @@ def seed_inventory_from_demand(demand_id):
             DEOProductionEntry.sap_part_number == part.sap_part_number
         ).order_by(DEOProductionEntry.id.desc()).first()
         current_stock = float(latest_entry.todays_stock or 0) if latest_entry else 0.0
-        status = 'SUFFICIENT' if current_stock >= order_qty else 'SHORTAGE'
+        # Prioritize part-specific scheduled quantity from MasterData
+        mat_data = part.material_rel.to_dict() if part.material_rel else {}
+        part_qty = mat_data.get('TOTAL SCHEDULE QTY') or mat_data.get('demand_quantity') or order_qty
+        try:
+            part_qty = float(part_qty)
+            if part_qty == 0:
+                part_qty = order_qty
+        except:
+            part_qty = order_qty
+            
+        status = 'SUFFICIENT' if current_stock >= part_qty else 'SHORTAGE'
         existing = InventoryItem.query.filter_by(
             demand_id=demand_id,
             sap_part_number=part.sap_part_number
         ).first()
         if existing:
             existing.current_stock = current_stock
-            existing.demand_quantity = order_qty
+            existing.demand_quantity = part_qty
             existing.status = status
             updated_count += 1
         else:
@@ -947,12 +984,14 @@ def seed_inventory_from_demand(demand_id):
                 sap_part_number=part.sap_part_number,
                 part_description=part.description or '',
                 current_stock=current_stock,
-                demand_quantity=order_qty,
+                demand_quantity=part_qty,
                 status=status
             )
             db.session.add(new_item)
             created_count += 1
     db.session.commit()
+    # Check if demand should be COMPLETED
+    Demand.check_and_update_status(demand_id)
     log_audit("SEED_INVENTORY_FROM_DEMAND")
     return jsonify({
         "success": True,
@@ -999,6 +1038,10 @@ def update_inventory_item(item_id):
     else:
         item.status = data['status']
     db.session.commit()
+    # Check if demand should be COMPLETED
+    if item.demand_id:
+        from app.models import Demand
+        Demand.check_and_update_status(item.demand_id)
     log_audit("UPDATE_INVENTORY_ITEM")
     return jsonify({"success": True, "message": "Inventory item updated", "data": item.to_dict()})
 
@@ -1098,11 +1141,15 @@ def approve_shortage_request(req_id):
     item = psr.inventory_item
     if item and psr.todays_stock is not None:
         item.current_stock = float(psr.todays_stock)
-        item.status = 'IN_PRODUCTION' if item.current_stock >= item.demand_quantity else 'SHORTAGE'
+        item.status = 'COMPLETED' if item.current_stock >= item.demand_quantity else 'SHORTAGE'
     psr.status = 'COMPLETED'
     psr.admin_approved_at = datetime.datetime.now()
     psr.admin_notes = data.get('admin_notes', '')
     db.session.commit()
+    # Check if demand should be COMPLETED
+    if item and item.demand_id:
+        from app.models import Demand
+        Demand.check_and_update_status(item.demand_id)
     log_audit("APPROVE_SHORTAGE_REQUEST")
     return jsonify({
         "success": True,

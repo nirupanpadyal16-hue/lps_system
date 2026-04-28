@@ -35,7 +35,7 @@ const CustomModal: React.FC<CustomModalProps> = ({
 
     return (
         <AnimatePresence>
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
                 {/* Backdrop */}
                 <motion.div
                     initial={{ opacity: 0 }}
@@ -53,10 +53,7 @@ const CustomModal: React.FC<CustomModalProps> = ({
                     className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl border border-ind-border/50 p-8 overflow-hidden"
                 >
                     {/* Header */}
-                    <div className="flex items-center justify-between mb-4 border-b border-slate-200">
-                        <h3 className="text-base font-bold text-slate-800 uppercase tracking-tight">
-                            {title}
-                        </h3>
+                    <div className="flex items-center justify-end mb-2">
                         <button
                             onClick={onClose}
                             className="p-2 hover:bg-ind-border/30 rounded-full transition-colors text-ind-text3"
@@ -76,13 +73,13 @@ const CustomModal: React.FC<CustomModalProps> = ({
                         </div>
                     )}
 
-                    
 
-                    {/* {description && (
+
+                    {description && (
                         <p className="text-ind-text2 text-sm font-medium mb-8 leading-relaxed text-center">
                             {description}
                         </p>
-                    )} */}
+                    )}
 
                     {/* Content */}
                     <div className="mb-8">
@@ -101,9 +98,6 @@ const CustomModal: React.FC<CustomModalProps> = ({
                                     }}
                                 />
                             </div>
-                        )}
-                        {type === 'confirm' && (
-                           <p className="text-ind-text2 font-medium text-center">{description || "Are you sure you want to proceed with this action?"}</p>
                         )}
                     </div>
 
