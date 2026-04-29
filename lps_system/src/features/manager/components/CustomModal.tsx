@@ -53,7 +53,7 @@ const CustomModal: React.FC<CustomModalProps> = ({
                     className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl border border-ind-border/50 p-8 overflow-hidden"
                 >
                     {/* Header */}
-                    <div className="flex items-center justify-end mb-2">
+                    <div className="flex items-center justify-end mb-4">
                         <button
                             onClick={onClose}
                             className="p-2 hover:bg-ind-border/30 rounded-full transition-colors text-ind-text3"
@@ -61,21 +61,30 @@ const CustomModal: React.FC<CustomModalProps> = ({
                             <X size={20} />
                         </button>
                     </div>
+
                     {/* Content type icons for success/error */}
                     {type === 'success' && (
-                        <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-500 mb-6 mx-auto">
-                            <CheckCircle2 size={40} />
+                        <div className="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-500 mb-6 mx-auto animate-bounce">
+                            <CheckCircle2 size={48} strokeWidth={1.5} />
                         </div>
                     )}
                     {type === 'error' && (
-                        <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center text-rose-500 mb-6 mx-auto">
-                            <AlertCircle size={40} />
+                        <div className="w-24 h-24 bg-rose-100 rounded-full flex items-center justify-center text-rose-500 mb-6 mx-auto">
+                            <AlertCircle size={48} strokeWidth={1.5} />
                         </div>
                     )}
 
+                    {/* Title */}
+                    {title && (
+                        <h2 className={`text-center font-black text-sm  uppercase tracking-tight mb-3 ${
+                            type === 'success' ? 'text-emerald-600' : type === 'error' ? 'text-rose-600' : 'text-slate-800'
+                        }`}>
+                            {title}
+                        </h2>
+                    )}
 
-
-                    {description && (
+                    {/* Description */}
+                    {description && type !== 'success' && type !== 'error' && (
                         <p className="text-ind-text2 text-sm font-medium mb-8 leading-relaxed text-center">
                             {description}
                         </p>
@@ -96,6 +105,7 @@ const CustomModal: React.FC<CustomModalProps> = ({
                                         if (e.key === 'Enter') onConfirm(value);
                                         if (e.key === 'Escape') onClose();
                                     }}
+                                    
                                 />
                             </div>
                         )}
@@ -103,20 +113,31 @@ const CustomModal: React.FC<CustomModalProps> = ({
 
                     {/* Footer / Actions */}
                     <div className="flex gap-3">
-                        <button
-                            onClick={onClose}
-                            className="flex-1 py-4 px-6 bg-ind-border/30 hover:bg-ind-border/50 text-ind-text2 rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all active:scale-95"
-                        >
-                            {type === 'success' || type === 'error' ? 'Close' : 'Cancel'}
-                        </button>
-                        {(type === 'input' || type === 'confirm') && (
+                        {(type === 'success' || type === 'error') ? (
                             <button
-                                onClick={() => onConfirm(value)}
-                                className="flex-1 py-4 px-6 bg-[#F37021] hover:bg-orange-600 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all shadow-lg shadow-orange-500/20 active:scale-95 flex items-center justify-center gap-2"
+                                onClick={onClose}
+                                className="flex-1 py-4 px-6 bg-[#F37021] hover:bg-orange-600 text-white rounded-2xl font-black text-xs uppercase tracking-[0.15em] transition-all shadow-lg shadow-orange-500/20 active:scale-95"
                             >
-                                <Check size={16} strokeWidth={3} />
-                                Confirm
+                                Close
                             </button>
+                        ) : (
+                            <>
+                                <button
+                                    onClick={onClose}
+                                    className="flex-1 py-4 px-6 bg-ind-border/30 hover:bg-ind-border/50 text-ind-text2 rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all active:scale-95"
+                                >
+                                    Cancel
+                                </button>
+                                {(type === 'input' || type === 'confirm') && (
+                                    <button
+                                        onClick={() => onConfirm(value)}
+                                        className="flex-1 py-4 px-6 bg-[#F37021] hover:bg-orange-600 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all shadow-lg shadow-orange-500/20 active:scale-95 flex items-center justify-center gap-2"
+                                    >
+                                        <Check size={16} strokeWidth={3} />
+                                        Confirm
+                                    </button>
+                                )}
+                            </>
                         )}
                     </div>
 

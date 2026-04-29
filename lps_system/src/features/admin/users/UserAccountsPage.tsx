@@ -363,12 +363,13 @@ const UserAccountsPage = () => {
 
             {/* User Table */}
             <div className="p-2">
-                <div className="grid grid-cols-12 px-6 py-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b-2 border-[#f37021] bg-white sticky top-0 z-[50]">
+                <div className="grid grid-cols-12 px-6 py-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b-2 border-[#f37021] bg-white sticky top-0 z-[50] space-between">
                     <div className="col-span-3 text-black">Account Info</div>
                     <div className="col-span-2 text-center text-black">Designation</div>
                     <div className="col-span-2 text-center text-black">Authorized Name</div>
-                    <div className="col-span-1 text-center text-black">Status</div>
-                    <div className="col-span-2 text-right text-black">Actions</div>
+                    <div className="col-span-2 text-center text-black">Machine Name</div>
+                    <div className="col-span-2 text-center text-black"> Account Status</div>
+                    <div className="col-span-1 text-right text-black">Actions</div>
                 </div>
 
                 <div className='h-[calc(100vh-240px)] overflow-y-auto'>

@@ -501,7 +501,7 @@ const ProductionPlanningPage = () => {
                         setModalConfig({
                             isOpen: true,
                             title: 'DELETE SUCCESSFUL',
-                            description: `Component ${sapNum} has been permanently removed from the database.`,
+                            description: 'Deleted successfully',
                             defaultValue: '',
                             type: 'success',
                             onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false }))
@@ -686,7 +686,7 @@ const ProductionPlanningPage = () => {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
                         {/* 1. Target Production */}
                         <div className="bg-gray-50 rounded-xl border border-ind-border/50 p-3.5 flex flex-col relative overflow-hidden group/card hover:bg-white transition-all">
-                            <span className="text-xs font-medium text-black uppercase  mb-1.5">Target Vehicles Production</span>
+                            <span className="text-xs font-medium text-bold uppercase  mb-1.5">Target Vehicles Production</span>
                             <div className="flex items-baseline gap-1.5">
                                 <span className="text-2xl font-bold text-ind-primary tracking-tighter">{demand.quantity}</span>
                             </div>
@@ -883,9 +883,10 @@ const ProductionPlanningPage = () => {
                                             </>
                                         )}
                                         <th className="py-2 px-2 text-[10px] font-black uppercase tracking-widest text-center border-b-2 border-[#f37021] w-14 min-w-[56px] bg-white sticky right-0 z-[60] border-l border-ind-border/10 shadow-[-10px_0_15px_-10px_rgba(0,0,0,0.1)]">
-                                            {/* Empty header for icon-only column */}
+                                            <div className="flex items-center justify-center">
+                                                <Trash2 size={12} className="text-ind-text3" />
+                                            </div>
                                         </th>
-
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -975,7 +976,7 @@ const ProductionPlanningPage = () => {
                                             <td className="p-1.5 align-middle border-b border-ind-border/50 sticky right-0 bg-white group-hover:bg-ind-bg z-[50] w-14 min-w-[56px] text-center border-l border-ind-border/10 shadow-[-10px_0_15px_-10px_rgba(0,0,0,0.1)]">
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); deleteRow(req.id); }}
-                                                    className="w-8 h-8 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center mx-auto"
+                                                    className="w-8 h-8 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-100/50 transition-all flex items-center justify-center mx-auto"
                                                 >
                                                     <Trash2 size={14} />
                                                 </button>

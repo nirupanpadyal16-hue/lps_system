@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
     Package, RefreshCw, Plus, Search, Filter, Download,
     CheckCircle2, AlertTriangle, Clock, ArrowRight, ChevronDown,
-    X, Loader2, Boxes, AlertCircle
+    X, Loader2, Boxes, AlertCircle, CheckCircle
 } from 'lucide-react';
 import { getToken } from '../../../lib/storage';
 import { API_BASE as API } from '../../../lib/apiConfig';
@@ -538,6 +538,7 @@ export default function InventoryPage() {
     const sufficient = items.filter(i => i.action === 'STOCK_OK').length;
     const shortage = items.filter(i => i.action === 'NEW_DEMAND').length;
     const pendingDEO = items.filter(i => i.action === 'PENDING_DEO').length;
+    const completed = items.filter(i => i.status === 'COMPLETED' || i.status === 'IN_PRODUCTION').length;
 
     const uniqueVehicles = Array.from(new Set(items.map(i => i.vehicle_name))).sort();
     const demandIdMap = Object.fromEntries(demands.map(d => [d.id, d.formatted_id]));
@@ -628,30 +629,31 @@ export default function InventoryPage() {
         <div className=" bg-gray-50/50">
             {/* Header */}
             <div className="mb-2 bg-white p-2">
-                <div className="flex items-center gap-3">
-
-                    <div>
-                        <h1 className="text-2xl font-black text-gray-900">Inventory</h1>
-
-                    </div>
+                <div className="flex items-center justify-between px-2">
+                    <h1 className="text-2xl font-black text-gray-900">Inventory</h1>
+                    <button onClick={fetchAll} disabled={loading}
+                        className="flex items-center gap-2 px-4 py-2 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition-all">
+                        <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+                    </button>
                 </div>
             </div>
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-2 px-2">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 mb-2 px-2">
                 {[
                     { label: 'Total Parts', value: totalParts, icon: Boxes, color: 'from-slate-500 to-slate-600', bg: 'bg-white', border: 'border-slate-200', text: 'text-slate-700' },
                     { label: 'Stock OK', value: sufficient, icon: CheckCircle2, color: 'from-emerald-500 to-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' },
                     { label: 'Shortage', value: shortage, icon: AlertTriangle, color: 'from-red-500 to-red-600', bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700' },
                     { label: 'Pending DEO', value: pendingDEO, icon: Clock, color: 'from-amber-500 to-amber-600', bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700' },
+                    { label: 'Completed', value: completed, icon: CheckCircle, color: 'from-teal-500 to-teal-600', bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700' },
                 ].map(card => (
-                    <div key={card.label} className={`${card.bg} border ${card.border} rounded-2xl p-4 flex items-center gap-4`}>
-                        <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${card.color} flex items-center justify-center shadow`}>
-                            <card.icon size={18} className="text-white" />
+                    <div key={card.label} className={`${card.bg} border ${card.border} rounded-2xl p-2.5 flex items-center gap-3`}>
+                        <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${card.color} flex items-center justify-center shadow-sm`}>
+                            <card.icon size={15} className="text-white" />
                         </div>
                         <div>
-                            <p className="text-xs text-gray-500 font-semibold">{card.label}</p>
-                            <p className={`text-2xl font-black ${card.text}`}>{card.value}</p>
+                            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tight">{card.label}</p>
+                            <p className={`text-xl font-black ${card.text}`}>{card.value}</p>
                         </div>
                     </div>
                 ))}
@@ -659,9 +661,9 @@ export default function InventoryPage() {
 
             {/* Toolbar */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-2 mx-2 mb-2">
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
                     {/* Search */}
-                    <div className="relative flex-1 min-w-48">
+                    <div className="relative flex-1 min-w-48 max-w-sm">
                         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                         <input
                             value={search}
@@ -677,9 +679,9 @@ export default function InventoryPage() {
                         <select
                             value={filterVehicle}
                             onChange={e => setFilterVehicle(e.target.value)}
-                            className="pl-8 pr-8 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 appearance-none bg-white"
+                            className="pl-8 pr-8 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 appearance-none bg-white min-w-[120px]"
                         >
-                            <option value="ALL">All Car Models</option>
+                            <option value="ALL">All Models</option>
                             {uniqueVehicles.map(v => <option key={v} value={v}>{v}</option>)}
                         </select>
                         <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
@@ -691,9 +693,9 @@ export default function InventoryPage() {
                         <select
                             value={filterStatus}
                             onChange={e => setFilterStatus(e.target.value)}
-                            className="pl-8 pr-8 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 appearance-none bg-white"
+                            className="pl-8 pr-8 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 appearance-none bg-white min-w-[120px]"
                         >
-                            <option value="ALL">All Statuses</option>
+                            <option value="ALL">All Status</option>
                             <option value="SUFFICIENT">Sufficient</option>
                             <option value="SHORTAGE">Shortage</option>
                             <option value="PENDING_DEO">Pending</option>
@@ -702,53 +704,34 @@ export default function InventoryPage() {
                         <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     </div>
 
-                    {/* Action filter */}
-                    {/* <div className="relative">
-                        <select
-                            value={filterAction}
-                            onChange={e => setFilterAction(e.target.value)}
-                            className="px-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 appearance-none bg-white pr-8"
-                        >
-                            <option value="ALL">All Actions</option>
-                            <option value="STOCK_OK">Stock OK</option>
-                            <option value="NEW_DEMAND">New Demand</option>
-                            <option value="PENDING_DEO">Pending DEO</option>
-                            <option value="GO_TO_PRODUCTION">Go to Production</option>
-                            <option value="COMPLETED">Completed</option>
-                        </select>
-                        <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                    </div> */}
-
-                    <div className="flex-1" />
-
                     {/* Action buttons */}
                     {shortage > 0 && (
                         <button
                             onClick={handleBatchNewDemand}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-bold transition-all shadow-sm"
+                            className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-bold transition-all shadow-sm whitespace-nowrap"
                         >
                             <AlertCircle size={15} />
-                            Create Demand ({shortage} short)
+                            Create Demand
                         </button>
                     )}
                     <button onClick={() => setShowSeedModal(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-semibold transition-all">
-                        <Boxes size={15} /> Import from Demand
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-semibold transition-all whitespace-nowrap">
+                        <Boxes size={15} /> Import Demand
                     </button>
                     <button onClick={handleExport}
-                        className="flex items-center gap-2 px-4 py-2 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition-all">
-                        <Download size={15} /> Export
+                        className="group flex items-center gap-2 px-3 py-2 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition-all whitespace-nowrap">
+                        <Download size={15} />
+                        <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-300 ease-in-out">
+                            Export
+                        </span>
                     </button>
-                    <button onClick={fetchAll} disabled={loading}
-                        className="flex items-center gap-2 px-4 py-2 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition-all">
-                        <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-                    </button>
+
                 </div>
             </div>
 
             {/* Table */}
             <div className="bg-white rounded-2xl mx-2 shadow-sm border border-gray-100 overflow-hidden">
-                <div className="overflow-x-auto h-[calc(100vh-400px)] overflow-y-auto">
+                <div className="overflow-x-auto h-[calc(100vh-280px)] overflow-y-auto">
                     <table className="w-full ">
                         <thead className='sticky top-0 z-[50]'>
                             <tr className="border-b-2 border-[#f37021] bg-white">

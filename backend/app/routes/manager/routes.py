@@ -71,7 +71,6 @@ def sync_inventory_item(master_item):
     db.session.commit()
     
     # Check if any demands should move to COMPLETED
-    from app.models import Demand
     for d_id in demand_ids:
         Demand.check_and_update_status(d_id)
 
