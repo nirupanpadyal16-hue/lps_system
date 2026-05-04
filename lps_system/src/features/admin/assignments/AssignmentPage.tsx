@@ -30,6 +30,8 @@ interface ProductionLine {
     name: string;
     description: string;
     isActive: boolean;
+    parent_id?: number | null;
+    children?: ProductionLine[];
 }
 
 const AssignmentPage = () => {
@@ -525,10 +527,17 @@ const AssignmentPage = () => {
                                         value={tempLineId}
                                         onChange={(e) => setTempLineId(e.target.value ? Number(e.target.value) : '')}
                                     >
-                                        <option value="" className="text-ind-text3">-- Select line --</option>
-                                        {lines.filter(l => l.isActive).map(line => (
-                                            <option key={line.id} value={line.id}>{line.name}</option>
-                                        ))}
+                                        <option value="" className="text-ind-text3">-- Select machine/unit --</option>
+                                        {lines.filter(l => l.isActive && !l.parent_id).flatMap(line => [
+                                            <option key={line.id} value={line.id}>{line.name}</option>,
+                                            ...(line.children || [])
+                                                .filter(c => c.isActive)
+                                                .map(child => (
+                                                    <option key={child.id} value={child.id}>
+                                                        &nbsp;&nbsp;&nbsp;↳ {child.name}
+                                                    </option>
+                                                ))
+                                        ])}
                                     </select>
                                     <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-ind-text3 group-hover:text-orange-500 transition-colors">
                                         <ChevronRight size={18} strokeWidth={3} className="rotate-90" />

@@ -30,14 +30,21 @@ class ProductionData(db.Model):
     total_production = db.Column(db.String(100))
     total_dispatch = db.Column(db.String(100))
     
-    # New Structured Fields from additional_fields
+    # Structured Fields
     rm_size = db.Column(db.String(100))
     stock = db.Column(db.String(100))
     total_disp = db.Column(db.String(100))
     target_qty = db.Column(db.String(100))
     remain_qty = db.Column(db.String(100))
     sn_no = db.Column(db.String(100))
+    today_produced = db.Column(db.String(100))
     row_status = db.Column(db.String(100))
+
+    # Capacity / Industrial Metrics
+    machine = db.Column(db.String(100))
+    no_of_machines = db.Column(db.String(100))
+    strokes_per_part = db.Column(db.String(100))
+    part_weight = db.Column(db.String(100))
     
     # Overflow for dynamic headers (minimal use moving forward)
     additional_fields = db.Column(db.JSON, default={})
@@ -56,8 +63,13 @@ class ProductionData(db.Model):
             "Total disp": self.total_disp,
             "Target Qty": self.target_qty,
             "Remain Qty": self.remain_qty,
+            "Today Produced": self.today_produced,
             "SN NO": self.sn_no,
-            "row_status": self.row_status
+            "row_status": self.row_status,
+            "Machine": self.machine,
+            "No. of Machines": self.no_of_machines,
+            "Strokes / Part": self.strokes_per_part,
+            "Part Weight (kg)": self.part_weight
         }
         if self.additional_fields:
             data.update(self.additional_fields)

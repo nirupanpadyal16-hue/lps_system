@@ -25,4 +25,5 @@ export const ADMIN_ORDERS = "/admin/orders";
 export const ADMIN_USERS = "/admin/users";
 export const ADMIN_AUDIT = "/admin/audit";
 export const ADMIN_INVENTORY = "/admin/inventory";
+export const ADMIN_PART_LOOKUP = "/admin/part-lookup";
 

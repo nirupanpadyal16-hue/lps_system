@@ -106,7 +106,7 @@ def get_vehicle_models():
 @manager_bp.route('/master-data/<string:sap_number>', methods=['PUT'])
 @jwt_required()
 @role_required(['Manager', 'Admin', 'Supervisor', 'DEO'])
-def update_master_item(sap_number):
+def update_master_item_by_sap(sap_number):
     service = MasterDataDBService()
     updated_item = service.update_item('sap_part_number', sap_number, request.json)
     if updated_item:
@@ -151,6 +151,8 @@ def quick_add_master_item():
     if existing:
         return jsonify({"success": False, "message": "SAP Part Number already exists"}), 400
         
+    from app.models.models import MasterData, ProductionData, MaterialData
+    
     new_part = MasterData(
         model=model_name,
         part_number=part_number,
@@ -158,11 +160,41 @@ def quick_add_master_item():
         description=data.get('description', 'Ad-hoc part added on shop floor'),
         saleable_no=data.get('saleable_no', ''),
         assembly_number=data.get('assembly_number', ''),
-        is_ad_hoc=True,
-        production_data=data.get('production_data', {}),
-        material_data=data.get('material_data', {})
+        is_ad_hoc=True
     )
     db.session.add(new_part)
+    db.session.flush() # Get the ID for relationships
+
+    # Create associated data records
+    prod_data = data.get('production_data', {})
+    mat_data = data.get('material_data', {})
+
+    new_prod = ProductionData(
+        master_data_id=new_part.id,
+        rm_size=prod_data.get('RM SIZE', ''),
+        stock=prod_data.get('STOCK', '0'),
+        additional_fields={k: v for k, v in prod_data.items() if k not in ['RM SIZE', 'STOCK']}
+    )
+    
+    new_mat = MaterialData(
+        master_data_id=new_part.id,
+        rm_thk_mm=mat_data.get('RM Thk mm', ''),
+        sheet_width=mat_data.get('Sheet Width', ''),
+        sheet_length=mat_data.get('Sheet Length', ''),
+        no_of_comp_per_sheet=mat_data.get('No of comp per sheet', ''),
+        rm_size=mat_data.get('RM SIZE', ''),
+        rm_grade=mat_data.get('RM Grade', ''),
+        act_rm_sizes=mat_data.get('Act RM Sizes', ''),
+        revised=mat_data.get('Revised', ''),
+        validity=mat_data.get('VALIDITY', ''),
+        additional_fields={k: v for k, v in mat_data.items() if k not in [
+            'RM Thk mm', 'Sheet Width', 'Sheet Length', 'No of comp per sheet',
+            'RM SIZE', 'RM Grade', 'Act RM Sizes', 'Revised', 'VALIDITY'
+        ]}
+    )
+
+    db.session.add(new_prod)
+    db.session.add(new_mat)
     db.session.commit()
     
     # Log the ad-hoc addition
@@ -174,6 +206,81 @@ def quick_add_master_item():
         "message": f"Part {sap_part_number} added successfully",
         "data": new_part.to_dict()
     }), 201
+
+@manager_bp.route('/master-data/<int:part_id>', methods=['PUT'])
+@jwt_required()
+@role_required(['Manager', 'Admin', 'Supervisor'])
+def update_master_item_by_id(part_id):
+    from app.models.models import MasterData, ProductionData, MaterialData
+    part = MasterData.query.get(part_id)
+    if not part:
+        return jsonify({"success": False, "message": "Part not found"}), 404
+        
+    data = request.json or {}
+    
+    # Update common fields
+    if 'model' in data: part.model = data['model']
+    if 'part_number' in data: part.part_number = data['part_number']
+    if 'sap_part_number' in data: part.sap_part_number = data['sap_part_number']
+    if 'description' in data: part.description = data['description']
+    if 'saleable_no' in data: part.saleable_no = data['saleable_no']
+    if 'assembly_number' in data: part.assembly_number = data['assembly_number']
+    
+    # Update Production Data
+    if 'production_data' in data:
+        prod_data = data['production_data']
+        if not part.production_rel:
+            part.production_rel = ProductionData(master_data_id=part.id)
+            db.session.add(part.production_rel)
+            db.session.flush()
+        
+        p = part.production_rel
+        if 'RM SIZE' in prod_data: p.rm_size = prod_data['RM SIZE']
+        if 'STOCK' in prod_data: p.stock = str(prod_data['STOCK'])
+        
+        # Merge other fields into additional_fields
+        current_fields = dict(p.additional_fields or {})
+        for k, v in prod_data.items():
+            if k not in ['RM SIZE', 'STOCK']:
+                current_fields[k] = v
+        p.additional_fields = current_fields
+
+    # Update Material Data
+    if 'material_data' in data:
+        mat_data = data['material_data']
+        if not part.material_rel:
+            part.material_rel = MaterialData(master_data_id=part.id)
+            db.session.add(part.material_rel)
+            db.session.flush()
+            
+        m = part.material_rel
+        if 'RM Thk mm' in mat_data: m.rm_thk_mm = mat_data['RM Thk mm']
+        if 'Sheet Width' in mat_data: m.sheet_width = mat_data['Sheet Width']
+        if 'Sheet Length' in mat_data: m.sheet_length = mat_data['Sheet Length']
+        if 'No of comp per sheet' in mat_data: m.no_of_comp_per_sheet = mat_data['No of comp per sheet']
+        if 'RM SIZE' in mat_data: m.rm_size = mat_data['RM SIZE']
+        if 'RM Grade' in mat_data: m.rm_grade = mat_data['RM Grade']
+        if 'Act RM Sizes' in mat_data: m.act_rm_sizes = mat_data['Act RM Sizes']
+        if 'Revised' in mat_data: m.revised = mat_data['Revised']
+        if 'VALIDITY' in mat_data: m.validity = mat_data['VALIDITY']
+
+        # Merge other fields
+        current_fields = dict(m.additional_fields or {})
+        known_keys = ['RM Thk mm', 'Sheet Width', 'Sheet Length', 'No of comp per sheet', 'RM SIZE', 'RM Grade', 'Act RM Sizes', 'Revised', 'VALIDITY']
+        for k, v in mat_data.items():
+            if k not in known_keys:
+                current_fields[k] = v
+        m.additional_fields = current_fields
+
+    db.session.commit()
+    from app.utils.audit_logger import log_audit
+    log_audit("UPDATE_MASTER_PART")
+    
+    return jsonify({
+        "success": True,
+        "message": "Part updated successfully",
+        "data": part.to_dict()
+    })
 
 @manager_bp.route('/models/<string:model_name>/schema', methods=['GET'])
 @jwt_required()

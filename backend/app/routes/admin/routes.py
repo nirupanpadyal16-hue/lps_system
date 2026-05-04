@@ -62,8 +62,10 @@ def create_line():
     
     new_line = ProductionLine(
         name=data['name'],
+        line_name=data.get('line_name', ''),
         description=data.get('description', ''),
-        is_active=data.get('isActive', True)
+        is_active=data.get('isActive', True),
+        parent_id=data.get('parent_id')
     )
     db.session.add(new_line)
     db.session.commit()
@@ -80,8 +82,10 @@ def update_line(line_id):
     
     data = request.json
     if 'name' in data: line.name = data['name']
+    if 'line_name' in data: line.line_name = data['line_name']
     if 'description' in data: line.description = data['description']
     if 'isActive' in data: line.is_active = data['isActive']
+    if 'parent_id' in data: line.parent_id = data['parent_id']
     
     db.session.commit()
     log_audit("UPDATE_LINE")

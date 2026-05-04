@@ -12,7 +12,8 @@ import {
     Activity,
     Database,
     ClipboardCheck,
-    Package
+    Package,
+    Search
 } from 'lucide-react';
 
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -44,7 +45,8 @@ import {
     SUPERVISOR_SHORTAGE,
     SUPERVISOR_REPORTS,
     SUPERVISOR_ALERTS,
-    SUPERVISOR_MONITORING
+    SUPERVISOR_MONITORING,
+    ADMIN_PART_LOOKUP
 } from '../../config/routePaths';
 
 interface SidebarProps {
@@ -79,14 +81,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         {
             title: 'DEMAND MANAGEMENT',
             items: [
-                 //{ icon: Mail, label: 'Order Requests', path: ADMIN_ORDERS },
+                //{ icon: Mail, label: 'Order Requests', path: ADMIN_ORDERS },
                 { icon: Target, label: 'New Demand', path: ADMIN_DEMAND },
-                  { icon: Package, label: 'Inventory', path: ADMIN_INVENTORY },
+                { icon: Package, label: 'Inventory', path: ADMIN_INVENTORY },
+                { icon: Search, label: 'Machine Registry', path: ADMIN_PART_LOOKUP },
                 { icon: Activity, label: 'Production Lines', path: ADMIN_LINES },
                 // { icon: Database, label: 'Car Models Assignment', path: ADMIN_ASSIGNMENTS },
-               
+
                 { icon: Target, label: 'New Registration Car Model', path: ADMIN_MODELS },
-              
+
             ]
         },
         {
@@ -124,7 +127,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 { icon: Activity, label: 'Dashboard', path: DEO_DASHBOARD },
                 // { icon: Database, label: 'My Assigned Models', path: DEO_MODELS },
                 // { icon: ClipboardList, label: 'Production Entry', path: DEO_ENTRY },
-                 { icon: Mail, label: 'Shortage Requests', path: DEO_SHORTAGE },
+                { icon: Mail, label: 'Shortage Requests', path: DEO_SHORTAGE },
                 // { icon: ClipboardCheck, label: 'Verification', path: DEO_VERIFY },
                 // { icon: ClipboardList, label: 'Reports', path: DEO_REPORTS },
                 // { icon: Mail, label: 'Notifications', path: DEO_NOTIFICATIONS },

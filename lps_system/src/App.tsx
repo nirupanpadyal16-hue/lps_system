@@ -21,6 +21,7 @@ import ProductionPlanningPage from './features/manager/ProductionPlanningPage';
 import TeamManagementPage from './features/supervisor/supervisor/TeamManagementPage';
 import DEODashboardPage from './features/deo/DEODashboardPage';
 import InventoryPage from './features/admin/inventory/InventoryPage';
+import PartLookupPage from './features/admin/inventory/PartLookupPage';
 
 import { UserRole } from './config/roles';
 import {
@@ -47,6 +48,7 @@ import {
   ADMIN_USERS,
   ADMIN_AUDIT,
   ADMIN_INVENTORY,
+  ADMIN_PART_LOOKUP,
   SUPERVISOR_SHORTAGE
 } from './config/routePaths';
 
@@ -106,6 +108,7 @@ function App() {
                           <Route path={ADMIN_LINES.replace('/admin/', '')} element={<ProductionLinesPage />} />
                           <Route path={ADMIN_ASSIGNMENTS.replace('/admin/', '')} element={<AssignmentPage />} />
                           <Route path={ADMIN_INVENTORY.replace('/admin/', '')} element={<InventoryPage />} />
+                          <Route path={ADMIN_PART_LOOKUP.replace('/admin/', '')} element={<PartLookupPage />} />
 
                         </Route>
 

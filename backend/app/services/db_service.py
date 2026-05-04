@@ -81,11 +81,18 @@ class MasterDataDBService(BaseDBService):
                 item.production_rel.sn_no = upd.get('SN NO') or upd.get('SR NO') or upd.get('SR.NO')
             if 'row_status' in upd: item.production_rel.row_status = upd['row_status']
             
+            # Capacity / Industrial Metrics
+            if 'Machine' in upd: item.production_rel.machine = upd['Machine']
+            if 'No. of Machines' in upd: item.production_rel.no_of_machines = upd['No. of Machines']
+            if 'Strokes / Part' in upd: item.production_rel.strokes_per_part = upd['Strokes / Part']
+            if 'Part Weight (kg)' in upd: item.production_rel.part_weight = upd['Part Weight (kg)']
+            
             # Handle overflow
             known = [
                 'Total value', 'Model1', 'Coverage', 'Total Production', 'Total Dispatch',
                 'RM SIZE', 'STOCK', 'Total disp', 'Target Qty', 'Today Produced', 
-                'Remain Qty', 'SN NO', 'SR NO', 'row_status'
+                'Remain Qty', 'SN NO', 'SR NO', 'row_status',
+                'Machine', 'No. of Machines', 'Strokes / Part', 'Part Weight (kg)'
             ]
             others = {k: v for k, v in upd.items() if k not in known}
             if others:

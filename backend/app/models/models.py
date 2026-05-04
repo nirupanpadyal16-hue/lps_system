@@ -30,14 +30,21 @@ class ProductionData(db.Model):
     total_production = db.Column(db.String(100))
     total_dispatch = db.Column(db.String(100))
     
-    # New Structured Fields from additional_fields
+    # Structured Fields
     rm_size = db.Column(db.String(100))
     stock = db.Column(db.String(100))
     total_disp = db.Column(db.String(100))
     target_qty = db.Column(db.String(100))
     remain_qty = db.Column(db.String(100))
     sn_no = db.Column(db.String(100))
+    today_produced = db.Column(db.String(100))
     row_status = db.Column(db.String(100))
+
+    # Capacity / Industrial Metrics
+    machine = db.Column(db.String(100))
+    no_of_machines = db.Column(db.String(100))
+    strokes_per_part = db.Column(db.String(100))
+    part_weight = db.Column(db.String(100))
     
     # Overflow for dynamic headers (minimal use moving forward)
     additional_fields = db.Column(db.JSON, default={})
@@ -56,8 +63,13 @@ class ProductionData(db.Model):
             "Total disp": self.total_disp,
             "Target Qty": self.target_qty,
             "Remain Qty": self.remain_qty,
+            "Today Produced": self.today_produced,
             "SN NO": self.sn_no,
-            "row_status": self.row_status
+            "row_status": self.row_status,
+            "Machine": self.machine,
+            "No. of Machines": self.no_of_machines,
+            "Strokes / Part": self.strokes_per_part,
+            "Part Weight (kg)": self.part_weight
         }
         if self.additional_fields:
             data.update(self.additional_fields)
@@ -173,7 +185,7 @@ class User(db.Model):
     last_activity = db.Column(db.DateTime, nullable=True)
     reset_token = db.Column(db.String(100), nullable=True)
     reset_token_expiry = db.Column(db.DateTime, nullable=True)
-    assigned_line_id = db.Column(db.Integer, db.ForeignKey('production_lines.id'), nullable=True)
+    assigned_line_id = db.Column(db.Integer, db.ForeignKey('production_lines.id', ondelete='SET NULL'), nullable=True)
 
     # Relationships
     assigned_line = db.relationship('ProductionLine', foreign_keys=[assigned_line_id])
@@ -238,9 +250,14 @@ class AuditLog(db.Model):
 class ProductionLine(db.Model):
     __tablename__ = 'production_lines'
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    name = db.Column(db.String(100), nullable=False, index=True)
+    line_name = db.Column(db.String(100))  # Area/Category (e.g. ABC)
     description = db.Column(db.String(255))
     is_active = db.Column(db.Boolean, default=True)
+    parent_id = db.Column(db.Integer, db.ForeignKey('production_lines.id', ondelete='CASCADE'), nullable=True)
+
+    # Self-referencing relationship for child machines
+    children = db.relationship('ProductionLine', backref=db.backref('parent', remote_side=[id]), cascade='all, delete-orphan')
 
     def __repr__(self):
         return f'<ProductionLine {self.name}>'
@@ -249,8 +266,11 @@ class ProductionLine(db.Model):
         return {
             "id": self.id,
             "name": self.name,
+            "line_name": self.line_name,
             "description": self.description,
-            "isActive": self.is_active
+            "isActive": self.is_active,
+            "parent_id": self.parent_id,
+            "children": [child.to_dict() for child in self.children]
         }
 
 # ----------------------------- CarModel -----------------------------
@@ -263,7 +283,7 @@ class CarModel(db.Model):
     type = db.Column(db.String(50))  # SUV, Sedan, etc.
 
     # Assignments
-    production_line_id = db.Column(db.Integer, db.ForeignKey('production_lines.id'), nullable=True, index=True)
+    production_line_id = db.Column(db.Integer, db.ForeignKey('production_lines.id', ondelete='SET NULL'), nullable=True, index=True)
     supervisor_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
     assigned_deo_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
     deo_accepted = db.Column(db.Boolean, default=False)
