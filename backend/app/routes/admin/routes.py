@@ -52,6 +52,65 @@ def get_lines():
         "data": [line.to_dict() for line in lines]
     })
 
+@admin_bp.route('/machines/status', methods=['GET'])
+@jwt_required()
+@role_required(['Admin', 'Manager'])
+def get_machines_status():
+    from app.models import ProductionLine, PartShortageRequest
+    lines = ProductionLine.query.filter_by(parent_id=None).all()
+    result = []
+    
+    for line in lines:
+        line_data = {
+            "id": line.id,
+            "name": line.name,
+            "status": "Active" if line.is_active else "Offline",
+            "total_machines": len(line.children),
+            "active_machines": sum(1 for c in line.children if c.is_active),
+            "inactive_machines": sum(1 for c in line.children if not c.is_active),
+            "sub_machines": []
+        }
+        
+        for sub in line.children:
+            active_shortage = PartShortageRequest.query.filter(
+                PartShortageRequest.assigned_machines.any(id=sub.id)
+            ).filter(PartShortageRequest.status.in_(['PENDING', 'DEO_FILLED'])).first()
+            
+            if not active_shortage:
+                active_shortage = PartShortageRequest.query.filter_by(
+                    machine_id=sub.id
+                ).filter(PartShortageRequest.status.in_(['PENDING', 'DEO_FILLED'])).first()
+            
+            sub_data = {
+                "id": sub.id,
+                "name": sub.name,
+                "is_active": sub.is_active,
+                "status": sub.status, # 'AVAILABLE', 'BUSY'
+                "part_number": None,
+                "vehicle_type": None,
+                "start_date": None,
+                "end_date": None,
+                "coverage_day": None,
+                "shortage_status": None
+            }
+            
+            if active_shortage:
+                sub_data["part_number"] = active_shortage.inventory_item.sap_part_number
+                sub_data["vehicle_type"] = active_shortage.inventory_item.vehicle_name
+                sub_data["start_date"] = active_shortage.created_at.strftime("%d/%m/%Y") if active_shortage.created_at else None
+                sub_data["end_date"] = active_shortage.deadline.strftime("%d/%m/%Y") if active_shortage.deadline else None
+                sub_data["coverage_day"] = f"{max(active_shortage.days_remaining, 0)} days left" if active_shortage.days_remaining is not None else None
+                sub_data["shortage_status"] = "In-production" if active_shortage.status == 'PENDING' else "Complete"
+                
+            line_data["sub_machines"].append(sub_data)
+            
+        result.append(line_data)
+        
+    return jsonify({
+        "success": True,
+        "data": result
+    })
+
 @admin_bp.route('/lines', methods=['POST'])
 @jwt_required()
 @role_required(['Admin'])
@@ -1110,6 +1169,36 @@ def create_shortage_request():
             continue
         item.status = 'PENDING_DEO'
         shortage_qty = max(item.demand_quantity - item.current_stock, 0)
+        
+        # ── Auto-Allocation Logic ──────────────────────────────────────────
+        from app.models import PartMachineMapping, ProductionLine
+        mapping = PartMachineMapping.query.filter_by(sap_part_number=item.sap_part_number).first()
+        
+        assigned_machines_list = []
+        machine_id = None
+        assigned_machine_name = None
+
+        if mapping and mapping.machine:
+            machine_types = [m.strip() for m in mapping.machine.split(',') if m.strip()]
+            for m_type in machine_types:
+                all_physical = ProductionLine.query.filter(
+                    ProductionLine.name.ilike(f'{m_type}%'),
+                    ProductionLine.parent_id != None
+                ).order_by(ProductionLine.id.asc()).all()
+
+                if all_physical:
+                    chosen = next((m for m in all_physical if m.status == 'AVAILABLE'), None)
+                    if not chosen:
+                        chosen = all_physical[0]
+                    
+                    chosen.status = 'BUSY'
+                    db.session.add(chosen)
+                    assigned_machines_list.append(chosen)
+
+            if assigned_machines_list:
+                machine_id = assigned_machines_list[0].id
+                assigned_machine_name = ", ".join([m.name for m in assigned_machines_list])
+
         psr = PartShortageRequest(
             formatted_id=f"PSR-{(max_psr_id + i + 1):03d}",
             inventory_item_id=item.id,
@@ -1118,8 +1207,12 @@ def create_shortage_request():
             status='PENDING',
             deo_id=deo_id,
             supervisor_id=supervisor_id,
-            line_id=line_id
+            line_id=line_id,
+            machine_id=machine_id
         )
+        if assigned_machines_list:
+            psr.assigned_machines = assigned_machines_list
+            
         db.session.add(psr)
         created.append(psr)
     db.session.commit()
@@ -1148,6 +1241,12 @@ def approve_shortage_request(req_id):
         item.status = 'COMPLETED' if item.current_stock >= item.demand_quantity else 'SHORTAGE'
     psr.status = 'COMPLETED'
     psr.admin_approved_at = datetime.datetime.now()
+    
+    # Free the assigned machine
+    if psr.machine:
+        psr.machine.status = 'AVAILABLE'
+        db.session.add(psr.machine)
+        
     psr.admin_notes = data.get('admin_notes', '')
     db.session.commit()
     # Check if demand should be COMPLETED

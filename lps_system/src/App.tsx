@@ -22,6 +22,7 @@ import TeamManagementPage from './features/supervisor/supervisor/TeamManagementP
 import DEODashboardPage from './features/deo/DEODashboardPage';
 import InventoryPage from './features/admin/inventory/InventoryPage';
 import PartLookupPage from './features/admin/inventory/PartLookupPage';
+import MachineMappingPage from './features/admin/mappings/MachineMappingPage';
 
 import { UserRole } from './config/roles';
 import {
@@ -109,6 +110,7 @@ function App() {
                           <Route path={ADMIN_ASSIGNMENTS.replace('/admin/', '')} element={<AssignmentPage />} />
                           <Route path={ADMIN_INVENTORY.replace('/admin/', '')} element={<InventoryPage />} />
                           <Route path={ADMIN_PART_LOOKUP.replace('/admin/', '')} element={<PartLookupPage />} />
+                          <Route path="mappings" element={<MachineMappingPage />} />
 
                         </Route>
 

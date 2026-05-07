@@ -96,6 +96,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             title: 'SYSTEM',
             items: [
                 { icon: Users, label: 'User Accounts', path: ADMIN_USERS },
+                { icon: Database, label: 'Machine Mappings', path: '/admin/mappings' },
                 { icon: Activity, label: 'System Audit', path: ADMIN_AUDIT },
             ]
         }

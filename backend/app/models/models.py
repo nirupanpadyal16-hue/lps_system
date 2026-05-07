@@ -122,6 +122,31 @@ class MaterialData(db.Model):
             data.update(self.additional_fields)
         return {k: v for k, v in data.items() if v is not None}
 
+# ----------------------------- PartMachineMapping -----------------------------
+class PartMachineMapping(db.Model):
+    """Dedicated Master Data table for Part-to-Machine mappings."""
+    __tablename__ = 'part_machine_mappings'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    part_number = db.Column(db.String(255))
+    sap_part_number = db.Column(db.String(255), unique=True, index=True)
+    machine = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=db.func.now())
+    updated_at = db.Column(db.DateTime, default=db.func.now(), onupdate=db.func.now())
+
+    def __repr__(self):
+        return f'<PartMachineMapping {self.sap_part_number} -> {self.machine}>'
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "part_number": self.part_number,
+            "sap_part_number": self.sap_part_number,
+            "machine": self.machine,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
+
 # ----------------------------- MasterData -----------------------------
 class MasterData(db.Model):
     """Stores master data for parts, with dynamic JSON fields."""
@@ -255,6 +280,7 @@ class ProductionLine(db.Model):
     description = db.Column(db.String(255))
     is_active = db.Column(db.Boolean, default=True)
     parent_id = db.Column(db.Integer, db.ForeignKey('production_lines.id', ondelete='CASCADE'), nullable=True)
+    status = db.Column(db.String(20), default='AVAILABLE') # AVAILABLE, BUSY, MAINTENANCE
 
     # Self-referencing relationship for child machines
     children = db.relationship('ProductionLine', backref=db.backref('parent', remote_side=[id]), cascade='all, delete-orphan')
@@ -270,6 +296,7 @@ class ProductionLine(db.Model):
             "description": self.description,
             "isActive": self.is_active,
             "parent_id": self.parent_id,
+            "status": self.status,
             "children": [child.to_dict() for child in self.children]
         }
 
@@ -673,6 +700,13 @@ class InventoryItem(db.Model):
         return f'<InventoryItem {self.sap_part_number} stock={self.current_stock} demand={self.demand_quantity}>'
 
     def to_dict(self):
+        # Get machine group from PartMachineMapping
+        machine_group = None
+        from app.models import PartMachineMapping
+        mapping = PartMachineMapping.query.filter_by(sap_part_number=self.sap_part_number).first()
+        if mapping and mapping.machine:
+            machine_group = mapping.machine.replace(', ', ' -> ')
+
         return {
             "id": self.id,
             "serial_number": self.serial_number,
@@ -686,12 +720,18 @@ class InventoryItem(db.Model):
             "shortage_quantity": self.shortage_quantity,
             "status": self.status,
             "action": self.action,
+            "machine_group": machine_group,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
 
 # ----------------------------- PartShortageRequest -----------------------------
+shortage_machine_association = db.Table('shortage_machine_association',
+    db.Column('shortage_id', db.Integer, db.ForeignKey('part_shortage_requests.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('machine_id', db.Integer, db.ForeignKey('production_lines.id', ondelete='CASCADE'), primary_key=True)
+)
+
 class PartShortageRequest(db.Model):
     """
     Created by Admin when a part's stock is below the demand requirement.
@@ -723,6 +763,9 @@ class PartShortageRequest(db.Model):
     admin_approved_at = db.Column(db.DateTime, nullable=True)
     admin_notes = db.Column(db.Text, nullable=True)
 
+    # Specific machine assigned
+    machine_id = db.Column(db.Integer, db.ForeignKey('production_lines.id', ondelete='SET NULL'), nullable=True)
+
     created_at = db.Column(db.DateTime, default=db.func.now())
 
     # Relationships
@@ -730,6 +773,8 @@ class PartShortageRequest(db.Model):
     deo = db.relationship('User', foreign_keys=[deo_id], backref='shortage_assignments')
     supervisor = db.relationship('User', foreign_keys=[supervisor_id], backref='supervised_shortages')
     production_line = db.relationship('ProductionLine', foreign_keys=[line_id])
+    machine = db.relationship('ProductionLine', foreign_keys=[machine_id]) # Legacy single machine
+    assigned_machines = db.relationship('ProductionLine', secondary=shortage_machine_association, backref='assigned_shortages')
     daily_entries = db.relationship('ShortageDailyEntry', back_populates='shortage_request', cascade='all, delete-orphan')
 
     @property
@@ -782,6 +827,8 @@ class PartShortageRequest(db.Model):
             "supervisor_name": self.supervisor.name if self.supervisor else None,
             "line_id": self.line_id,
             "line_name": self.production_line.name if self.production_line else None,
+            "machine_id": self.machine_id,
+            "machine_name": self.machine.name if self.machine else None,
             "rejection_reason": next((e.rejection_reason for e in sorted(self.daily_entries, key=lambda x: x.id, reverse=True) if e.rejection_reason), None)
         }
 

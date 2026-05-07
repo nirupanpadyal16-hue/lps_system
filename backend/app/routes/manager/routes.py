@@ -426,6 +426,67 @@ def get_g_chart_data():
     return jsonify(result)
 
 # ---------------------------------------------------------------------------
+# Part Machine Mapping Endpoints
+# ---------------------------------------------------------------------------
+from app.models import PartMachineMapping
+
+@manager_bp.route('/machine-mappings', methods=['GET'])
+@jwt_required()
+def get_machine_mappings():
+    mappings = PartMachineMapping.query.order_by(PartMachineMapping.id.asc()).all()
+    return jsonify({"success": True, "data": [m.to_dict() for m in mappings]})
+
+@manager_bp.route('/machine-mappings', methods=['POST'])
+@jwt_required()
+def create_machine_mapping():
+    data = request.json
+    sap_part_number = data.get('sap_part_number')
+    if not sap_part_number:
+        return jsonify({"success": False, "message": "sap_part_number is required"}), 400
+        
+    existing = PartMachineMapping.query.filter_by(sap_part_number=sap_part_number).first()
+    if existing:
+        return jsonify({"success": False, "message": "Mapping for this SAP Part Number already exists"}), 400
+        
+    mapping = PartMachineMapping(
+        part_number=data.get('part_number', ''),
+        sap_part_number=sap_part_number,
+        machine=data.get('machine', '')
+    )
+    db.session.add(mapping)
+    db.session.commit()
+    return jsonify({"success": True, "data": mapping.to_dict()}), 201
+
+@manager_bp.route('/machine-mappings/<int:id>', methods=['PUT'])
+@jwt_required()
+def update_machine_mapping(id):
+    mapping = PartMachineMapping.query.get(id)
+    if not mapping:
+        return jsonify({"success": False, "message": "Mapping not found"}), 404
+        
+    data = request.json
+    if 'part_number' in data:
+        mapping.part_number = data['part_number']
+    if 'sap_part_number' in data:
+        mapping.sap_part_number = data['sap_part_number']
+    if 'machine' in data:
+        mapping.machine = data['machine']
+        
+    db.session.commit()
+    return jsonify({"success": True, "data": mapping.to_dict()})
+
+@manager_bp.route('/machine-mappings/<int:id>', methods=['DELETE'])
+@jwt_required()
+def delete_machine_mapping(id):
+    mapping = PartMachineMapping.query.get(id)
+    if not mapping:
+        return jsonify({"success": False, "message": "Mapping not found"}), 404
+        
+    db.session.delete(mapping)
+    db.session.commit()
+    return jsonify({"success": True, "message": "Mapping deleted"})
+
+# ---------------------------------------------------------------------------
 # Simple health endpoint (optional – can also stay in wsgi)
 # ---------------------------------------------------------------------------
 @manager_bp.route('/health', methods=['GET'])

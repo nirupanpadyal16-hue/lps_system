@@ -21,9 +21,9 @@ interface InventoryItem {
     demand_quantity: number;
     shortage_quantity: number;
     // status: 'SUFFICIENT' | 'SHORTAGE' | 'PENDING_DEO' | 'IN_PRODUCTION';
-    // action: 'STOCK_OK' | 'NEW_DEMAND' | 'PENDING_DEO' | 'GO_TO_PRODUCTION';
     status: 'SUFFICIENT' | 'SHORTAGE' | 'PENDING_DEO' | 'IN_PRODUCTION' | 'COMPLETED';
     action: 'STOCK_OK' | 'NEW_DEMAND' | 'PENDING_DEO' | 'GO_TO_PRODUCTION' | 'COMPLETED';
+    machine_group?: string;
     created_at: string;
     updated_at: string;
 }
@@ -238,50 +238,17 @@ function ShortageRequestModal({ shortageItems, deos, supervisors, lines, onClose
     const [deadline, setDeadline] = useState('');
     const [deoId, setDeoId] = useState('');
     const [supervisorId, setSupervisorId] = useState('');
-    const [lineId, setLineId] = useState('');
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
-
-    // Filtered lists: show only DEOs/Supervisors assigned to the selected line
-    const [filteredDeos, setFilteredDeos] = useState<DEOUser[]>(deos);
-    const [filteredSupervisors, setFilteredSupervisors] = useState<SupervisorUser[]>(supervisors);
-    const [loadingStaff, setLoadingStaff] = useState(false);
-
-    // When production line changes, fetch filtered staff from backend
-    const handleLineChange = async (newLineId: string) => {
-        setLineId(newLineId);
-        setDeoId('');
-        setSupervisorId('');
-
-        if (!newLineId) {
-            setFilteredDeos(deos);
-            setFilteredSupervisors(supervisors);
-            return;
-        }
-
-        setLoadingStaff(true);
-        try {
-            const [deoRes, supRes] = await Promise.all([
-                fetch(`${API}/admin/identity/staff?role=DEO&line_id=${newLineId}`, { headers: authHeaders() }),
-                fetch(`${API}/admin/identity/staff?role=Supervisor&line_id=${newLineId}`, { headers: authHeaders() })
-            ]);
-            const [deoData, supData] = await Promise.all([deoRes.json(), supRes.json()]);
-            setFilteredDeos(deoData.success ? deoData.data : deos);
-            setFilteredSupervisors(supData.success ? supData.data : supervisors);
-        } catch {
-            // Fallback to full lists
-            setFilteredDeos(deos);
-            setFilteredSupervisors(supervisors);
-        } finally {
-            setLoadingStaff(false);
-        }
-    };
+    // Full lists: show all DEOs/Supervisors
+    const filteredDeos = deos;
+    const filteredSupervisors = supervisors;
+    const loadingStaff = false;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!deadline) { setError('Please set a deadline (timeline).'); return; }
         if (!supervisorId) { setError('Please assign a Supervisor.'); return; }
-        if (!lineId) { setError('Please assign a Production Line.'); return; }
         setSaving(true);
         setError('');
         try {
@@ -292,12 +259,25 @@ function ShortageRequestModal({ shortageItems, deos, supervisors, lines, onClose
                     inventory_item_ids: shortageItems.map(i => i.id),
                     deadline,
                     deo_id: Number(deoId),
-                    supervisor_id: Number(supervisorId),
-                    line_id: Number(lineId)
+                    supervisor_id: Number(supervisorId)
                 })
             });
             const data = await res.json();
             if (!data.success) throw new Error(data.message);
+            
+            // Format success message with machine assignments
+            if (data.data && data.data.length > 0) {
+                const assigned = data.data.filter((r: any) => r.machine_name);
+                if (assigned.length > 0) {
+                    const msg = assigned.map((r: any) => `${r.inventory_item?.sap_part_number || r.formatted_id}: Assigned to ${r.machine_name}`).join('\n');
+                    alert(`Demand Created Successfully!\n\nAutomated Machine Assignments:\n${msg}`);
+                } else {
+                    alert(`Demand Created Successfully!\nNo available machines were found for auto-assignment.`);
+                }
+            } else {
+                alert("Demand Created Successfully!");
+            }
+            
             onSuccess();
             onClose();
         } catch (err: any) {
@@ -337,6 +317,16 @@ function ShortageRequestModal({ shortageItems, deos, supervisors, lines, onClose
                                     {item.current_stock} / {item.demand_quantity}
                                     <span className="ml-1 text-xs font-semibold text-red-400">(Need {item.shortage_quantity} more)</span>
                                 </p>
+                                {item.machine_group ? (
+                                    <p className="text-[10px] font-bold text-orange-500 mt-1 uppercase bg-orange-100 px-2 py-1 rounded inline-block">
+                                        <CheckCircle size={10} className="inline mr-1 mb-0.5" />
+                                        Auto-Assigned Machine: {item.machine_group}
+                                    </p>
+                                ) : (
+                                    <p className="text-[10px] font-bold text-red-500 mt-1 uppercase bg-red-100 px-2 py-1 rounded inline-block">
+                                        No Machine Mapped! Check Master Data.
+                                    </p>
+                                )}
                             </div>
                         </div>
                     ))}
@@ -352,32 +342,20 @@ function ShortageRequestModal({ shortageItems, deos, supervisors, lines, onClose
                                 min={new Date().toISOString().split('T')[0]}
                                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
                         </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
-                                Assign Production Line <span className="text-red-400">*</span>
-                            </label>
-                            <select value={lineId} onChange={e => handleLineChange(e.target.value)}
-                                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
-                                <option value="">Select Line...</option>
-                                {lines.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-                            </select>
-                        </div>
-                        <div>
+                        <div className="col-span-2">
                             <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
                                 Assign DEO <span className="text-red-400">*</span>
-                                {lineId && <span className="text-orange-400 normal-case"> (filtered by line)</span>}
                             </label>
                             <select value={deoId} onChange={e => setDeoId(e.target.value)}
                                 disabled={loadingStaff}
                                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-50">
-                                <option value="">{loadingStaff ? 'Loading...' : filteredDeos.length === 0 && lineId ? 'No DEO on this line' : 'Select DEO...'}</option>
+                                <option value="">{loadingStaff ? 'Loading...' : 'Select DEO...'}</option>
                                 {filteredDeos.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                             </select>
                         </div>
-                        <div>
+                        <div className="col-span-2">
                             <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
                                 Assign Supervisor <span className="text-red-400">*</span>
-                                {lineId && <span className="text-orange-400 normal-case"> (filtered by line)</span>}
                             </label>
                             <select value={supervisorId} onChange={e => setSupervisorId(e.target.value)}
                                 disabled={loadingStaff}
@@ -510,10 +488,10 @@ export default function InventoryPage() {
         setLoading(true);
         try {
             const [invRes, demRes, userRes, lineRes] = await Promise.all([
-                fetch(`${API}/admin/inventory`, { headers: authHeaders() }),
-                fetch(`${API}/admin/demands`, { headers: authHeaders() }),
-                fetch(`${API}/admin/identity/users?limit=100`, { headers: authHeaders() }),
-                fetch(`${API}/admin/lines`, { headers: authHeaders() }),
+                fetch(`${API}/admin/inventory?_t=${Date.now()}`, { headers: authHeaders() }),
+                fetch(`${API}/admin/demands?_t=${Date.now()}`, { headers: authHeaders() }),
+                fetch(`${API}/admin/identity/users?limit=100&_t=${Date.now()}`, { headers: authHeaders() }),
+                fetch(`${API}/admin/lines?_t=${Date.now()}`, { headers: authHeaders() }),
             ]);
             const [invData, demData, userData, lineData] = await Promise.all([
                 invRes.json(), demRes.json(), userRes.json(), lineRes.json()

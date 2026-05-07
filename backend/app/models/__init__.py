@@ -1,2 +1,2 @@
-from .models import db, MasterData, User, AuditLog, ProductionLine, CarModel, DailyWorkStatus, Demand, DailyProductionLog, EmailRequest, Status, ProductionData, MaterialData, InventoryItem, PartShortageRequest, ShortageDailyEntry, DEOProductionEntry
+from .models import db, MasterData, User, AuditLog, ProductionLine, CarModel, DailyWorkStatus, Demand, DailyProductionLog, EmailRequest, Status, ProductionData, MaterialData, InventoryItem, PartShortageRequest, ShortageDailyEntry, DEOProductionEntry, PartMachineMapping
 

@@ -57,6 +57,7 @@ export default function PartLookupPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedModel, setSelectedModel] = useState<string>('ALL');
     const [selectedPart, setSelectedPart] = useState<PartDetail | null>(null);
+    const [activeShortages, setActiveShortages] = useState<any[]>([]);
 
     // Modals
     const [showAddModal, setShowAddModal] = useState(false);
@@ -108,15 +109,21 @@ export default function PartLookupPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [partsRes, modelsRes, linesRes] = await Promise.all([
+            const [partsRes, modelsRes, linesRes, shortagesRes] = await Promise.all([
                 fetch(`${API}/manager/master-data`, { headers: authHeaders() }),
                 fetch(`${API}/manager/vehicle-models`, { headers: authHeaders() }),
-                fetch(`${API}/admin/lines`, { headers: authHeaders() })
+                fetch(`${API}/admin/lines`, { headers: authHeaders() }),
+                fetch(`${API}/admin/shortage-requests?status=PENDING,DEO_FILLED`, { headers: authHeaders() })
             ]);
 
             const partsData = await partsRes.json();
             const modelsData = await modelsRes.json();
             const linesData = await linesRes.json();
+            const shortagesData = await shortagesRes.json();
+
+            if (shortagesData.success) {
+                setActiveShortages(shortagesData.data);
+            }
 
             if (Array.isArray(partsData)) {
                 setParts(partsData);
@@ -485,6 +492,30 @@ export default function PartLookupPage() {
                                         {renderDetailItem("Strokes / Part", selectedPart.production_data?.['Strokes / Part'])}
                                         {renderDetailItem("Part Weight (kg)", selectedPart.production_data?.['Part Weight (kg)'])}
                                     </div>
+                                    
+                                    {/* Active Machine Status Overlay */}
+                                    {(() => {
+                                        const active = activeShortages.find(s => s.inventory_item?.sap_part_number === selectedPart.common.sap_part_number);
+                                        if (active && active.machine_name) {
+                                            return (
+                                                <div className="mt-6 p-4 rounded-xl bg-orange-50 border border-orange-200 flex items-center justify-between">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600">
+                                                            <Factory size={16} strokeWidth={2.5} />
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest leading-none mb-1">ACTIVE PRODUCTION</p>
+                                                            <p className="text-sm font-black text-slate-800">Currently assigned to <span className="text-orange-600">{active.machine_name}</span></p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="px-3 py-1 bg-white rounded-lg border border-orange-100 text-[10px] font-black text-orange-600 uppercase tracking-widest shadow-sm">
+                                                        {active.status.replace(/_/g, ' ')}
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
                                 </div>
                             </div>
 
