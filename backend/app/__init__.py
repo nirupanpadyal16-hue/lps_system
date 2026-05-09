@@ -26,6 +26,8 @@ def create_app(config_name="dev"):
     from .routes.manager.routes import manager_bp
     from .routes.deo.routes import deo_bp
     from .routes.supervisor.routes import supervisor_bp
+    from .routes.ppc.routes import ppc_bp
+    from .routes.storekeeper.routes import sk_bp
 
     # Register blueprints with explicit role-based prefixes
     app.register_blueprint(admin_bp, url_prefix="/api/admin")
@@ -33,6 +35,8 @@ def create_app(config_name="dev"):
     app.register_blueprint(manager_bp, url_prefix="/api/manager")
     app.register_blueprint(deo_bp, url_prefix="/api/deo")
     app.register_blueprint(supervisor_bp, url_prefix="/api/supervisor")
+    app.register_blueprint(ppc_bp, url_prefix="/api/ppc")
+    app.register_blueprint(sk_bp, url_prefix="/api/storekeeper")
 
     # Re-register core routes from factory
     @app.route("/api/auth/login", methods=["POST"])

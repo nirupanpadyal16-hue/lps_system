@@ -20,9 +20,14 @@ import AssignmentPage from './features/admin/assignments/AssignmentPage';
 import ProductionPlanningPage from './features/manager/ProductionPlanningPage';
 import TeamManagementPage from './features/supervisor/supervisor/TeamManagementPage';
 import DEODashboardPage from './features/deo/DEODashboardPage';
+import DEOMachineEntryPage from './features/deo/DEOMachineEntryPage';
 import InventoryPage from './features/admin/inventory/InventoryPage';
 import PartLookupPage from './features/admin/inventory/PartLookupPage';
 import MachineMappingPage from './features/admin/mappings/MachineMappingPage';
+import SupervisorMachineMonitorPage from './features/supervisor/SupervisorMachineMonitorPage';
+// New role pages
+import PPCDashboardPage from './features/ppc/PPCDashboardPage';
+import SKDashboardPage from './features/storekeeper/SKDashboardPage';
 
 import { UserRole } from './config/roles';
 import {
@@ -50,7 +55,11 @@ import {
   ADMIN_AUDIT,
   ADMIN_INVENTORY,
   ADMIN_PART_LOOKUP,
-  SUPERVISOR_SHORTAGE
+  SUPERVISOR_SHORTAGE,
+  SUPERVISOR_MACHINE_MONITOR,
+  DEO_MACHINE_ENTRY,
+  PPC_HOME,
+  SK_HOME,
 } from './config/routePaths';
 
 import { getUser } from './lib/storage';
@@ -72,6 +81,10 @@ const RoleBasedRedirect = () => {
       return <Navigate to={SUPERVISOR_DASHBOARD} replace />;
     case UserRole.DEO:
       return <Navigate to={DEO_DASHBOARD} replace />;
+    case UserRole.PPC_PLANNER:
+      return <Navigate to="/ppc/demand" replace />;
+    case UserRole.STORE_KEEPER:
+      return <Navigate to="/storekeeper/rm-queue" replace />;
     default:
       return <Navigate to={AUTH_LOGIN} replace />;
   }
@@ -145,6 +158,22 @@ function App() {
                         <Route path={DEO_VERIFY} element={<DEODashboardPage />} />
                         <Route path={DEO_NOTIFICATIONS} element={<DEODashboardPage />} />
                         <Route path={DEO_SHORTAGE} element={<DEODashboardPage />} />
+                        <Route path={DEO_MACHINE_ENTRY} element={<DEOMachineEntryPage />} />
+                      </Route>
+
+                      {/* Supervisor Machine Monitor — Supervisor + Admin only */}
+                      <Route element={<AuthGuard allowedRoles={[UserRole.SUPERVISOR, UserRole.ADMIN]} />}>
+                        <Route path={SUPERVISOR_MACHINE_MONITOR} element={<SupervisorMachineMonitorPage />} />
+                      </Route>
+
+                      {/* PPC Planner Routes */}
+                      <Route element={<AuthGuard allowedRoles={[UserRole.PPC_PLANNER, UserRole.ADMIN]} />}>
+                        <Route path="/ppc/*" element={<PPCDashboardPage />} />
+                      </Route>
+
+                      {/* Store Keeper Routes */}
+                      <Route element={<AuthGuard allowedRoles={[UserRole.STORE_KEEPER, UserRole.ADMIN]} />}>
+                        <Route path="/storekeeper/*" element={<SKDashboardPage />} />
                       </Route>
 
                       <Route path="/" element={<RoleBasedRedirect />} />

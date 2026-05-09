@@ -13,7 +13,12 @@ import {
     Database,
     ClipboardCheck,
     Package,
-    Search
+    Search,
+    Factory,
+    Truck,
+    Bell,
+    FileText,
+    CheckSquare,
 } from 'lucide-react';
 
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -27,7 +32,6 @@ import {
     AUTH_LOGIN,
     ADMIN_LINES,
     ADMIN_MODELS,
-    // ADMIN_ASSIGNMENTS,
     ADMIN_DEMAND,
     ADMIN_ORDERS,
     ADMIN_USERS,
@@ -40,13 +44,24 @@ import {
     DEO_VERIFY,
     DEO_NOTIFICATIONS,
     DEO_SHORTAGE,
+    DEO_MACHINE_ENTRY,
     SUPERVISOR_DASHBOARD,
     SUPERVISOR_VERIFY,
     SUPERVISOR_SHORTAGE,
     SUPERVISOR_REPORTS,
     SUPERVISOR_ALERTS,
     SUPERVISOR_MONITORING,
-    ADMIN_PART_LOOKUP
+    SUPERVISOR_MACHINE_MONITOR,
+    ADMIN_PART_LOOKUP,
+    // PPC Planner
+    PPC_DEMAND,
+    PPC_INVENTORY,
+    PPC_MACHINE_REGISTRY,
+    PPC_RM_REQUESTS,
+    // Store Keeper
+    SK_RM_QUEUE,
+    SK_DISPATCH,
+    SK_DISPATCH_HISTORY,
 } from '../../config/routePaths';
 
 interface SidebarProps {
@@ -81,15 +96,12 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         {
             title: 'DEMAND MANAGEMENT',
             items: [
-                //{ icon: Mail, label: 'Order Requests', path: ADMIN_ORDERS },
                 { icon: Target, label: 'New Demand', path: ADMIN_DEMAND },
                 { icon: Package, label: 'Inventory', path: ADMIN_INVENTORY },
                 { icon: Search, label: 'Machine Registry', path: ADMIN_PART_LOOKUP },
                 { icon: Activity, label: 'Production Lines', path: ADMIN_LINES },
-                // { icon: Database, label: 'Car Models Assignment', path: ADMIN_ASSIGNMENTS },
-
+                { icon: Factory, label: 'Machine Monitor', path: SUPERVISOR_MACHINE_MONITOR },
                 { icon: Target, label: 'New Registration Car Model', path: ADMIN_MODELS },
-
             ]
         },
         {
@@ -108,11 +120,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             title: 'OVERSIGHT & VERIFICATION',
             items: [
                 { icon: LayoutDashboard, label: 'Dashboard', path: SUPERVISOR_DASHBOARD },
-                // { icon: ClipboardCheck, label: 'Verify Daily Production', path: SUPERVISOR_VERIFY },
+                { icon: Factory, label: 'Machine Monitor', path: SUPERVISOR_MACHINE_MONITOR },
                 { icon: Mail, label: 'Verify Shortage Requests', path: SUPERVISOR_SHORTAGE },
-                // { icon: ClipboardList, label: 'Reports', path: SUPERVISOR_REPORTS },
-                // { icon: Activity, label: 'Monitoring', path: SUPERVISOR_MONITORING },
-                // { icon: Mail, label: 'Alerts', path: SUPERVISOR_ALERTS },
             ]
         }
     ];
@@ -126,12 +135,33 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             title: 'OPERATOR CONSOLE',
             items: [
                 { icon: Activity, label: 'Dashboard', path: DEO_DASHBOARD },
-                // { icon: Database, label: 'My Assigned Models', path: DEO_MODELS },
-                // { icon: ClipboardList, label: 'Production Entry', path: DEO_ENTRY },
+                { icon: ClipboardList, label: 'Machine Entry', path: DEO_MACHINE_ENTRY },
                 { icon: Mail, label: 'Shortage Requests', path: DEO_SHORTAGE },
-                // { icon: ClipboardCheck, label: 'Verification', path: DEO_VERIFY },
-                // { icon: ClipboardList, label: 'Reports', path: DEO_REPORTS },
-                // { icon: Mail, label: 'Notifications', path: DEO_NOTIFICATIONS },
+            ]
+        }
+    ];
+
+    // Configuration for PPC Planner
+    const ppcSections = [
+        {
+            title: 'PPC PLANNER',
+            items: [
+                { icon: Target, label: 'New Demand', path: PPC_DEMAND },
+                { icon: Package, label: 'Inventory', path: PPC_INVENTORY },
+                { icon: Factory, label: 'Machine Registry', path: PPC_MACHINE_REGISTRY },
+                { icon: FileText, label: 'My RM Requests', path: PPC_RM_REQUESTS },
+            ]
+        }
+    ];
+
+    // Configuration for Store Keeper
+    const skSections = [
+        {
+            title: 'STORE KEEPER',
+            items: [
+                { icon: CheckSquare, label: 'RM Acceptance Queue', path: SK_RM_QUEUE },
+                { icon: Truck, label: 'Dispatch', path: SK_DISPATCH },
+                { icon: ClipboardList, label: 'Dispatch History', path: SK_DISPATCH_HISTORY },
             ]
         }
     ];
@@ -139,11 +169,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     // Select sections based on role
     const isSupervisor = normalizeRole(user?.role) === normalizeRole(UserRole.SUPERVISOR);
     const isDEO = normalizeRole(user?.role) === normalizeRole(UserRole.DEO);
+    const isPPC = normalizeRole(user?.role) === normalizeRole(UserRole.PPC_PLANNER);
+    const isSK = normalizeRole(user?.role) === normalizeRole(UserRole.STORE_KEEPER);
 
     const sections = isAdmin ? adminSections :
         isManager ? managerSections :
             isSupervisor ? supervisorSections :
-                isDEO ? deoSections : [];
+                isDEO ? deoSections :
+                    isPPC ? ppcSections :
+                        isSK ? skSections : [];
 
     return (
         <>

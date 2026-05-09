@@ -79,7 +79,7 @@ def sync_inventory_item(master_item):
 # ---------------------------------------------------------------------------
 @manager_bp.route('/master-data', methods=['GET'])
 @jwt_required()
-@role_required(['Manager', 'Admin', 'Supervisor', 'DEO'])
+@role_required(['Manager', 'Admin', 'Supervisor', 'DEO', 'PPC_Planner'])
 def get_master_data():
     model = request.args.get('model', '')
     service = MasterDataDBService()
@@ -87,7 +87,7 @@ def get_master_data():
 
 @manager_bp.route('/vehicle-models', methods=['GET'])
 @jwt_required()
-@role_required(['Manager', 'Admin', 'Supervisor', 'DEO'])
+@role_required(['Manager', 'Admin', 'Supervisor', 'DEO', 'PPC_Planner'])
 def get_vehicle_models():
     """Return all unique vehicle model names from both MasterData and CarModel tables."""
     from app.models import CarModel

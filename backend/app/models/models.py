@@ -15,6 +15,25 @@ class Status:
     READ = 'READ'
     PROCESSED = 'PROCESSED'
 
+    # New workflow statuses
+    RM_CHECK = 'RM_CHECK'               # PPC Planner reviewing RM data
+    RM_SENT = 'RM_SENT'                 # RM submitted to Store Keeper
+    RM_ACCEPTED = 'RM_ACCEPTED'         # Store Keeper accepted RM, sent to plant
+    PRODUCTION_DONE = 'PRODUCTION_DONE' # All parts manufactured
+    DISPATCHED = 'DISPATCHED'           # Dispatched to client
+    SUFFICIENT = 'SUFFICIENT'           # Stock already sufficient
+    SHORTAGE = 'SHORTAGE'               # Stock gap found
+    IN_PRODUCTION = 'IN_PRODUCTION'     # DEO actively manufacturing
+
+# ----------------------------- Roles -----------------------------
+class UserRole:
+    ADMIN = 'Admin'
+    MANAGER = 'Manager'
+    SUPERVISOR = 'Supervisor'
+    DEO = 'DEO'
+    PPC_PLANNER = 'PPC_Planner'
+    STORE_KEEPER = 'Store_Keeper'
+
 # ----------------------------- ProductionData -----------------------------
 class ProductionData(db.Model):
     """Stores production-specific metrics for a part."""
@@ -204,23 +223,26 @@ class User(db.Model):
     username = db.Column(db.String(100), unique=True, index=True)
     name = db.Column(db.String(255))
     password_hash = db.Column(db.String(255))
-    role = db.Column(db.String(50))
+    role = db.Column(db.String(50))  # Admin | Manager | Supervisor | DEO | PPC_Planner | Store_Keeper
     shop = db.Column(db.String(100))
     is_active = db.Column(db.Boolean, default=True)
     last_activity = db.Column(db.DateTime, nullable=True)
     reset_token = db.Column(db.String(100), nullable=True)
     reset_token_expiry = db.Column(db.DateTime, nullable=True)
     assigned_line_id = db.Column(db.Integer, db.ForeignKey('production_lines.id', ondelete='SET NULL'), nullable=True)
+    # For DEO: which machine they are assigned to (links to ProductionLine/machine)
+    assigned_machine_id = db.Column(db.Integer, db.ForeignKey('production_lines.id', ondelete='SET NULL'), nullable=True)
 
     # Relationships
     assigned_line = db.relationship('ProductionLine', foreign_keys=[assigned_line_id])
+    assigned_machine = db.relationship('ProductionLine', foreign_keys=[assigned_machine_id])
 
     # ---------------------------------------------------------------------
     # Password handling helpers
     # ---------------------------------------------------------------------
     @property
     def password(self):
-        raise AttributeError("Password is write‑only; use set via the property setter.")
+        raise AttributeError("Password is write\u2011only; use set via the property setter.")
 
     @password.setter
     def password(self, raw_password: str):
@@ -242,7 +264,9 @@ class User(db.Model):
             "isActive": self.is_active,
             "lastActivity": self.last_activity.isoformat() if self.last_activity else None,
             "assigned_line_id": self.assigned_line_id,
-            "assigned_line_name": self.assigned_line.name if self.assigned_line else None
+            "assigned_line_name": self.assigned_line.name if self.assigned_line else None,
+            "assigned_machine_id": self.assigned_machine_id,
+            "assigned_machine_name": self.assigned_machine.name if self.assigned_machine else None
         }
 
 # ----------------------------- AuditLog -----------------------------
@@ -444,26 +468,37 @@ class Demand(db.Model):
     @staticmethod
     def check_and_update_status(demand_id):
         """
-        Checks if all inventory items for a demand are SUFFICIENT.
-        If yes, moves demand status to COMPLETED.
+        New logic:
+        - SUFFICIENT items are excluded from production check (no manufacturing needed)
+        - Demand moves to PRODUCTION_DONE only when all SHORTAGE items reach PRODUCTION_DONE
+        - Demand moves to DISPATCHED when Store Keeper dispatches
         """
         if not demand_id:
             return
         demand = Demand.query.get(demand_id)
-        if not demand or demand.status not in [Status.IN_PROGRESS, 'IN PROGRESS']:
+        if not demand:
             return
-            
+
         from app.models.models import InventoryItem
         items = InventoryItem.query.filter_by(demand_id=demand_id).all()
         if not items:
             return
-            
-        # A demand is finished if all its parts are either SUFFICIENT (original stock) 
-        # or COMPLETED/IN_PRODUCTION (from shortage requests)
-        all_finished = all(it.status in ['SUFFICIENT', 'COMPLETED', 'IN_PRODUCTION'] for it in items)
-        
-        if all_finished:
-            demand.status = 'COMPLETED'
+
+        # Only items that need manufacturing
+        production_items = [it for it in items if it.status != 'SUFFICIENT']
+
+        if not production_items:
+            # All parts were already in stock — mark done
+            demand.status = 'PRODUCTION_DONE'
+            db.session.commit()
+            return
+
+        all_production_done = all(
+            it.status in ['PRODUCTION_DONE', 'DISPATCHED'] for it in production_items
+        )
+
+        if all_production_done and demand.status not in ['PRODUCTION_DONE', 'DISPATCHED', 'COMPLETED']:
+            demand.status = 'PRODUCTION_DONE'
             db.session.commit()
 
     def __repr__(self):
@@ -657,6 +692,11 @@ class InventoryItem(db.Model):
     """
     Tracks parts/components for a car model against a demand requirement.
     Auto-populated from MasterData when a demand is created.
+
+    Stock tracking (no double-counting):
+      initial_stock  → set once by PPC Planner via Excel upload
+      produced_qty   → cumulative total added by DEO machine entries
+      current_stock  → computed: initial_stock + produced_qty (property)
     """
     __tablename__ = 'inventory_items'
 
@@ -667,9 +707,19 @@ class InventoryItem(db.Model):
     vehicle_name = db.Column(db.String(100))                       # Denormalized: car model name
     sap_part_number = db.Column(db.String(255), index=True)
     part_description = db.Column(db.String(500))
-    current_stock = db.Column(db.Float, default=0.0)               # Latest known stock
-    demand_quantity = db.Column(db.Float, default=0.0)             # Required = order_quantity × per_unit (1:1 default)
-    status = db.Column(db.String(30), default='SUFFICIENT')        # SUFFICIENT | SHORTAGE | PENDING_DEO | IN_PRODUCTION
+
+    # Split stock fields to prevent double-counting
+    initial_stock = db.Column(db.Float, default=0.0)   # Set once by PPC Planner via Excel
+    produced_qty = db.Column(db.Float, default=0.0)    # Cumulative from DEO machine entries
+    # Legacy field kept for backward compatibility — now auto-synced
+    current_stock = db.Column(db.Float, default=0.0)
+
+    demand_quantity = db.Column(db.Float, default=0.0)
+    # SUFFICIENT | SHORTAGE | IN_PRODUCTION | PRODUCTION_DONE | DISPATCHED
+    status = db.Column(db.String(30), default='SUFFICIENT')
+
+    # RM check status for PPC Planner workflow
+    rm_status = db.Column(db.String(30), default='PENDING')  # PENDING | RM_SUBMITTED | RM_ACCEPTED | RM_REJECTED
 
     created_at = db.Column(db.DateTime, default=db.func.now())
     updated_at = db.Column(db.DateTime, default=db.func.now(), onupdate=db.func.now())
@@ -678,26 +728,38 @@ class InventoryItem(db.Model):
     car_model = db.relationship('CarModel', backref='inventory_items')
     demand = db.relationship('Demand', backref='inventory_items')
     shortage_requests = db.relationship('PartShortageRequest', back_populates='inventory_item', cascade='all, delete-orphan')
+    rm_check_requests = db.relationship('RMCheckRequest', back_populates='inventory_item', cascade='all, delete-orphan', lazy='dynamic')
+
+    def sync_current_stock(self):
+        """Keep legacy current_stock in sync. Call after updating initial_stock or produced_qty."""
+        self.current_stock = (self.initial_stock or 0.0) + (self.produced_qty or 0.0)
+
+    @property
+    def effective_stock(self):
+        """Always computed — the true stock value."""
+        return (self.initial_stock or 0.0) + (self.produced_qty or 0.0)
 
     @property
     def shortage_quantity(self):
         """How many units are missing. 0 if sufficient."""
-        gap = self.demand_quantity - self.current_stock
+        gap = self.demand_quantity - self.effective_stock
         return max(gap, 0.0)
 
     @property
     def action(self):
         """Computed action status for the action column in the UI."""
-        if self.status in ['IN_PRODUCTION', 'COMPLETED']:
-            return 'GO_TO_PRODUCTION'
-        if self.status == 'PENDING_DEO':
-            return 'PENDING_DEO'
-        if self.current_stock >= self.demand_quantity:
+        if self.status == 'PRODUCTION_DONE':
+            return 'READY_FOR_DISPATCH'
+        if self.status in ['IN_PRODUCTION']:
+            return 'IN_PRODUCTION'
+        if self.status == 'DISPATCHED':
+            return 'DISPATCHED'
+        if self.effective_stock >= self.demand_quantity:
             return 'STOCK_OK'
-        return 'NEW_DEMAND'
+        return 'SHORTAGE'
 
     def __repr__(self):
-        return f'<InventoryItem {self.sap_part_number} stock={self.current_stock} demand={self.demand_quantity}>'
+        return f'<InventoryItem {self.sap_part_number} stock={self.effective_stock} demand={self.demand_quantity}>'
 
     def to_dict(self):
         # Get machine group from PartMachineMapping
@@ -707,18 +769,25 @@ class InventoryItem(db.Model):
         if mapping and mapping.machine:
             machine_group = mapping.machine.replace(', ', ' -> ')
 
+        # Get demand formatted_id for display
+        demand_formatted_id = self.demand.formatted_id if self.demand else None
+
         return {
             "id": self.id,
             "serial_number": self.serial_number,
             "car_model_id": self.car_model_id,
             "demand_id": self.demand_id,
+            "demand_formatted_id": demand_formatted_id,
             "vehicle_name": self.vehicle_name,
             "sap_part_number": self.sap_part_number,
             "part_description": self.part_description,
-            "current_stock": self.current_stock,
+            "initial_stock": self.initial_stock,
+            "produced_qty": self.produced_qty,
+            "current_stock": self.effective_stock,
             "demand_quantity": self.demand_quantity,
             "shortage_quantity": self.shortage_quantity,
             "status": self.status,
+            "rm_status": self.rm_status,
             "action": self.action,
             "machine_group": machine_group,
             "created_at": self.created_at.isoformat() if self.created_at else None,
@@ -880,3 +949,332 @@ class ShortageDailyEntry(db.Model):
             "verified_at": self.verified_at.isoformat() if self.verified_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+
+# ----------------------------- RMCheckRequest -----------------------------
+class RMCheckRequest(db.Model):
+    """
+    Created by PPC Planner when they verify and edit RM (raw material) data
+    for a specific part in a demand. Sent one-by-one to Store Keeper.
+    RM edits are stored here — never directly in MasterData.
+    """
+    __tablename__ = 'rm_check_requests'
+
+    id = db.Column(db.Integer, primary_key=True)
+    formatted_id = db.Column(db.String(50), unique=True, index=True)  # e.g. RMR-001
+
+    # Links
+    inventory_item_id = db.Column(db.Integer, db.ForeignKey('inventory_items.id', ondelete='CASCADE'), nullable=False, index=True)
+    demand_id = db.Column(db.Integer, db.ForeignKey('demands.id', ondelete='CASCADE'), nullable=True, index=True)
+    ppc_planner_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
+    store_keeper_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
+
+    # RM data filled by PPC Planner (snapshot — not modifying MasterData)
+    rm_thk_mm = db.Column(db.String(100))
+    sheet_width = db.Column(db.String(100))
+    sheet_length = db.Column(db.String(100))
+    no_of_comp_per_sheet = db.Column(db.String(100))
+    rm_size = db.Column(db.String(100))
+    rm_grade = db.Column(db.String(100))
+    act_rm_sizes = db.Column(db.String(100))
+    ppc_notes = db.Column(db.Text, nullable=True)
+
+    # Workflow status
+    # PENDING | SUBMITTED | ACCEPTED | REJECTED
+    status = db.Column(db.String(30), default='PENDING', index=True)
+
+    # Store Keeper response
+    sk_notes = db.Column(db.Text, nullable=True)
+    sk_actioned_at = db.Column(db.DateTime, nullable=True)
+    rejection_reason = db.Column(db.Text, nullable=True)
+
+    submitted_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=db.func.now())
+
+    # Relationships
+    inventory_item = db.relationship('InventoryItem', back_populates='rm_check_requests')
+    demand = db.relationship('Demand', backref='rm_check_requests')
+    ppc_planner = db.relationship('User', foreign_keys=[ppc_planner_id])
+    store_keeper = db.relationship('User', foreign_keys=[store_keeper_id])
+
+    def __repr__(self):
+        return f'<RMCheckRequest {self.formatted_id} status={self.status}>'
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "formatted_id": self.formatted_id,
+            "inventory_item_id": self.inventory_item_id,
+            "inventory_item": self.inventory_item.to_dict() if self.inventory_item else None,
+            "demand_id": self.demand_id,
+            "demand_formatted_id": self.demand.formatted_id if self.demand else None,
+            "ppc_planner_id": self.ppc_planner_id,
+            "ppc_planner_name": self.ppc_planner.name if self.ppc_planner else None,
+            "store_keeper_id": self.store_keeper_id,
+            "rm_thk_mm": self.rm_thk_mm,
+            "sheet_width": self.sheet_width,
+            "sheet_length": self.sheet_length,
+            "no_of_comp_per_sheet": self.no_of_comp_per_sheet,
+            "rm_size": self.rm_size,
+            "rm_grade": self.rm_grade,
+            "act_rm_sizes": self.act_rm_sizes,
+            "ppc_notes": self.ppc_notes,
+            "status": self.status,
+            "sk_notes": self.sk_notes,
+            "sk_actioned_at": self.sk_actioned_at.isoformat() if self.sk_actioned_at else None,
+            "rejection_reason": self.rejection_reason,
+            "submitted_at": self.submitted_at.isoformat() if self.submitted_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+# ----------------------------- DispatchRecord -----------------------------
+class DispatchRecord(db.Model):
+    """
+    Created by Store Keeper when dispatching completed production to client.
+    Verified dispatch record with full traceability.
+    """
+    __tablename__ = 'dispatch_records'
+
+    id = db.Column(db.Integer, primary_key=True)
+    formatted_id = db.Column(db.String(50), unique=True, index=True)  # e.g. DSP-001
+
+    # Links
+    demand_id = db.Column(db.Integer, db.ForeignKey('demands.id', ondelete='SET NULL'), nullable=True, index=True)
+    inventory_item_id = db.Column(db.Integer, db.ForeignKey('inventory_items.id', ondelete='SET NULL'), nullable=True, index=True)
+    store_keeper_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
+
+    # Dispatch details
+    dispatch_date = db.Column(db.Date, nullable=False, default=db.func.current_date())
+    quantity_dispatched = db.Column(db.Float, default=0.0)
+    vehicle_count = db.Column(db.Integer, default=0)
+    client_name = db.Column(db.String(255))
+    challan_number = db.Column(db.String(100), nullable=True)   # Document/challan reference
+    dispatch_notes = db.Column(db.Text, nullable=True)
+
+    # Verification
+    status = db.Column(db.String(30), default='DISPATCHED')  # DISPATCHED | VERIFIED | RETURNED
+    verified_at = db.Column(db.DateTime, nullable=True)
+
+    created_at = db.Column(db.DateTime, default=db.func.now())
+
+    # Relationships
+    demand = db.relationship('Demand', backref='dispatch_records')
+    inventory_item = db.relationship('InventoryItem', backref='dispatch_records')
+    store_keeper = db.relationship('User', foreign_keys=[store_keeper_id])
+
+    def __repr__(self):
+        return f'<DispatchRecord {self.formatted_id} qty={self.quantity_dispatched}>'
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "formatted_id": self.formatted_id,
+            "demand_id": self.demand_id,
+            "demand_formatted_id": self.demand.formatted_id if self.demand else None,
+            "inventory_item_id": self.inventory_item_id,
+            "store_keeper_id": self.store_keeper_id,
+            "store_keeper_name": self.store_keeper.name if self.store_keeper else None,
+            "dispatch_date": self.dispatch_date.isoformat() if self.dispatch_date else None,
+            "quantity_dispatched": self.quantity_dispatched,
+            "vehicle_count": self.vehicle_count,
+            "client_name": self.client_name,
+            "challan_number": self.challan_number,
+            "dispatch_notes": self.dispatch_notes,
+            "status": self.status,
+            "verified_at": self.verified_at.isoformat() if self.verified_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+# ----------------------------- MachineProductionEntry -----------------------------
+class MachineProductionEntry(db.Model):
+    """
+    DEO fills this daily — per machine, per shift, per part.
+    Tracks parts produced AND machine runtime separately.
+    On save: InventoryItem.produced_qty is auto-incremented (cumulative).
+
+    Shift Schedule:
+      Shift 1: 06:00 - 15:00
+      Shift 2: 15:00 - 23:00
+      Shift 3: 23:00 - 06:00 (next day)
+    Shift is auto-detected from DEO login time.
+    """
+    __tablename__ = 'machine_production_entries'
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # Links
+    deo_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
+    inventory_item_id = db.Column(db.Integer, db.ForeignKey('inventory_items.id', ondelete='SET NULL'), nullable=True, index=True)
+    demand_id = db.Column(db.Integer, db.ForeignKey('demands.id', ondelete='SET NULL'), nullable=True, index=True)
+    machine_id = db.Column(db.Integer, db.ForeignKey('production_lines.id', ondelete='SET NULL'), nullable=True, index=True)
+
+    # Entry data
+    date = db.Column(db.Date, nullable=False, default=db.func.current_date(), index=True)
+    shift = db.Column(db.String(20), nullable=False)    # 'Shift 1' | 'Shift 2' | 'Shift 3'
+    shift_start = db.Column(db.String(10))              # e.g. "06:00"
+    shift_end = db.Column(db.String(10))                # e.g. "15:00"
+
+    sap_part_number = db.Column(db.String(255), index=True)
+    parts_produced = db.Column(db.Float, default=0.0)   # Qty produced this entry
+    machine_runtime_mins = db.Column(db.Float, default=0.0)  # Runtime in minutes (separate from qty)
+    deo_notes = db.Column(db.Text, nullable=True)
+
+    # Verification
+    status = db.Column(db.String(30), default='PENDING')  # PENDING | VERIFIED | REJECTED
+    supervisor_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
+    supervisor_notes = db.Column(db.Text, nullable=True)
+    verified_at = db.Column(db.DateTime, nullable=True)
+    rejection_reason = db.Column(db.Text, nullable=True)
+
+    created_at = db.Column(db.DateTime, default=db.func.now())
+
+    # Relationships
+    deo = db.relationship('User', foreign_keys=[deo_id], backref='machine_entries')
+    supervisor = db.relationship('User', foreign_keys=[supervisor_id], backref='supervised_machine_entries')
+    inventory_item = db.relationship('InventoryItem', backref='machine_entries')
+    demand = db.relationship('Demand', backref='machine_entries')
+    machine = db.relationship('ProductionLine', foreign_keys=[machine_id])
+
+    @staticmethod
+    def detect_shift(login_time=None):
+        """
+        Auto-detect shift from login time (or current time if not provided).
+        Shift 1: 06:00 - 14:59
+        Shift 2: 15:00 - 22:59
+        Shift 3: 23:00 - 05:59
+        """
+        import datetime
+        t = login_time or datetime.datetime.now().time()
+        if isinstance(t, datetime.datetime):
+            t = t.time()
+        hour = t.hour
+        if 6 <= hour < 15:
+            return 'Shift 1', '06:00', '15:00'
+        elif 15 <= hour < 23:
+            return 'Shift 2', '15:00', '23:00'
+        else:
+            return 'Shift 3', '23:00', '06:00'
+
+    def apply_to_inventory(self):
+        """
+        After saving, increment produced_qty on linked InventoryItem.
+        Also re-evaluates item status.
+        """
+        if not self.inventory_item_id or not self.parts_produced:
+            return
+        item = InventoryItem.query.get(self.inventory_item_id)
+        if not item:
+            return
+        item.produced_qty = (item.produced_qty or 0.0) + self.parts_produced
+        item.sync_current_stock()
+        # Auto-update status
+        if item.produced_qty >= item.demand_quantity:
+            item.status = 'PRODUCTION_DONE'
+        else:
+            item.status = 'IN_PRODUCTION'
+        db.session.flush()
+        # Check if whole demand is done
+        if item.demand_id:
+            Demand.check_and_update_status(item.demand_id)
+
+    def __repr__(self):
+        return f'<MachineProductionEntry {self.date} {self.shift} qty={self.parts_produced}>'
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "deo_id": self.deo_id,
+            "deo_name": self.deo.name if self.deo else None,
+            "inventory_item_id": self.inventory_item_id,
+            "demand_id": self.demand_id,
+            "demand_formatted_id": self.demand.formatted_id if self.demand else None,
+            "machine_id": self.machine_id,
+            "machine_name": self.machine.name if self.machine else None,
+            "date": self.date.isoformat() if self.date else None,
+            "shift": self.shift,
+            "shift_start": self.shift_start,
+            "shift_end": self.shift_end,
+            "sap_part_number": self.sap_part_number,
+            "parts_produced": self.parts_produced,
+            "machine_runtime_mins": self.machine_runtime_mins,
+            "deo_notes": self.deo_notes,
+            "status": self.status,
+            "supervisor_id": self.supervisor_id,
+            "supervisor_name": self.supervisor.name if self.supervisor else None,
+            "supervisor_notes": self.supervisor_notes,
+            "verified_at": self.verified_at.isoformat() if self.verified_at else None,
+            "rejection_reason": self.rejection_reason,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+# ----------------------------- Notification -----------------------------
+class Notification(db.Model):
+    """
+    In-app bell notifications for all roles.
+    Supervisor gets notified when SK accepts RM.
+    Store Keeper gets notified when production is done.
+    """
+    __tablename__ = 'notifications'
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # Target
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    role = db.Column(db.String(50), nullable=True, index=True)  # Optional: broadcast to role
+
+    # Content
+    title = db.Column(db.String(255), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    notification_type = db.Column(db.String(50), default='INFO')
+    # Types: INFO | RM_ACCEPTED | PRODUCTION_DONE | DISPATCH_READY | RM_REJECTED
+
+    # Links (optional context)
+    demand_id = db.Column(db.Integer, db.ForeignKey('demands.id', ondelete='SET NULL'), nullable=True)
+    rm_request_id = db.Column(db.Integer, db.ForeignKey('rm_check_requests.id', ondelete='SET NULL'), nullable=True)
+    dispatch_id = db.Column(db.Integer, db.ForeignKey('dispatch_records.id', ondelete='SET NULL'), nullable=True)
+
+    # Read state
+    is_read = db.Column(db.Boolean, default=False, index=True)
+    read_at = db.Column(db.DateTime, nullable=True)
+
+    created_at = db.Column(db.DateTime, default=db.func.now(), index=True)
+
+    # Relationships
+    user = db.relationship('User', foreign_keys=[user_id], backref='notifications')
+    demand = db.relationship('Demand', backref='notifications')
+
+    @staticmethod
+    def send(user_id, title, message, notification_type='INFO', demand_id=None, rm_request_id=None, dispatch_id=None):
+        """Helper to quickly create and commit a notification."""
+        notif = Notification(
+            user_id=user_id,
+            title=title,
+            message=message,
+            notification_type=notification_type,
+            demand_id=demand_id,
+            rm_request_id=rm_request_id,
+            dispatch_id=dispatch_id,
+        )
+        db.session.add(notif)
+        return notif
+
+    def __repr__(self):
+        return f'<Notification {self.notification_type} -> user={self.user_id} read={self.is_read}>'
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "title": self.title,
+            "message": self.message,
+            "notification_type": self.notification_type,
+            "demand_id": self.demand_id,
+            "rm_request_id": self.rm_request_id,
+            "dispatch_id": self.dispatch_id,
+            "is_read": self.is_read,
+            "read_at": self.read_at.isoformat() if self.read_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }

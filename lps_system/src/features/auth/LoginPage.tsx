@@ -17,8 +17,11 @@ import { UserRole } from '../../config/roles';
 import {
     MANAGER_DASHBOARD,
     ADMIN_HOME,
+    AUTH_LOGIN,
     SUPERVISOR_DASHBOARD,
-    DEO_DASHBOARD
+    DEO_DASHBOARD,
+    PPC_DEMAND,
+    SK_RM_QUEUE,
 } from '../../config/routePaths';
 
 const LoginPage = () => {
@@ -54,8 +57,15 @@ const LoginPage = () => {
                     case UserRole.DEO:
                         navigate(DEO_DASHBOARD);
                         break;
+                    case UserRole.PPC_PLANNER:
+                        navigate(PPC_DEMAND);
+                        break;
+                    case UserRole.STORE_KEEPER:
+                        navigate(SK_RM_QUEUE);
+                        break;
                     default:
-                        navigate(ADMIN_HOME);
+                        navigate(AUTH_LOGIN);
+                        break;
                 }
             } else {
                 setError(response.message || 'Authentication failed');

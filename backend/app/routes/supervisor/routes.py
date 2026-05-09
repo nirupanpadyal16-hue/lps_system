@@ -350,3 +350,112 @@ def verify_shortage_entry(entry_id):
     db.session.commit()
     log_audit("SUPERVISOR_VERIFY_SHORTAGE_ENTRY", f"Entry {entry_id} {status}")
     return jsonify({"success": True, "message": f"Shortage entry {status}"})
+
+
+# ----------------------------- Notifications (Supervisor) -----------------------------
+
+@supervisor_bp.route('/notifications', methods=['GET'])
+@jwt_required()
+@role_required(['Supervisor', 'Admin'])
+def get_supervisor_notifications():
+    from app.models import Notification
+    user = User.query.filter_by(username=get_jwt_identity()).first()
+    notifs = Notification.query.filter_by(user_id=user.id).order_by(
+        Notification.created_at.desc()
+    ).limit(50).all()
+    unread = Notification.query.filter_by(user_id=user.id, is_read=False).count()
+    return jsonify({"success": True, "data": [n.to_dict() for n in notifs], "unread_count": unread})
+
+
+@supervisor_bp.route('/notifications/<int:notif_id>/read', methods=['POST'])
+@jwt_required()
+@role_required(['Supervisor', 'Admin'])
+def supervisor_mark_notification_read(notif_id):
+    from app.models import Notification
+    user = User.query.filter_by(username=get_jwt_identity()).first()
+    notif = Notification.query.filter_by(id=notif_id, user_id=user.id).first_or_404()
+    notif.is_read = True
+    notif.read_at = datetime.now()
+    db.session.commit()
+    return jsonify({"success": True})
+
+
+@supervisor_bp.route('/notifications/mark-all-read', methods=['POST'])
+@jwt_required()
+@role_required(['Supervisor', 'Admin'])
+def supervisor_mark_all_read():
+    from app.models import Notification
+    user = User.query.filter_by(username=get_jwt_identity()).first()
+    Notification.query.filter_by(user_id=user.id, is_read=False).update(
+        {"is_read": True, "read_at": datetime.now()}
+    )
+    db.session.commit()
+    return jsonify({"success": True})
+
+
+# ----------------------------- Machine Entry Monitoring (Supervisor) -----------------------------
+
+@supervisor_bp.route('/machine-entries', methods=['GET'])
+@jwt_required()
+@role_required(['Supervisor', 'Admin'])
+def supervisor_get_machine_entries():
+    """
+    Supervisor monitors all machine production entries for their line.
+    Filters by demand, date, or shift.
+    """
+    from app.models import MachineProductionEntry
+    user = User.query.filter_by(username=get_jwt_identity()).first()
+
+    query = MachineProductionEntry.query
+    # Supervisors see entries on their assigned line
+    if user.role == 'Supervisor' and user.assigned_line_id:
+        # Get machines on supervisor's line
+        line_machines = ProductionLine.query.filter_by(parent_id=user.assigned_line_id).all()
+        machine_ids = [m.id for m in line_machines]
+        if machine_ids:
+            query = query.filter(MachineProductionEntry.machine_id.in_(machine_ids))
+
+    date_filter = request.args.get('date')
+    demand_id = request.args.get('demand_id', type=int)
+    shift = request.args.get('shift')
+
+    if date_filter:
+        try:
+            from datetime import date as dt
+            query = query.filter_by(date=dt.fromisoformat(date_filter))
+        except ValueError:
+            pass
+    if demand_id:
+        query = query.filter_by(demand_id=demand_id)
+    if shift:
+        query = query.filter_by(shift=shift)
+
+    entries = query.order_by(MachineProductionEntry.date.desc(), MachineProductionEntry.shift).all()
+    return jsonify({"success": True, "data": [e.to_dict() for e in entries]})
+
+
+@supervisor_bp.route('/machine-entries/<int:entry_id>/verify', methods=['POST'])
+@jwt_required()
+@role_required(['Supervisor', 'Admin'])
+def supervisor_verify_machine_entry(entry_id):
+    """Supervisor verifies or rejects a DEO machine production entry."""
+    from app.models import MachineProductionEntry
+    data = request.json or {}
+    status = data.get('status')  # VERIFIED | REJECTED
+    if status not in ('VERIFIED', 'REJECTED'):
+        return jsonify({"success": False, "message": "status must be VERIFIED or REJECTED"}), 400
+
+    entry = MachineProductionEntry.query.get_or_404(entry_id)
+    user = User.query.filter_by(username=get_jwt_identity()).first()
+
+    entry.status = status
+    entry.supervisor_id = user.id
+    entry.supervisor_notes = data.get('notes', '')
+    entry.verified_at = datetime.now()
+    if status == 'REJECTED':
+        entry.rejection_reason = data.get('reason', '')
+
+    db.session.commit()
+    log_audit(f"SUPERVISOR_VERIFY_MACHINE_ENTRY_{status}", f"Entry {entry_id}")
+    return jsonify({"success": True, "data": entry.to_dict()})
+

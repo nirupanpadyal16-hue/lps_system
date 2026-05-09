@@ -431,3 +431,177 @@ def deo_fill_shortage_request(req_id):
         "message": "Daily stock report submitted for supervisor verification.",
         "data": psr.to_dict()
     })
+
+
+# ---------------------------------------------------------------------------
+# MACHINE PRODUCTION ENTRIES (New — shift-aware)
+# DEO fills per-machine, per-shift production data
+# ---------------------------------------------------------------------------
+
+@deo_bp.route('/machine-entries', methods=['GET'])
+@jwt_required()
+@role_required(['DEO', 'Admin', 'Supervisor'])
+def get_machine_entries():
+    """List machine production entries for the logged-in DEO."""
+    from app.models import MachineProductionEntry
+    username = get_jwt_identity()
+    user = User.query.filter_by(username=username).first()
+
+    query = MachineProductionEntry.query
+    if user.role == 'DEO':
+        query = query.filter_by(deo_id=user.id)
+
+    # Optional filters
+    date_filter = request.args.get('date')
+    demand_id = request.args.get('demand_id', type=int)
+    if date_filter:
+        from datetime import date as date_type
+        try:
+            d = date_type.fromisoformat(date_filter)
+            query = query.filter_by(date=d)
+        except ValueError:
+            pass
+    if demand_id:
+        query = query.filter_by(demand_id=demand_id)
+
+    entries = query.order_by(MachineProductionEntry.date.desc(), MachineProductionEntry.created_at.desc()).all()
+    return jsonify({"success": True, "data": [e.to_dict() for e in entries]})
+
+
+@deo_bp.route('/machine-entries/shift-info', methods=['GET'])
+@jwt_required()
+@role_required(['DEO', 'Admin', 'Supervisor'])
+def get_shift_info():
+    """
+    Returns the current shift based on server time (i.e., DEO login time).
+    Frontend uses this to pre-fill the shift field when DEO opens the entry form.
+    """
+    from app.models import MachineProductionEntry
+    shift, start, end = MachineProductionEntry.detect_shift()
+    return jsonify({
+        "success": True,
+        "shift": shift,
+        "shift_start": start,
+        "shift_end": end,
+        "current_time": datetime.utcnow().strftime('%H:%M')
+    })
+
+
+@deo_bp.route('/machine-entries', methods=['POST'])
+@jwt_required()
+@role_required(['DEO'])
+def create_machine_entry():
+    """
+    DEO submits machine production data for their assigned machine.
+    - parts_produced: qty manufactured this shift
+    - machine_runtime_mins: minutes machine actually ran (separate field)
+    - Shift is auto-detected from login/current time
+    After save: InventoryItem.produced_qty is incremented cumulatively.
+    """
+    from app.models import MachineProductionEntry, InventoryItem, Notification
+    username = get_jwt_identity()
+    user = User.query.filter_by(username=username).first()
+    data = request.json or {}
+
+    inventory_item_id = data.get('inventory_item_id')
+    demand_id = data.get('demand_id')
+    machine_id = data.get('machine_id') or (user.assigned_machine_id)
+    parts_produced = float(data.get('parts_produced', 0))
+    machine_runtime_mins = float(data.get('machine_runtime_mins', 0))
+    sap_part_number = data.get('sap_part_number', '')
+
+    if not inventory_item_id:
+        return jsonify({"success": False, "message": "inventory_item_id is required"}), 400
+
+    if parts_produced < 0:
+        return jsonify({"success": False, "message": "parts_produced cannot be negative"}), 400
+
+    # Auto-detect shift from current time (DEO login time)
+    shift, shift_start, shift_end = MachineProductionEntry.detect_shift()
+    # Allow override from request
+    if data.get('shift'):
+        shift = data['shift']
+        shift_map = {'Shift 1': ('06:00', '15:00'), 'Shift 2': ('15:00', '23:00'), 'Shift 3': ('23:00', '06:00')}
+        shift_start, shift_end = shift_map.get(shift, (shift_start, shift_end))
+
+    entry = MachineProductionEntry(
+        deo_id=user.id,
+        inventory_item_id=inventory_item_id,
+        demand_id=demand_id,
+        machine_id=machine_id,
+        date=date.today(),
+        shift=shift,
+        shift_start=shift_start,
+        shift_end=shift_end,
+        sap_part_number=sap_part_number,
+        parts_produced=parts_produced,
+        machine_runtime_mins=machine_runtime_mins,
+        deo_notes=data.get('deo_notes', ''),
+        status='PENDING',
+    )
+    db.session.add(entry)
+    db.session.flush()  # Get entry.id before apply_to_inventory
+
+    # Auto-update InventoryItem.produced_qty (no double-counting — this adds to cumulative)
+    entry.apply_to_inventory()
+
+    db.session.commit()
+
+    # Check if part is now PRODUCTION_DONE → notify SK
+    item = InventoryItem.query.get(inventory_item_id)
+    if item and item.status == 'PRODUCTION_DONE':
+        store_keepers = User.query.filter_by(role='Store_Keeper', is_active=True).all()
+        for sk in store_keepers:
+            Notification.send(
+                user_id=sk.id,
+                title="Part Manufacturing Complete",
+                message=f"Part {item.sap_part_number} for demand {item.demand.formatted_id if item.demand else 'N/A'} is fully manufactured. Ready for dispatch.",
+                notification_type='PRODUCTION_DONE',
+                demand_id=item.demand_id,
+            )
+        db.session.commit()
+
+    log_audit("DEO_MACHINE_ENTRY_CREATED")
+    return jsonify({"success": True, "data": entry.to_dict()}), 201
+
+
+@deo_bp.route('/machine-entries/<int:entry_id>', methods=['GET'])
+@jwt_required()
+@role_required(['DEO', 'Admin', 'Supervisor'])
+def get_machine_entry(entry_id):
+    from app.models import MachineProductionEntry
+    entry = MachineProductionEntry.query.get_or_404(entry_id)
+    return jsonify({"success": True, "data": entry.to_dict()})
+
+
+# ---------------------------------------------------------------------------
+# NOTIFICATIONS (DEO)
+# ---------------------------------------------------------------------------
+
+@deo_bp.route('/notifications', methods=['GET'])
+@jwt_required()
+@role_required(['DEO'])
+def deo_get_notifications():
+    from app.models import Notification
+    username = get_jwt_identity()
+    user = User.query.filter_by(username=username).first()
+    notifs = Notification.query.filter_by(user_id=user.id).order_by(
+        Notification.created_at.desc()
+    ).limit(50).all()
+    unread = Notification.query.filter_by(user_id=user.id, is_read=False).count()
+    return jsonify({"success": True, "data": [n.to_dict() for n in notifs], "unread_count": unread})
+
+
+@deo_bp.route('/notifications/<int:notif_id>/read', methods=['POST'])
+@jwt_required()
+@role_required(['DEO'])
+def deo_mark_notification_read(notif_id):
+    from app.models import Notification
+    username = get_jwt_identity()
+    user = User.query.filter_by(username=username).first()
+    notif = Notification.query.filter_by(id=notif_id, user_id=user.id).first_or_404()
+    notif.is_read = True
+    notif.read_at = datetime.now()
+    db.session.commit()
+    return jsonify({"success": True})
+
