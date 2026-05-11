@@ -264,7 +264,7 @@ function ShortageRequestModal({ shortageItems, deos, supervisors, lines, onClose
             });
             const data = await res.json();
             if (!data.success) throw new Error(data.message);
-            
+
             // Format success message with machine assignments
             if (data.data && data.data.length > 0) {
                 const assigned = data.data.filter((r: any) => r.machine_name);
@@ -277,7 +277,7 @@ function ShortageRequestModal({ shortageItems, deos, supervisors, lines, onClose
             } else {
                 alert("Demand Created Successfully!");
             }
-            
+
             onSuccess();
             onClose();
         } catch (err: any) {
@@ -470,15 +470,16 @@ export default function InventoryPage() {
     const [lines, setLines] = useState<ProductionLine[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
-    const [filterVehicle, setFilterVehicle] = useState('ALL');
+    const [filterVehicle, setFilterVehicle] = useState('');
     const [filterStatus, setFilterStatus] = useState('ALL');
     const [filterAction, setFilterAction] = useState('ALL');
+
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 10;
 
     const [showAddModal, setShowAddModal] = useState(false);
     const [showSeedModal, setShowSeedModal] = useState(false);
     const [shortageModalItems, setShortageModalItems] = useState<InventoryItem[] | null>(null);
-    // Selected row(s) for batch shortage
-    const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
     // Inline edit state
     const [editingStockId, setEditingStockId] = useState<number | null>(null);
@@ -518,24 +519,46 @@ export default function InventoryPage() {
     const pendingDEO = items.filter(i => i.action === 'PENDING_DEO').length;
     const completed = items.filter(i => i.status === 'COMPLETED' || i.status === 'IN_PRODUCTION').length;
 
-    const uniqueVehicles = Array.from(new Set(items.map(i => i.vehicle_name))).sort();
     const demandIdMap = Object.fromEntries(demands.map(d => [d.id, d.formatted_id]));
+
+    // Unique options for the car model dropdown (Model + Demand ID)
+    const modelOptions = Array.from(
+        new Map(
+            items.map(i => {
+                const dId = i.demand_id;
+                const fId = dId ? demandIdMap[dId] : 'No Demand';
+                const key = `${i.vehicle_name}|${dId || ''}`;
+                return [key, { key, vehicleName: i.vehicle_name, demandId: dId, formattedDemandId: fId }];
+            })
+        ).values()
+    ).sort((a, b) => a.vehicleName.localeCompare(b.vehicleName));
 
     // ── Filtering ─────────────────────────────────────────────────────────
     const filtered = items.filter(item => {
+        if (!filterVehicle) return false; // PERFORMANCE: Show no data until model is selected
+
         const q = search.toLowerCase();
         const matchSearch = !q || item.sap_part_number?.toLowerCase().includes(q)
             || item.part_description?.toLowerCase().includes(q)
             || item.vehicle_name?.toLowerCase().includes(q);
-        const matchVehicle = filterVehicle === 'ALL' || item.vehicle_name === filterVehicle;
+
+        const [vName, vDemandId] = filterVehicle.split('|');
+        const matchVehicle = item.vehicle_name === vName && String(item.demand_id || '') === vDemandId;
+
         const matchStatus = filterStatus === 'ALL' ||
             (filterStatus === 'IN_PRODUCTION' ? (item.status === 'IN_PRODUCTION' || item.status === 'COMPLETED') : item.status === filterStatus);
         const matchAction = filterAction === 'ALL' || item.action === filterAction;
 
-
-
         return matchSearch && matchVehicle && matchStatus && matchAction;
     });
+
+    // Pagination Logic
+    const totalPages = Math.ceil(filtered.length / pageSize);
+    const paginatedItems = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+    useEffect(() => {
+        setCurrentPage(1); // Reset to first page when filters change
+    }, [filterVehicle, filterStatus, filterAction, search]);
 
     // ── Filter Available Demands ──────────────────────────────────────────
     // Get unique demand IDs already present in inventory
@@ -548,13 +571,8 @@ export default function InventoryPage() {
 
     // ── Batch shortage handler ─────────────────────────────────────────────
     const handleBatchNewDemand = () => {
-        const shortageItems = filtered.filter(i => selectedIds.has(i.id) && i.action === 'NEW_DEMAND');
-        if (shortageItems.length === 0) {
-            const allShortage = filtered.filter(i => i.action === 'NEW_DEMAND');
-            if (allShortage.length > 0) setShortageModalItems(allShortage);
-        } else {
-            setShortageModalItems(shortageItems);
-        }
+        const allShortage = filtered.filter(i => i.action === 'NEW_DEMAND');
+        if (allShortage.length > 0) setShortageModalItems(allShortage);
     };
 
     // ── Export to CSV ─────────────────────────────────────────────────────
@@ -571,13 +589,7 @@ export default function InventoryPage() {
         a.click();
     };
 
-    const toggleSelect = (id: number) => {
-        setSelectedIds(prev => {
-            const next = new Set(prev);
-            if (next.has(id)) next.delete(id); else next.add(id);
-            return next;
-        });
-    };
+
 
     const handleSaveStock = async (id: number) => {
         try {
@@ -657,10 +669,14 @@ export default function InventoryPage() {
                         <select
                             value={filterVehicle}
                             onChange={e => setFilterVehicle(e.target.value)}
-                            className="pl-8 pr-8 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 appearance-none bg-white min-w-[120px]"
+                            className="pl-8 pr-8 py-2 border border-gray-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-orange-400 appearance-none bg-orange-50/50 min-w-[200px]"
                         >
-                            <option value="ALL">All Models</option>
-                            {uniqueVehicles.map(v => <option key={v} value={v}>{v}</option>)}
+                            <option value="">Select Car Model...</option>
+                            {modelOptions.map(opt => (
+                                <option key={opt.key} value={opt.key}>
+                                    {opt.formattedDemandId} — {opt.vehicleName}
+                                </option>
+                            ))}
                         </select>
                         <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     </div>
@@ -713,17 +729,8 @@ export default function InventoryPage() {
                     <table className="w-full ">
                         <thead className='sticky top-0 z-[50]'>
                             <tr className="border-b-2 border-[#f37021] bg-white">
-                                <th className="w-10 p-2">
-                                    <input type="checkbox"
-                                        onChange={e => {
-                                            if (e.target.checked) setSelectedIds(new Set(filtered.map(i => i.id)));
-                                            else setSelectedIds(new Set());
-                                        }}
-                                        checked={selectedIds.size === filtered.length && filtered.length > 0}
-                                        className="rounded" />
-                                </th>
-                                {['Sr.No', 'Vehicle', 'SAP Part No.', 'Part Description', 'Current Stock', 'Demand Qty', 'Shortage', 'Status', 'Action'].map(h => (
-                                    <th key={h} className="px-4 py-2 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">{h}</th>
+                                {['SN', 'Vehicle', 'SAP Part No.', 'Part Description', 'Current Stock', 'Demand Qty', 'Shortage', 'Status', 'Action'].map(h => (
+                                    <th key={h} className="px-4 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">{h}</th>
                                 ))}
                             </tr>
                         </thead>
@@ -733,106 +740,211 @@ export default function InventoryPage() {
                                     <Loader2 size={28} className="animate-spin text-orange-400 mx-auto mb-2" />
                                     <p className="text-sm text-gray-400">Loading inventory...</p>
                                 </td></tr>
-                            ) : filtered.length === 0 ? (
+                            ) : paginatedItems.length === 0 ? (
                                 <tr><td colSpan={10} className="py-16 text-center">
-                                    <Package size={36} className="text-gray-200 mx-auto mb-3" />
-                                    <p className="text-gray-400 font-semibold">No inventory items found</p>
-                                    <p className="text-xs text-gray-300 mt-1">Use "Import from Demand" or "Add Part" to populate</p>
+                                    {!filterVehicle ? (
+                                        <>
+                                            <Filter size={36} className="text-orange-200 mx-auto mb-3" />
+                                            <p className="text-gray-500 font-black text-lg">Select a Car Model</p>
+                                            <p className="text-xs text-gray-400 mt-1">Please select a model from the dropdown to view inventory data</p>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Package size={36} className="text-gray-200 mx-auto mb-3" />
+                                            <p className="text-gray-400 font-semibold">No inventory items found for this selection</p>
+                                        </>
+                                    )}
                                 </td></tr>
-                            ) : filtered.map((item) => {
+                            ) : paginatedItems.map((item, idx) => {
                                 const isShortage = item.action === 'NEW_DEMAND';
                                 const isPending = item.action === 'PENDING_DEO';
                                 const rowBg = isShortage ? 'bg-red-50/40 hover:bg-red-50' : isPending ? 'bg-amber-50/30 hover:bg-amber-50/60' : 'hover:bg-gray-50/80';
                                 const stockPct = item.demand_quantity > 0 ? Math.min((item.current_stock / item.demand_quantity) * 100, 100) : 100;
+                                const serialNum = (currentPage - 1) * pageSize + idx + 1;
 
                                 return (
-                                    <tr key={item.id} className={`transition-colors ${rowBg}`}>
-                                        <td className="p-4">
-                                            <input type="checkbox" checked={selectedIds.has(item.id)}
-                                                onChange={() => toggleSelect(item.id)} className="rounded" />
-                                        </td>
-                                        <td className="px-4 py-2 text-xs font-bold text-gray-400">{item.serial_number}</td>
-                                        <td className="px-4 py-2">
-                                            <div className="flex flex-col">
-                                                <span className="text-sm font-black text-gray-800">{item.vehicle_name}</span>
-                                                {item.demand_id && demandIdMap[item.demand_id] && (
-                                                    <span className="text-[10px] font-black text-gray-400 mt-0.5">
-                                                        {demandIdMap[item.demand_id]}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-2">
-                                            <span className="font-mono text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">{item.sap_part_number}</span>
-                                        </td>
-                                        <td className="px-4 py-2 text-xs text-gray-600 max-w-48 truncate">{item.part_description || '—'}</td>
-                                        <td className="px-4 py-2">
-                                            <div className="flex flex-col gap-1">
-                                                {editingStockId === item.id ? (
-                                                    <input
-                                                        type="number"
-                                                        value={editStockValue}
-                                                        onChange={e => setEditStockValue(e.target.value)}
-                                                        onBlur={() => handleSaveStock(item.id)}
-                                                        onKeyDown={e => e.key === 'Enter' && handleSaveStock(item.id)}
-                                                        autoFocus
-                                                        className="w-20 px-2 py-1 text-sm border focus:outline-none focus:ring-2 focus:ring-orange-400 rounded-lg"
-                                                    />
-                                                ) : (
-                                                    <span
-                                                        className={`text-sm border py-0.5 px-2 rounded  font-black cursor-pointer hover:underline ${isShortage ? 'text-red-600' : 'text-emerald-600'}`}
-                                                        onClick={() => { setEditingStockId(item.id); setEditStockValue(item.current_stock.toString()); }}
-                                                        title="Click to edit"
-                                                    >
-                                                        {item.current_stock}
-                                                    </span>
-                                                )}
-                                                <div className=" h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                                                    <div className={`h-full rounded-full transition-all ${isShortage ? 'bg-red-400' : 'bg-emerald-400'}`}
-                                                        style={{ width: `${stockPct}%` }} />
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-2 text-sm font-bold text-gray-700">{item.demand_quantity}</td>
-                                        <td className="px-4 py-2">
-                                            {item.shortage_quantity > 0 ? (
-                                                <span className="text-sm font-black text-red-600">−{item.shortage_quantity}</span>
-                                            ) : (
-                                                <span className="text-sm font-bold text-emerald-500">+{Math.abs(item.current_stock - item.demand_quantity)}</span>
-                                            )}
-                                        </td>
-                                        <td className="px-4 py-2">
-                                            {item.status === 'SUFFICIENT' && <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full uppercase">Sufficient</span>}
-                                            {item.status === 'SHORTAGE' && <span className="text-[11px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded-full uppercase">Shortage</span>}
-                                            {item.status === 'PENDING_DEO' && <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full uppercase">Pending</span>}
-                                            {(item.status === 'COMPLETED' || item.status === 'IN_PRODUCTION') && <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full uppercase">Completed</span>}
-                                        </td>
-                                        <td className="px-4 py-2">
-                                            <ActionBadge
-                                                action={item.action}
-                                                onNewDemand={() => setShortageModalItems([item])}
-                                            />
-                                        </td>
-                                    </tr>
+                                   <tr key={item.id} className={`transition-colors ${rowBg}`}>
+    
+    {/* SERIAL NUMBER */}
+    <td className="px-4 py-3 text-xs font-black text-gray-900 bg-gray-50/50 whitespace-nowrap">
+        {serialNum}
+    </td>
+
+    {/* VEHICLE */}
+    <td className="px-4 py-2 min-w-[160px]">
+        <div className="flex flex-col">
+            <span className="text-sm font-black text-gray-800 whitespace-nowrap">
+                {item.vehicle_name}
+            </span>
+
+            {item.demand_id && demandIdMap[item.demand_id] && (
+                <span className="text-[10px] font-black text-gray-400 mt-0.5 whitespace-nowrap">
+                    {demandIdMap[item.demand_id]}
+                </span>
+            )}
+        </div>
+    </td>
+
+    {/* SAP PART NUMBER */}
+    <td className="px-4 py-2 max-w-[180px]">
+        <span className="block truncate whitespace-nowrap overflow-hidden font-mono text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">
+            {item.sap_part_number}
+        </span>
+    </td>
+
+    {/* PART DESCRIPTION */}
+    <td className="px-4 py-2 max-w-[250px]">
+        <div className="truncate whitespace-nowrap overflow-hidden text-xs text-gray-600">
+            {item.part_description || '—'}
+        </div>
+    </td>
+
+    {/* CURRENT STOCK */}
+    <td className="px-4 py-2">
+        <div className="flex flex-col gap-1">
+
+            {editingStockId === item.id ? (
+                <input
+                    type="number"
+                    value={editStockValue}
+                    onChange={e => setEditStockValue(e.target.value)}
+                    onBlur={() => handleSaveStock(item.id)}
+                    onKeyDown={e => e.key === 'Enter' && handleSaveStock(item.id)}
+                    autoFocus
+                    className="w-20 px-2 py-1 text-sm border focus:outline-none focus:ring-2 focus:ring-orange-400 rounded-lg"
+                />
+            ) : (
+                <span
+                    className={`text-sm border py-0.5 px-2 rounded font-black cursor-pointer hover:underline ${
+                        isShortage ? 'text-red-600' : 'text-emerald-600'
+                    }`}
+                    onClick={() => {
+                        setEditingStockId(item.id);
+                        setEditStockValue(item.current_stock.toString());
+                    }}
+                    title="Click to edit"
+                >
+                    {item.current_stock}
+                </span>
+            )}
+
+            <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                    className={`h-full rounded-full transition-all ${
+                        isShortage ? 'bg-red-400' : 'bg-emerald-400'
+                    }`}
+                    style={{ width: `${stockPct}%` }}
+                />
+            </div>
+        </div>
+    </td>
+
+    {/* DEMAND QTY */}
+    <td className="px-4 py-2 text-sm font-bold text-gray-700 whitespace-nowrap">
+        {item.demand_quantity}
+    </td>
+
+    {/* SHORTAGE */}
+    <td className="px-4 py-2 whitespace-nowrap">
+        {item.shortage_quantity > 0 ? (
+            <span className="text-sm font-black text-red-600">
+                −{item.shortage_quantity}
+            </span>
+        ) : (
+            <span className="text-sm font-bold text-emerald-500">
+                +{Math.abs(item.current_stock - item.demand_quantity)}
+            </span>
+        )}
+    </td>
+
+    {/* STATUS */}
+    <td className="px-4 py-2 whitespace-nowrap">
+        {item.status === 'SUFFICIENT' && (
+            <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full uppercase">
+                Sufficient
+            </span>
+        )}
+
+        {item.status === 'SHORTAGE' && (
+            <span className="text-[11px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded-full uppercase">
+                Shortage
+            </span>
+        )}
+
+        {item.status === 'PENDING_DEO' && (
+            <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full uppercase">
+                Pending
+            </span>
+        )}
+
+        {(item.status === 'COMPLETED' || item.status === 'IN_PRODUCTION') && (
+            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full uppercase">
+                Completed
+            </span>
+        )}
+    </td>
+
+    {/* ACTION */}
+    <td className="px-4 py-2 whitespace-nowrap">
+        <ActionBadge
+            action={item.action}
+            onNewDemand={() => setShortageModalItems([item])}
+        />
+    </td>
+</tr>
                                 );
                             })}
                         </tbody>
                     </table>
                 </div>
                 {filtered.length > 0 && (
-                    <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-between">
-                        <p className="text-xs text-gray-400">
-                            Showing <span className="font-bold text-gray-600">{filtered.length}</span> of <span className="font-bold text-gray-600">{totalParts}</span> parts
-                            {selectedIds.size > 0 && <span className="ml-2 text-orange-500 font-bold">• {selectedIds.size} selected</span>}
-                        </p>
-                        {selectedIds.size > 0 && filtered.filter(i => selectedIds.has(i.id) && i.action === 'NEW_DEMAND').length > 0 && (
+                    <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-white sticky bottom-0">
+                        <div className="flex items-center gap-4">
+                            <p className="text-xs text-gray-400">
+                                Showing <span className="font-bold text-gray-600">{(currentPage - 1) * pageSize + 1}</span> to <span className="font-bold text-gray-600">{Math.min(currentPage * pageSize, filtered.length)}</span> of <span className="font-bold text-gray-600">{filtered.length}</span> parts
+                            </p>
+                        </div>
+
+                        {/* Pagination Controls */}
+                        <div className="flex items-center gap-1">
                             <button
-                                onClick={handleBatchNewDemand}
-                                className="flex items-center gap-2 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-bold">
-                                <AlertTriangle size={12} />
-                                Create Demand for {filtered.filter(i => selectedIds.has(i.id) && i.action === 'NEW_DEMAND').length} selected
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-bold hover:bg-gray-50 disabled:opacity-50 transition-all"
+                            >
+                                Previous
                             </button>
-                        )}
+
+                            <div className="flex items-center gap-1 mx-2">
+                                {[...Array(totalPages)].map((_, i) => {
+                                    const page = i + 1;
+                                    // Show first, last, and pages around current
+                                    if (page === 1 || page === totalPages || (page >= currentPage - 1 && page <= currentPage + 1)) {
+                                        return (
+                                            <button
+                                                key={page}
+                                                onClick={() => setCurrentPage(page)}
+                                                className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === page ? 'bg-orange-500 text-white shadow-md' : 'hover:bg-gray-100 text-gray-600'}`}
+                                            >
+                                                {page}
+                                            </button>
+                                        );
+                                    }
+                                    if (page === currentPage - 2 || page === currentPage + 2) {
+                                        return <span key={page} className="text-gray-300 text-xs px-1">...</span>;
+                                    }
+                                    return null;
+                                })}
+                            </div>
+
+                            <button
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                                className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-bold hover:bg-gray-50 disabled:opacity-50 transition-all"
+                            >
+                                Next
+                            </button>
+                        </div>
                     </div>
                 )}
             </div>

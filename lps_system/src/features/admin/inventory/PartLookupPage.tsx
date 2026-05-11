@@ -482,42 +482,7 @@ export default function PartLookupPage() {
                                 </div>
                             </div>
 
-                            {/* CAPACITY DATA */}
-                            <div className="px-8 py-6 border-b border-slate-50 bg-slate-50/20">
-                                <div className="max-w-6xl">
-                                    <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest mb-4">Capacity Metrics</h4>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                                        {renderDetailItem("Machine", selectedPart.production_data?.['Machine'])}
-                                        {renderDetailItem("No. of Machines", selectedPart.production_data?.['No. of Machines'])}
-                                        {renderDetailItem("Strokes / Part", selectedPart.production_data?.['Strokes / Part'])}
-                                        {renderDetailItem("Part Weight (kg)", selectedPart.production_data?.['Part Weight (kg)'])}
-                                    </div>
-                                    
-                                    {/* Active Machine Status Overlay */}
-                                    {(() => {
-                                        const active = activeShortages.find(s => s.inventory_item?.sap_part_number === selectedPart.common.sap_part_number);
-                                        if (active && active.machine_name) {
-                                            return (
-                                                <div className="mt-6 p-4 rounded-xl bg-orange-50 border border-orange-200 flex items-center justify-between">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600">
-                                                            <Factory size={16} strokeWidth={2.5} />
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest leading-none mb-1">ACTIVE PRODUCTION</p>
-                                                            <p className="text-sm font-black text-slate-800">Currently assigned to <span className="text-orange-600">{active.machine_name}</span></p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="px-3 py-1 bg-white rounded-lg border border-orange-100 text-[10px] font-black text-orange-600 uppercase tracking-widest shadow-sm">
-                                                        {active.status.replace(/_/g, ' ')}
-                                                    </div>
-                                                </div>
-                                            );
-                                        }
-                                        return null;
-                                    })()}
-                                </div>
-                            </div>
+
 
                             {/* MATERIAL DATA */}
                             <div className="flex-1 px-8 py-6 bg-white">
@@ -676,98 +641,6 @@ export default function PartLookupPage() {
                                             <div className="space-y-1.5">
                                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">VALIDITY</label>
                                                 <input type="text" placeholder="Enter Validity..." value={formData.validity} onChange={(e) => setFormData({ ...formData, validity: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500 focus:bg-white transition-all shadow-sm shadow-slate-100" />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Capacity Section */}
-                                    <div className="space-y-6">
-                                        <h4 className="text-[11px] font-black text-orange-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                                            CAPACITY METRICS
-                                        </h4>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                            <div className="space-y-2 col-span-2 relative">
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Assign Machines</label>
-
-                                                {/* Compact Dropdown Header */}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setShowMachineDropdown(!showMachineDropdown)}
-                                                    className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between text-xs font-bold text-slate-700 hover:border-orange-200 transition-all shadow-sm"
-                                                >
-                                                    <span className="flex items-center gap-2">
-                                                        <Factory size={14} className="text-slate-400" />
-                                                        {(formData.machine || '').split('; ').filter(x => x !== '').length > 0
-                                                            ? `${(formData.machine || '').split('; ').filter(x => x !== '').length} MACHINE(S) SELECTED`
-                                                            : 'SELECT MACHINES...'
-                                                        }
-                                                    </span>
-                                                    <ChevronRight className={`text-slate-300 transition-transform ${showMachineDropdown ? 'rotate-90' : ''}`} size={16} />
-                                                </button>
-
-                                                {/* Dropdown Menu */}
-                                                <AnimatePresence>
-                                                    {showMachineDropdown && (
-                                                        <motion.div
-                                                            initial={{ opacity: 0, y: 10 }}
-                                                            animate={{ opacity: 1, y: 0 }}
-                                                            exit={{ opacity: 0, y: 10 }}
-                                                            className="absolute z-[100] left-0 right-0 mt-2 bg-white border border-slate-100 rounded-2xl shadow-2xl shadow-slate-200 overflow-hidden max-h-[300px] overflow-y-auto p-2 space-y-1"
-                                                        >
-                                                            {machines.map(m => {
-                                                                const uniqueKey = `${m.name} (${m.areaName})`;
-                                                                const isSelected = (formData.machine || '').split('; ').includes(uniqueKey);
-                                                                return (
-                                                                    <button
-                                                                        key={m.id}
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                            let current = (formData.machine || '').split('; ').filter(x => x !== '');
-                                                                            if (isSelected) {
-                                                                                current = current.filter(x => x !== uniqueKey);
-                                                                            } else {
-                                                                                current.push(uniqueKey);
-                                                                            }
-                                                                            const newValue = current.join('; ');
-                                                                            setFormData({
-                                                                                ...formData,
-                                                                                machine: newValue,
-                                                                                no_of_machines: current.length > 0 ? current.length.toString() : ''
-                                                                            });
-                                                                        }}
-                                                                        className={`w-full px-4 py-3 rounded-xl flex items-center justify-between transition-all ${isSelected ? 'bg-orange-50 text-orange-600' : 'hover:bg-slate-50 text-slate-600'
-                                                                            }`}
-                                                                    >
-                                                                        <div className="flex flex-col items-start">
-                                                                            <span className="text-xs font-black uppercase tracking-wider">{m.name}</span>
-                                                                            <span className="text-[9px] font-bold opacity-50">{m.areaName}</span>
-                                                                        </div>
-                                                                        {isSelected && <CheckCircle2 size={16} strokeWidth={3} className="text-orange-500" />}
-                                                                    </button>
-                                                                );
-                                                            })}
-                                                        </motion.div>
-                                                    )}
-                                                </AnimatePresence>
-                                            </div>
-
-                                            <div className="space-y-1.5">
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">No. of Machines</label>
-                                                <input
-                                                    type="text"
-                                                    readOnly
-                                                    placeholder="Auto-calculated"
-                                                    value={formData.no_of_machines || ''}
-                                                    className="w-full h-12 px-4 bg-slate-100/50 border border-slate-100 rounded-xl text-xs font-black text-slate-400 outline-none cursor-not-allowed shadow-inner"
-                                                />
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Strokes / Part</label>
-                                                <input type="text" placeholder="e.g. 4" value={formData.strokes_per_part || ''} onChange={(e) => setFormData({ ...formData, strokes_per_part: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500 focus:bg-white transition-all shadow-sm shadow-slate-100" />
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Part Weight (kg)</label>
-                                                <input type="text" placeholder="e.g. 0.89" value={formData.part_weight || ''} onChange={(e) => setFormData({ ...formData, part_weight: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500 focus:bg-white transition-all shadow-sm shadow-slate-100" />
                                             </div>
                                         </div>
                                     </div>

@@ -223,12 +223,44 @@ def get_machine_registry():
     query = InventoryItem.query.filter(InventoryItem.demand_id.in_(active_ids))
     if demand_id:
         query = query.filter_by(demand_id=demand_id)
-
+    
     items = query.order_by(InventoryItem.demand_id, InventoryItem.serial_number).all()
+
+    # Fallback: If demand_id provided but no inventory items yet, show MasterData parts for that model
+    if demand_id and not items:
+        demand = Demand.query.get(demand_id)
+        if demand:
+            master_parts = MasterData.query.filter(MasterData.model.ilike(f"%{demand.model_name}%")).all()
+            result = []
+            for idx, part in enumerate(master_parts, start=1):
+                mapping = PartMachineMapping.query.filter_by(sap_part_number=part.sap_part_number).first()
+                result.append({
+                    "id": 0, # Virtual ID
+                    "demand_id": demand.id,
+                    "demand_formatted_id": demand.formatted_id,
+                    "serial_number": idx,
+                    "vehicle_name": demand.model_name,
+                    "sap_part_number": part.sap_part_number,
+                    "part_number": part.part_number,
+                    "assembly_number": part.assembly_number,
+                    "part_description": part.description,
+                    "current_stock": 0,
+                    "demand_quantity": demand.quantity,
+                    "shortage_quantity": demand.quantity,
+                    "machine_group": mapping.machine.replace(', ', ' → ') if mapping and mapping.machine else None,
+                    "rm_status": "NOT_SEEDED",
+                    "master_material_data": part.material_rel.to_dict() if part.material_rel else {},
+                    "rm_request": None
+                })
+            return jsonify({"success": True, "data": result})
 
     result = []
     for item in items:
         d = item.to_dict()
+        # Ensure demand_formatted_id is present
+        if not d.get('demand_formatted_id'):
+            demand = Demand.query.get(item.demand_id)
+            d['demand_formatted_id'] = demand.formatted_id if demand else None
 
         # Machine info
         mapping = PartMachineMapping.query.filter_by(sap_part_number=item.sap_part_number).first()
@@ -236,8 +268,13 @@ def get_machine_registry():
 
         # Material data from MasterData
         master = MasterData.query.filter_by(sap_part_number=item.sap_part_number).first()
-        if master and master.material_rel:
-            d['master_material_data'] = master.material_rel.to_dict()
+        if master:
+            d['part_number'] = master.part_number
+            d['assembly_number'] = master.assembly_number
+            if master.material_rel:
+                d['master_material_data'] = master.material_rel.to_dict()
+            else:
+                d['master_material_data'] = {}
         else:
             d['master_material_data'] = {}
 
@@ -283,7 +320,33 @@ def submit_rm_to_store_keeper(item_id):
     """
     data = request.json or {}
     user = get_ppc_user()
-    item = InventoryItem.query.get_or_404(item_id)
+    
+    # Handle virtual items (item_id=0) or items not yet in InventoryItem table
+    if item_id == 0:
+        demand_id = data.get('demand_id')
+        sap_part_number = data.get('sap_part_number')
+        if not demand_id or not sap_part_number:
+            return jsonify({"success": False, "message": "Missing demand_id or sap_part_number for virtual item"}), 400
+        
+        # Check if it was seeded while we were editing
+        item = InventoryItem.query.filter_by(demand_id=demand_id, sap_part_number=sap_part_number).first()
+        if not item:
+            # Create the InventoryItem on the fly
+            demand = Demand.query.get_or_404(demand_id)
+            master = MasterData.query.filter_by(sap_part_number=sap_part_number).first_or_404()
+            item = InventoryItem(
+                demand_id=demand_id,
+                sap_part_number=sap_part_number,
+                part_description=master.description,
+                demand_quantity=demand.quantity,
+                shortage_quantity=demand.quantity,
+                status='PENDING',
+                rm_status='RM_SUBMITTED'
+            )
+            db.session.add(item)
+            db.session.flush()
+    else:
+        item = InventoryItem.query.get_or_404(item_id)
 
     # Generate RMR formatted_id
     count = RMCheckRequest.query.count() + 1
@@ -294,7 +357,7 @@ def submit_rm_to_store_keeper(item_id):
 
     rm_req = RMCheckRequest(
         formatted_id=formatted_id,
-        inventory_item_id=item_id,
+        inventory_item_id=item.id,
         demand_id=item.demand_id,
         ppc_planner_id=user.id,
         rm_thk_mm=data.get('rm_thk_mm'),

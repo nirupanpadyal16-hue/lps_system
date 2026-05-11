@@ -27,32 +27,6 @@ const PPCDashboardPage: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Sub-navigation */}
-      <div className="bg-white border-b border-gray-200 px-6">
-        <nav className="flex space-x-1">
-          {navItems.map(item => (
-            <Link
-              key={item.to}
-              to={item.to}
-              className={`
-                relative flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors
-                ${currentPath === item.to || currentPath.startsWith(item.to + '/')
-                  ? 'border-blue-600 text-blue-700'
-                  : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'}
-              `}
-            >
-              <span>{item.icon}</span>
-              {item.label}
-              {item.badge ? (
-                <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] text-white font-bold">
-                  {item.badge > 9 ? '9+' : item.badge}
-                </span>
-              ) : null}
-            </Link>
-          ))}
-        </nav>
-      </div>
-
       {/* Page content */}
       <div className="flex-1 overflow-auto">
         <Routes>

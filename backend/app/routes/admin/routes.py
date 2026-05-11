@@ -177,7 +177,7 @@ def get_assignments():
 
 @admin_bp.route('/assignments/<int:model_id>', methods=['PUT', 'PATCH'])
 @jwt_required()
-@role_required(['Admin', 'Supervisor'])
+@role_required(['Admin', 'Supervisor', 'PPC_Planner'])
 def update_assignment(model_id):
     model = CarModel.query.get(model_id)
     if not model:
@@ -211,7 +211,7 @@ def get_models():
 
 @admin_bp.route('/models', methods=['POST'])
 @jwt_required()
-@role_required(['Admin', 'Manager'])
+@role_required(['Admin', 'Manager', 'PPC_Planner'])
 def create_model_master():
     data = request.json
     if not data or not data.get('name'):
@@ -232,7 +232,7 @@ def create_model_master():
 # ---------------------------------------------------------------------------
 @admin_bp.route('/demands', methods=['GET'])
 @jwt_required()
-@role_required(['Admin', 'Supervisor', 'Manager', 'DEO'])
+@role_required(['Admin', 'Supervisor', 'Manager', 'DEO', 'PPC_Planner'])
 def get_demands():
     manager_filter = request.args.get('manager')
     query = Demand.query
@@ -250,7 +250,7 @@ def get_demands():
 
 @admin_bp.route('/demands', methods=['POST'])
 @jwt_required()
-@role_required(['Admin', 'Supervisor', 'Manager'])
+@role_required(['Admin', 'Supervisor', 'Manager', 'PPC_Planner'])
 def create_demand():
     data = request.json
     model_name = data.get('model_name') or data.get('model_id')
@@ -294,7 +294,7 @@ def create_demand():
 
 @admin_bp.route('/demands/<int:id>', methods=['GET', 'PUT', 'PATCH'])
 @jwt_required()
-@role_required(['Admin', 'Supervisor', 'Manager'])
+@role_required(['Admin', 'Supervisor', 'Manager', 'PPC_Planner'])
 def handle_demand_by_id(id):
     demand = Demand.query.get(id)
     if not demand:
@@ -319,7 +319,7 @@ def handle_demand_by_id(id):
 
 @admin_bp.route('/demands/<int:id>', methods=['DELETE'])
 @jwt_required()
-@role_required(['Admin'])
+@role_required(['Admin', 'PPC_Planner'])
 def delete_demand(id):
     demand = Demand.query.get(id)
     if not demand:
@@ -925,7 +925,7 @@ def get_dashboard_live():
 
 @admin_bp.route('/inventory', methods=['GET'])
 @jwt_required()
-@role_required(['Admin'])
+@role_required(['Admin', 'PPC_Planner'])
 def get_inventory():
     from app.models import InventoryItem
     q = InventoryItem.query
@@ -966,7 +966,7 @@ def get_inventory():
 
 @admin_bp.route('/inventory', methods=['POST'])
 @jwt_required()
-@role_required(['Admin'])
+@role_required(['Admin', 'PPC_Planner'])
 def create_inventory_item():
     from app.models import InventoryItem
     from sqlalchemy import func
@@ -997,7 +997,7 @@ def create_inventory_item():
 
 @admin_bp.route('/inventory/seed-from-demand/<int:demand_id>', methods=['POST'])
 @jwt_required()
-@role_required(['Admin'])
+@role_required(['Admin', 'PPC_Planner'])
 def seed_inventory_from_demand(demand_id):
     from app.models import InventoryItem, Demand, MasterData, DEOProductionEntry
     demand = Demand.query.get(demand_id)
@@ -1079,7 +1079,7 @@ def get_inventory_item(item_id):
 
 @admin_bp.route('/inventory/<int:item_id>', methods=['PUT', 'PATCH'])
 @jwt_required()
-@role_required(['Admin'])
+@role_required(['Admin', 'PPC_Planner'])
 def update_inventory_item(item_id):
     from app.models import InventoryItem
     item = InventoryItem.query.get(item_id)
@@ -1111,7 +1111,7 @@ def update_inventory_item(item_id):
 
 @admin_bp.route('/inventory/<int:item_id>', methods=['DELETE'])
 @jwt_required()
-@role_required(['Admin'])
+@role_required(['Admin', 'PPC_Planner'])
 def delete_inventory_item(item_id):
     from app.models import InventoryItem
     item = InventoryItem.query.get(item_id)
@@ -1142,7 +1142,7 @@ def get_shortage_requests():
 
 @admin_bp.route('/shortage-requests', methods=['POST'])
 @jwt_required()
-@role_required(['Admin'])
+@role_required(['Admin', 'PPC_Planner'])
 def create_shortage_request():
     from app.models import PartShortageRequest, InventoryItem
     from sqlalchemy import func

@@ -105,7 +105,7 @@ def get_vehicle_models():
 
 @manager_bp.route('/master-data/<string:sap_number>', methods=['PUT'])
 @jwt_required()
-@role_required(['Manager', 'Admin', 'Supervisor', 'DEO'])
+@role_required(['Manager', 'Admin', 'Supervisor', 'DEO', 'PPC_Planner'])
 def update_master_item_by_sap(sap_number):
     service = MasterDataDBService()
     updated_item = service.update_item('sap_part_number', sap_number, request.json)
@@ -117,7 +117,7 @@ def update_master_item_by_sap(sap_number):
 
 @manager_bp.route('/master-data/<string:sap_number>', methods=['DELETE'])
 @jwt_required()
-@role_required(['Manager', 'Admin', 'Supervisor'])
+@role_required(['Manager', 'Admin', 'Supervisor', 'PPC_Planner'])
 def delete_master_item(sap_number):
     from app.models import MasterData, InventoryItem
     item = MasterData.query.filter_by(sap_part_number=sap_number).first()
@@ -137,7 +137,7 @@ def delete_master_item(sap_number):
 
 @manager_bp.route('/master-data/quick-add', methods=['POST'])
 @jwt_required()
-@role_required(['DEO', 'Supervisor', 'Manager', 'Admin'])
+@role_required(['DEO', 'Supervisor', 'Manager', 'Admin', 'PPC_Planner'])
 def quick_add_master_item():
     data = request.json or {}
     model_name = data.get('model')

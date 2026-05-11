@@ -148,7 +148,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             items: [
                 { icon: Target, label: 'New Demand', path: PPC_DEMAND },
                 { icon: Package, label: 'Inventory', path: PPC_INVENTORY },
-                { icon: Factory, label: 'Machine Registry', path: PPC_MACHINE_REGISTRY },
+                { icon: Search, label: 'Machine Registry', path: PPC_MACHINE_REGISTRY },
                 { icon: FileText, label: 'My RM Requests', path: PPC_RM_REQUESTS },
             ]
         }
