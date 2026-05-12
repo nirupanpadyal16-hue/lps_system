@@ -288,7 +288,13 @@ def get_shortage_entries():
     q = ShortageDailyEntry.query.join(PartShortageRequest)
     
     if user.role == 'Supervisor':
-        q = q.filter(PartShortageRequest.supervisor_id == user.id)
+        from sqlalchemy import or_
+        q = q.filter(
+            or_(
+                PartShortageRequest.supervisor_id == user.id,
+                (PartShortageRequest.supervisor_id == None) & (PartShortageRequest.line_id == user.assigned_line_id)
+            )
+        )
         
     entries = q.order_by(ShortageDailyEntry.created_at.desc()).all()
     
@@ -318,8 +324,16 @@ def verify_shortage_entry(entry_id):
     psr = entry.shortage_request
     
     # Check authorization
-    if user.role == 'Supervisor' and psr.supervisor_id != user.id:
+    # Authorization: Must be specifically assigned OR on the same line if unassigned
+    is_assigned = psr.supervisor_id == user.id
+    is_line_match = psr.supervisor_id is None and (psr.line_id == user.assigned_line_id)
+    
+    if user.role == 'Supervisor' and not (is_assigned or is_line_match):
         return jsonify({"success": False, "message": "Not authorized to verify this entry"}), 403
+
+    # If first time verifying an unassigned request, take ownership
+    if psr.supervisor_id is None and user.role == 'Supervisor':
+        psr.supervisor_id = user.id
         
     entry.status = status
     entry.rejection_reason = reason if status == 'REJECTED' else None

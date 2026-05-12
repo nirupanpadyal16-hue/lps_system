@@ -135,7 +135,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             title: 'OPERATOR CONSOLE',
             items: [
                 { icon: Activity, label: 'Dashboard', path: DEO_DASHBOARD },
-                { icon: ClipboardList, label: 'Machine Entry', path: DEO_MACHINE_ENTRY },
+                { icon: ClipboardCheck, label: 'Daily Production', path: DEO_ENTRY },
+                // { icon: ClipboardList, label: 'Machine Entry', path: DEO_MACHINE_ENTRY },
                 { icon: Mail, label: 'Shortage Requests', path: DEO_SHORTAGE },
             ]
         }

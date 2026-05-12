@@ -3,10 +3,11 @@ import { getToken } from '../../../lib/storage';
 import { API_BASE as API } from '../../../lib/apiConfig';
 import {
     Search, Calendar, ChevronDown, CheckCircle2,
-    Eye, AlertCircle, Loader2, Car, Trash2, ListFilter, X, Info, AlertTriangle, Database, Package, User, MapPin, Clock, Timer, Zap, LayoutGrid
+    Eye, AlertCircle, Loader2, Car, Trash2, ListFilter, X, Info, AlertTriangle, Database, Package, User, MapPin, Clock, Timer, Zap, LayoutGrid, ArrowLeft, Factory
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SupervisorCalendar } from './components/SupervisorCalendar';
+import { cn } from '../../../lib/utils';
 
 const authHeaders = () => ({
     'Content-Type': 'application/json',
@@ -53,155 +54,174 @@ interface ShortageEntry {
 // ─────────────────────────────────────────────────────────────────────────────
 // MODAL 1: Assignment Details (full context – line, personnel, timeline)
 // ─────────────────────────────────────────────────────────────────────────────
-const AssignmentDetailsModal = ({ entry, onClose }: { entry: ShortageEntry; onClose: () => void }) => {
+const AssignmentDetailsModal = ({ entry, onClose }: { entry: ShortageEntry, onClose: () => void }) => {
     const req = entry.shortage_request;
-    const item = req?.inventory_item;
-    const startDate = entry.created_at.split('T')[0];
+    const startDate = entry.created_at ? new Date(entry.created_at).toISOString().split('T')[0] : '—';
     const endDate = req?.deadline || '—';
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-md p-4 sm:p-6 animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-[2px]">
             <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                className="bg-white rounded-[2.5rem] w-full max-w-2xl max-h-[92vh] overflow-y-auto shadow-2xl relative border border-slate-100 custom-scrollbar"
+                className="bg-white rounded-[2.5rem] w-full max-w-2xl overflow-hidden shadow-2xl relative border border-slate-200 flex flex-col"
             >
-                {/* Header */}
-                <div className="px-6 py-5 flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur-md z-10 border-b border-slate-100">
-                    <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-[#F37021] rounded-xl flex items-center justify-center text-white shadow-lg shadow-orange-200 flex-shrink-0">
-                            <Car size={18} />
+                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                    <div className="flex gap-4 items-center">
+                        <div className="bg-orange-600 p-2 rounded-xl text-white shadow-lg shadow-orange-600/20 flex-shrink-0">
+                            <Car size={16} />
                         </div>
-                        <div>
-                            <p className="text-[9px] font-black text-slate-900 uppercase tracking-widest leading-none">ASSIGNMENT DETAILS</p>
-                            <div className="flex items-center gap-3 mt-1.5">
-                                <h2 className="text-[14px] font-black text-slate-900 uppercase tracking-tight leading-none">
-                                    {item?.vehicle_name || 'PART'}
-                                </h2>
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">{req?.formatted_id}</span>
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">{item?.sap_part_number}</span>
-                                <span className="px-2 py-0.5 rounded-lg bg-blue-50 text-blue-600 text-[9px] font-black uppercase tracking-widest border border-blue-100">
-                                    IN PROGRESS
-                                </span>
+                        <div className="flex flex-col gap-1.5">
+                            <h2 className="text-[9px] font-black text-slate-900 uppercase tracking-widest whitespace-nowrap">ASSIGNMENT DETAILS</h2>
+                            <div className="flex items-center gap-3">
+                                <h3 className="text-[14px] font-black text-black uppercase whitespace-nowrap leading-none">{req?.inventory_item?.vehicle_name || 'Generic'}</h3>
+                                <p className="text-[10px] font-black text-slate-900 uppercase tracking-widest whitespace-nowrap leading-none">{req?.formatted_id}</p>
+                                <p className="text-[10px] font-black text-slate-900 uppercase tracking-widest whitespace-nowrap leading-none flex-shrink-0">
+                                    {req?.inventory_item?.sap_part_number}
+                                </p>
                             </div>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-50 rounded-lg text-slate-400 transition-all">
+                    <button onClick={onClose} className="p-2 hover:bg-slate-50 rounded-lg text-slate-400 transition-colors">
                         <X size={20} />
                     </button>
                 </div>
 
-                {/* Body Content */}
-                <div className="p-3 space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                        {/* Production Context */}
-                        <div className="bg-orange-50/30 border border-orange-100/50 rounded-3xl p-6 space-y-6">
-                            <div className="flex items-center gap-2 text-slate-900">
-                                <MapPin size={12} className="text-slate-400" />
-                                <span className="text-[10px] font-black uppercase tracking-widest">PRODUCTION CONTEXT</span>
+                <div className="p-2 grid grid-cols-2 gap-2 flex-1 overflow-y-auto custom-scrollbar">
+                    <div className="space-y-2">
+                        <div className="bg-orange-50/30 rounded-3xl p-6 border border-orange-100/50">
+                            <div className="text-[10px] font-bold text-black uppercase tracking-widest mb-2 flex items-center gap-2">
+                                <MapPin size={12} />
+                                <span>Production Context</span>
                             </div>
                             <div className="space-y-5">
                                 <div className="flex items-center gap-4">
-                                    <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 border border-slate-100">
+                                    <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-500 flex-shrink-0">
                                         <LayoutGrid size={16} />
                                     </div>
-                                    <div>
-                                        <p className="text-[7.5px] font-black text-slate-500 uppercase tracking-widest mb-1">PRODUCTION LINE</p>
-                                        <p className="text-[14px] font-black text-slate-900 uppercase tracking-tight">{req?.line_name || 'N/A'}</p>
+                                    <div className="min-w-0">
+                                        <p className="text-[7.5px] font-black text-slate-500 uppercase tracking-widest mb-1">Production Line</p>
+                                        <p className="text-[14px] font-black text-black uppercase tracking-tight">
+                                            {req?.line_name || 'NO LINE ASSIGNED'}
+                                        </p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-4">
                                     <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 border border-slate-100">
                                         <Database size={16} />
                                     </div>
-                                    <div>
-                                        <p className="text-[7.5px] font-black text-slate-500 uppercase tracking-widest mb-1">CUSTOMER / DIVISION</p>
-                                        <p className="text-[14px] font-black text-slate-900 uppercase tracking-tight italic font-serif">{req?.customer_name || 'CIE AUTOMOTIVE'}</p>
+                                    <div className="min-w-0">
+                                        <p className="text-[7.5px] font-black text-slate-500 uppercase tracking-widest mb-1">Customer / Division</p>
+                                        <p className="text-[14px] font-black text-black uppercase italic font-serif tracking-tight">
+                                            {req?.customer_name || 'CIE AUTOMOTIVE'}
+                                        </p>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Assigned Personnel */}
-                        <div className="bg-orange-50/30 border border-orange-100/50 rounded-3xl p-6 space-y-6">
-                            <div className="flex items-center gap-2 text-slate-900">
-                                <User size={12} className="text-slate-400" />
-                                <span className="text-[10px] font-black uppercase tracking-widest">ASSIGNED PERSONNEL</span>
+                        <div className="bg-orange-50/30 rounded-3xl p-6 border border-orange-100/50">
+                            <div className="text-[10px] font-black text-black uppercase tracking-widest mb-2 flex items-center gap-2">
+                                <Clock size={12} />
+                                <span>Timeline Details</span>
                             </div>
-                            <div className="space-y-5">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center text-[#F37021] border border-orange-100">
-                                        <User size={18} />
-                                    </div>
-                                    <div>
-                                        <p className="text-[7.5px] font-black text-orange-400 uppercase tracking-widest mb-1">SUPERVISOR</p>
-                                        <p className="text-[14px] font-black text-slate-900 uppercase tracking-tight">{req?.supervisor_name || 'RAJ KUMAR'}</p>
-                                    </div>
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[9px] font-black text-ind-text3 uppercase tracking-widest">Start Date</span>
+                                    <span className="text-xs font-black text-ind-text tabular-nums">{startDate}</span>
                                 </div>
-                                <div className="flex items-center gap-4">
-                                    <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-500 border border-blue-100">
-                                        <User size={18} />
-                                    </div>
-                                    <div>
-                                        <p className="text-[7.5px] font-black text-blue-400 uppercase tracking-widest mb-1">DATA ENTRY OPERATOR</p>
-                                        <p className="text-[14px] font-black text-slate-900 uppercase tracking-tight">{entry.deo_name}</p>
-                                    </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[9px] font-black text-ind-text3 uppercase tracking-widest">Target End</span>
+                                    <span className="text-xs font-black text-ind-text tabular-nums">{endDate}</span>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                        {/* Timeline Details */}
-                        <div className="bg-orange-50/30 border border-orange-100/50 rounded-3xl p-6 space-y-6">
-                            <div className="flex items-center gap-2 text-slate-900">
-                                <Clock size={12} className="text-slate-400" />
-                                <span className="text-[10px] font-black uppercase tracking-widest">TIMELINE DETAILS</span>
+                    <div className="space-y-2">
+                        <div className="bg-orange-50/30 rounded-3xl p-6 border border-orange-100/50">
+                            <div className="text-[10px] font-black text-black uppercase tracking-widest mb-2 flex items-center gap-2">
+                                <Package size={11} />
+                                <span>Assigned Personnel</span>
                             </div>
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-center">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">START DATE</p>
-                                    <p className="text-xs font-black text-slate-900 uppercase tabular-nums">{startDate}</p>
+
+                            <div className="space-y-5">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center text-orange-500 flex-shrink-0">
+                                        <User size={20} />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-[7.5px] font-black text-orange-400 uppercase tracking-widest mb-1">Supervisor</p>
+                                        <p className="text-[14px] font-black text-black uppercase tracking-tight truncate">
+                                            {req?.supervisor_name || 'Unassigned'}
+                                        </p>
+                                        {req?.supervisor_email && (
+                                            <p className="text-[10px] font-black text-slate-900 flex items-center gap-1.5 mt-1.5 overflow-hidden text-ellipsis">
+                                                <Info size={11} className="text-orange-400" />
+                                                {req?.supervisor_email}
+                                            </p>
+                                        )}
+                                    </div>
                                 </div>
-                                <div className="flex justify-between items-center">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">TARGET END</p>
-                                    <p className="text-xs font-black text-slate-900 uppercase tabular-nums">{endDate}</p>
+
+                                <div className="flex items-center gap-4">
+                                    <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-500 flex-shrink-0">
+                                        <User size={20} />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-[7.5px] font-black text-indigo-400 uppercase tracking-widest mb-1">Data Entry Operator</p>
+                                        <p className="text-[14px] font-black text-black uppercase tracking-tight truncate">
+                                            {entry.deo_name || 'Unassigned'}
+                                        </p>
+                                        {req?.deo_email && (
+                                            <p className="text-[10px] font-black text-slate-900 flex items-center gap-1.5 mt-1.5 overflow-hidden text-ellipsis">
+                                                <Info size={11} className="text-indigo-400" />
+                                                {req?.deo_email}
+                                            </p>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Submitted Stock Data */}
-                        <div className="bg-emerald-50/30 border border-emerald-100/50 rounded-3xl p-6 space-y-4">
-                            <div className="flex items-center gap-2 text-emerald-600">
-                                <Database size={12} />
-                                <span className="text-[10px] font-black uppercase tracking-widest">SUBMITTED STOCK DATA</span>
+                        <div className="bg-emerald-50/30 rounded-3xl p-6 border border-emerald-100/50">
+                            <div className="text-[10px] font-black text-black uppercase tracking-widest mb-4 flex items-center gap-2">
+                                <Database size={12} className="text-emerald-600" />
+                                <span>Submitted Stock Data</span>
                             </div>
-                            <div className="grid grid-cols-3 gap-2">
-                                <div className="bg-white/60 border border-emerald-100/50 rounded-xl p-3 text-center">
-                                    <p className="text-[7px] font-black text-emerald-500 uppercase tracking-widest mb-1">SAP STOCK</p>
-                                    <p className="text-[12px] font-black text-slate-900">{entry.sap_stock}</p>
+                            <div className="grid grid-cols-1 gap-4">
+                                <div className="grid grid-cols-3 gap-2">
+                                    <div className="bg-white/60 p-3 rounded-xl border border-emerald-100/50">
+                                        <p className="text-[7px] font-black text-emerald-600 uppercase tracking-widest mb-1">SAP Stock</p>
+                                        <p className="text-[12px] font-black text-slate-900">{entry.sap_stock ?? '—'}</p>
+                                    </div>
+                                    <div className="bg-white/60 p-3 rounded-xl border border-emerald-100/50">
+                                        <p className="text-[7px] font-black text-emerald-600 uppercase tracking-widest mb-1">Opening</p>
+                                        <p className="text-[12px] font-black text-slate-900">{entry.opening_stock ?? '—'}</p>
+                                    </div>
+                                    <div className="bg-white/60 p-3 rounded-xl border border-emerald-100/50">
+                                        <p className="text-[7px] font-black text-emerald-600 uppercase tracking-widest mb-1">Today's</p>
+                                        <p className="text-[12px] font-black text-slate-900">{entry.todays_stock ?? '—'}</p>
+                                    </div>
                                 </div>
-                                <div className="bg-white/60 border border-emerald-100/50 rounded-xl p-3 text-center">
-                                    <p className="text-[7px] font-black text-emerald-500 uppercase tracking-widest mb-1">OPENING</p>
-                                    <p className="text-[12px] font-black text-slate-900">{entry.opening_stock}</p>
-                                </div>
-                                <div className="bg-white/60 border border-emerald-100/50 rounded-xl p-3 text-center">
-                                    <p className="text-[7px] font-black text-emerald-500 uppercase tracking-widest mb-1">TODAY'S</p>
-                                    <p className="text-[12px] font-black text-slate-900">{entry.todays_stock}</p>
-                                </div>
+                                {entry.notes && (
+                                    <div className="bg-white/60 p-3 rounded-xl border border-emerald-100/50">
+                                        <p className="text-[7px] font-black text-emerald-600 uppercase tracking-widest mb-1">Notes</p>
+                                        <p className="text-[10px] font-bold text-slate-700 italic">"{entry.notes}"</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Footer */}
-                <div className="px-7 pb-6 pt-0 sticky bottom-0 bg-gradient-to-t from-white via-white/80 to-transparent">
+                <div className="px-7 pb-6 pt-0 bg-ind-bg/5 flex justify-center">
                     <button
                         onClick={onClose}
-                        className="w-full py-4.5 bg-[#F37021] text-white rounded-full font-black text-[11px] uppercase tracking-[0.25em] shadow-lg shadow-orange-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+                        className="w-full py-4.5 bg-ind-primary text-white rounded-full font-black text-[11px] uppercase tracking-[0.25em] shadow-lg shadow-orange-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3"
                     >
                         <Zap size={18} fill="white" />
-                        DISMISS DETAILED VIEW
+                        Dismiss Detailed View
                     </button>
                 </div>
             </motion.div>
@@ -284,12 +304,20 @@ const SubmittedDataModal = ({
                                 <div className="flex items-center justify-between gap-4 flex-wrap">
                                     <div className="flex gap-6">
                                         <p className="font-bold tracking-tight">
+                                            <span className="text-[9px] text-slate-900 font-black uppercase tracking-widest block mb-0.5">Machine</span>
+                                            <span className="text-xs text-black font-black uppercase">{req?.line_name || 'Generic'}</span>
+                                        </p>
+                                        <p className="font-bold tracking-tight">
                                             <span className="text-[9px] text-slate-900 font-black uppercase tracking-widest block mb-0.5">Vehicle</span>
                                             <span className="text-xs text-black font-black uppercase">{item?.vehicle_name || 'Generic'}</span>
                                         </p>
                                         <p className="font-bold tracking-tight">
                                             <span className="text-[9px] text-slate-900 font-black uppercase tracking-widest block mb-0.5">Need Total</span>
                                             <span className="text-xs text-black font-black uppercase">{needTotal} units</span>
+                                        </p>
+                                        <p className="font-bold tracking-tight">
+                                            <span className="text-[9px] text-indigo-600 font-black uppercase tracking-widest block mb-0.5">SAP Current</span>
+                                            <span className="text-xs text-indigo-700 font-black uppercase">{item?.current_stock || 0}</span>
                                         </p>
                                     </div>
                                     <TimelineBar daysRemaining={req?.days_remaining ?? null} isOverdue={req?.is_overdue ?? false} />
@@ -347,34 +375,24 @@ const SubmittedDataModal = ({
                     </div>
 
                     <div className="p-7 py-5 border-t border-gray-100 flex gap-4">
-                        <button
-                            onClick={onClose}
-                            className="flex-1 py-3.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-black text-xs uppercase tracking-[0.2em] transition-all"
-                        >
+                        <button onClick={onClose}
+                            className="flex-1 py-3.5 rounded-full border border-slate-200 text-xs font-black text-slate-500 hover:bg-slate-50 transition-all uppercase tracking-widest">
                             CANCEL
                         </button>
-
                         {isVerifyMode ? (
                             <>
-                                <button
-                                    onClick={() => { if (onReject) onReject(entry.id); }}
-                                    className="px-6 py-3.5 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-600 font-black text-xs uppercase tracking-[0.2em] border border-rose-100 transition-all flex items-center justify-center gap-2"
-                                    title="Reject Entry"
-                                >
+                                <button onClick={() => { if (onReject) onReject(entry.id); }}
+                                    className="px-6 py-3.5 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-600 font-black text-xs uppercase tracking-[0.2em] border border-rose-100 transition-all flex items-center justify-center gap-2">
                                     <X size={14} strokeWidth={3} /> REJECT
                                 </button>
-                                <button
-                                    onClick={() => { if (onVerify) onVerify(entry.id); }}
-                                    className="flex-1 py-3.5 rounded-full bg-[#f37021] hover:bg-orange-700 text-white font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-orange-600/30 transition-all flex items-center justify-center gap-2"
-                                >
-                                    <Zap size={14} fill="white" /> VERIFY
+                                <button onClick={() => { if (onVerify) onVerify(entry.id); }}
+                                    className="flex-1 py-3.5 rounded-full bg-[#f37021] hover:bg-orange-700 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-orange-600/30 transition-all flex items-center justify-center gap-2">
+                                    <Zap size={14} fill="white" /> VERIFY ENTRY
                                 </button>
                             </>
                         ) : (
-                            <button
-                                onClick={onClose}
-                                className="flex-1 py-3.5 rounded-full bg-[#f37021] hover:bg-orange-700 text-white font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-orange-600/30 transition-all flex items-center justify-center gap-2"
-                            >
+                            <button onClick={onClose}
+                                className="flex-1 py-3.5 rounded-full bg-[#f37021] hover:bg-orange-700 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-orange-600/30 transition-all flex items-center justify-center gap-2">
                                 CLOSE VIEW
                             </button>
                         )}
@@ -487,8 +505,42 @@ export default function SupervisorShortageVerify() {
     const verifiedCount = latestEntries.filter(e => e.status === 'VERIFIED').length;
     const rejectedCount = latestEntries.filter(e => e.status === 'REJECTED').length;
 
+    const [selectedLine, setSelectedLine] = useState<string | null>(null);
+
+    // Grouping entries by line for Dashboard summary
+    const lineSummaries = useMemo(() => {
+        const summaries: Record<string, {
+            lineName: string;
+            totalMachines: Set<string>;
+            pendingCount: number;
+            totalShortages: number;
+        }> = {};
+
+        latestEntries.forEach(entry => {
+            const line = entry.shortage_request?.line_name || 'Generic';
+            if (!summaries[line]) {
+                summaries[line] = {
+                    lineName: line,
+                    totalMachines: new Set(),
+                    pendingCount: 0,
+                    totalShortages: 0
+                };
+            }
+            summaries[line].totalShortages++;
+            if (entry.status === 'PENDING_SUPERVISOR') {
+                summaries[line].pendingCount++;
+            }
+            // Fallback: use sub_machine_name if available, otherwise just use lineName
+            const machine = (entry as any).sub_machine_name || (entry.shortage_request as any).sub_machine_name || line;
+            summaries[line].totalMachines.add(machine);
+        });
+
+        return Object.values(summaries).sort((a, b) => b.pendingCount - a.pendingCount);
+    }, [latestEntries]);
+
     const filteredEntries = useMemo(() => {
         return latestEntries.filter(entry => {
+            const matchLine = selectedLine ? entry.shortage_request?.line_name === selectedLine : true;
             const matchSearch = (
                 entry.shortage_request?.inventory_item.part_description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 entry.shortage_request?.inventory_item.sap_part_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -500,197 +552,273 @@ export default function SupervisorShortageVerify() {
                         statusFilter === 'Verified' ? entry.status === 'VERIFIED' :
                             statusFilter === 'Rejected' ? entry.status === 'REJECTED' : true;
             const matchDate = selectedDate ? entry.date === selectedDate || entry.created_at.startsWith(selectedDate) : true;
-            return matchSearch && matchStatus && matchDate;
+            return matchLine && matchSearch && matchStatus && matchDate;
         });
-    }, [latestEntries, searchQuery, statusFilter, selectedDate]);
+    }, [latestEntries, searchQuery, statusFilter, selectedDate, selectedLine]);
 
     if (loading) {
         return <div className="flex justify-center py-20"><Loader2 size={32} className="animate-spin text-orange-500" /></div>;
     }
 
     return (
-        <>
-            {/* Header Block (same as before) */}
-            <div className="flex xl:flex-row xl:items-center justify-between gap-4 bg-white border-b border-slate-100 mb-2 py-1">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 p-2">
-                    <div className="space-y-1">
-                        <h1 className="text-[24px] font-black text-ind-text tracking-tight leading-none">
-                            Verify Shortage Requests
-                        </h1>
-                    </div>
-                </div>
-                <div className="flex items-center bg-white backdrop-blur-md rounded-2xl border border-ind-border/50 p-1 shadow-sm overflow-hidden scale-90 origin-right mx-2">
-                    <div className="px-4 py-1 text-center border-r border-ind-border/50">
-                        <span className="block text-[8px] font-bold text-ind-text3 uppercase tracking-wider">TOTAL</span>
-                        <span className="block text-lg font-black text-slate-800 leading-none">{entries.length}</span>
-                    </div>
-                    <div className="px-4 py-1 text-center border-r border-ind-border/50 text-ind-primary">
-                        <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">PENDING</span>
-                        <span className="block text-lg font-black leading-none">{pendingCount}</span>
-                    </div>
-                    <div className="px-4 py-1 text-center border-r border-ind-border/50 text-emerald-500">
-                        <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">VERIFIED</span>
-                        <span className="block text-lg font-black leading-none">{verifiedCount}</span>
-                    </div>
-                    <div className="px-4 py-1 text-center text-rose-500">
-                        <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">REJECTED</span>
-                        <span className="block text-lg font-black leading-none">{rejectedCount}</span>
-                    </div>
-                </div>
-            </div>
-
-            {/* Filter Bar (unchanged) */}
-            <div className="flex flex-col md:flex-row items-center justify-between gap-2 px-2 mb-2">
-                <div className="h-[38px] bg-white rounded-full px-4 border border-ind-border/40 shadow-sm flex items-center gap-2 min-w-[160px] hover:border-orange-400 transition-all group relative z-20">
-                    <div className="w-7 h-7 rounded-lg bg-orange-50 flex items-center justify-center text-orange-500 flex-shrink-0 group-hover:bg-orange-100 transition-colors">
-                        <ListFilter size={14} />
-                    </div>
-                    <button onClick={() => setIsStatusOpen(!isStatusOpen)} className="flex-1 text-[11px] font-black tracking-wider text-gray-800 focus:outline-none pr-4 text-center">
-                        {statusFilter}
-                    </button>
-                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                    {isStatusOpen && (
-                        <>
-                            <div className="fixed inset-0 z-10" onClick={() => setIsStatusOpen(false)}></div>
-                            <div className="absolute top-full left-0 mt-2 w-full bg-white border border-gray-100 rounded-xl shadow-xl z-30 py-1 overflow-hidden">
-                                {['All Status', 'Pending', 'Verified', 'Rejected'].map(opt => (
-                                    <button key={opt} onClick={() => { setStatusFilter(opt); setIsStatusOpen(false); }}
-                                        className="w-full text-left px-4 py-2 text-[10px] font-black uppercase tracking-wider text-gray-600 hover:bg-orange-50 hover:text-orange-700 transition-colors">
-                                        {opt}
-                                    </button>
-                                ))}
-                            </div>
-                        </>
-                    )}
-                </div>
-                <div className="h-[38px] bg-white rounded-full px-4 border border-ind-border/40 shadow-sm flex items-center gap-2 flex-1 max-w-md hover:border-ind-primary transition-all group relative">
-                    <Search size={14} className="text-gray-400 group-hover:text-ind-primary transition-colors flex-shrink-0" />
-                    <input type="text" placeholder="Search demands..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                        className="flex-1 bg-transparent text-[10px] font-black uppercase tracking-wider text-gray-800 outline-none placeholder:text-gray-300" />
-                </div>
-                <div className="relative hidden sm:block">
-                    <div onClick={() => setShowCal(v => !v)} className="h-[38px] bg-white rounded-full px-4 border border-ind-border/40 shadow-sm flex items-center justify-between gap-3 min-w-[180px] hover:border-indigo-400 transition-all group relative cursor-pointer">
-                        <div className="flex items-center gap-2 flex-1">
-                            <Calendar size={14} className="text-gray-400 group-hover:text-indigo-500 transition-colors" />
-                            <span className="text-[10px] font-black text-gray-800 tracking-wider uppercase">
-                                {selectedDate ? new Date(selectedDate).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : 'All Dates'}
-                            </span>
+        <div className="flex flex-col h-full bg-slate-50/50">
+            {/* Header Block */}
+            <div className="flex xl:flex-row xl:items-center justify-between gap-4 bg-white border border-slate-200 rounded-3xl mb-2 p-5 shadow-sm mx-1">
+                <div className="flex flex-col gap-1">
+                    <h1 className="text-[26px] font-black text-slate-900 tracking-tight leading-none flex items-center gap-3">
+                        <div className="bg-orange-50 p-1.5 rounded-xl border border-orange-100">
+                            <Zap className="text-orange-600 fill-orange-600" size={22} />
                         </div>
-                        {selectedDate ? (
-                            <X size={14} className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer" onClick={(e) => { e.stopPropagation(); setSelectedDate(''); }} />
-                        ) : (
-                            <ChevronDown size={14} className="text-gray-400 flex-shrink-0 pointer-events-none" />
-                        )}
+                        {selectedLine ? `Shortages: ${selectedLine}` : "Shortage Dashboard"}
+                    </h1>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-12">
+                        {selectedLine ? `Monitoring critical part shortages for ${selectedLine}` : "Oversight & operational verification of DEO submissions"}
+                    </p>
+                </div>
+                <div className="flex items-center bg-gray-50/50 rounded-2xl border border-slate-100 p-1.5 shadow-inner">
+                    <div className="px-6 py-1.5 text-center border-r border-slate-200 min-w-[100px]">
+                        <span className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">TOTAL</span>
+                        <span className="block text-xl font-black text-slate-900 leading-none">{entries.length}</span>
                     </div>
-                    {showCal && (
-                        <>
-                            <div className="fixed inset-0 z-40" onClick={() => setShowCal(false)} />
-                            <SupervisorCalendar value={selectedDate} onChange={(d: string) => { setSelectedDate(d); setShowCal(false); }} onClose={() => setShowCal(false)} />
-                        </>
-                    )}
+                    <div className="px-6 py-1.5 text-center border-r border-slate-200 text-orange-500 min-w-[100px]">
+                        <span className="block text-[9px] font-black uppercase tracking-wider mb-1 opacity-60">PENDING</span>
+                        <span className="block text-xl font-black leading-none">{pendingCount}</span>
+                    </div>
+                    <div className="px-6 py-1.5 text-center text-emerald-500 min-w-[100px]">
+                        <span className="block text-[9px] font-black uppercase tracking-wider mb-1 opacity-60">VERIFIED</span>
+                        <span className="block text-xl font-black leading-none">{verifiedCount}</span>
+                    </div>
                 </div>
             </div>
 
-            {/* Data Table (no inline expand, only action buttons) */}
-            <div className="overflow-x-auto rounded-2xl border border-ind-border/50 shadow-sm mx-1">
-                <div className="flex-1 custom-scrollbar max-h-[60vh] overflow-y-auto">
-                    <table className="min-w-full bg-white text-sm">
-                        <thead className="sticky top-0 z-10 bg-ind-bg shadow-sm">
-                            <tr className="bg-ind-bg text-black border-b-2 border-[#f37021] uppercase text-[11px] tracking-wider sticky top-0 z-[50]">
-                                <th className="px-6 py-2 text-left">REQUEST</th>
-                                <th className="px-6 py-2 text-center">STATUS</th>
-                                <th className="px-6 py-2 text-center">CREATED DATE</th>
-                                <th className="px-6 py-2 text-center">TARGET</th>
-                                <th className="px-6 py-2 text-center">ACTIONS</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-ind-border/40">
-                            {filteredEntries.map(entry => (
-                                <tr key={entry.id} className="hover:bg-ind-bg/40 transition-colors group">
-                                    <td className="px-6 py-3">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-ind-primary border border-orange-100">
-                                                <Car size={18} />
-                                            </div>
-                                            <div>
-                                                <h4 className="font-bold text-slate-800 uppercase tracking-tight group-hover:text-ind-primary transition-colors">
-                                                    {entry.shortage_request?.inventory_item.vehicle_name || 'UNKNOWN MODEL'}
-                                                </h4>
-                                                <p className="text-[10px] font-bold text-ind-text3 uppercase mt-1 tracking-wider">
-                                                    {entry.shortage_request?.formatted_id} • <span className="opacity-60">{entry.shortage_request?.inventory_item.sap_part_number}</span>
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-3 text-center">
-                                        <div className="flex flex-col items-center gap-1">
-                                            <span className={`px-3 py-1 text-[10px] font-bold rounded-full border uppercase tracking-widest ${entry.status === 'PENDING_SUPERVISOR' ? 'bg-orange-50 text-orange-600 border-orange-100' :
-                                                entry.status === 'VERIFIED' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                                                    'bg-rose-50 text-rose-600 border-rose-100'
-                                                }`}>
-                                                {entry.status === 'PENDING_SUPERVISOR' ? 'Pending' : entry.status === 'VERIFIED' ? 'Completed' : 'Rejected'}
-                                            </span>
-                                            <p className="text-[9px] font-bold text-ind-text3 uppercase tracking-wide">
-                                                DEO: <span className="text-ind-text">{entry.deo_name}</span>
-                                            </p>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-3 text-center">
-                                        <div className="flex flex-col items-center justify-center">
-                                            <p className="text-[11px] font-black text-slate-800 uppercase tracking-widest">
-                                                {new Date(entry.shortage_request?.created_at || entry.created_at).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                            </p>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-3 text-center">
-                                        <p className="text-[14px] font-black text-ind-text">
-                                            {(entry.shortage_request?.shortage_quantity && entry.shortage_request.shortage_quantity > 0
-                                                ? entry.shortage_request.shortage_quantity
-                                                : (entry.shortage_request?.inventory_item?.demand_quantity || 0)
-                                            ).toLocaleString()} Units
-                                        </p>
-                                    </td>
-                                    <td className="px-6 py-3">
-                                        <div className="flex items-center justify-center gap-2">
-                                            {/* Eye Icon: View Mode */}
-                                            <button
-                                                onClick={() => { setDetailModalEntry(entry); setDetailModalType('view'); }}
-                                                className="w-9 h-9 rounded-lg bg-white border border-ind-border/50 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:border-slate-300 shadow-sm transition-all"
-                                                title="View Submitted Data"
-                                            >
-                                                <Eye size={16} />
-                                            </button>
+            {/* Controls Row */}
+            <div className="flex flex-col md:flex-row items-center justify-between gap-3 px-1 mb-3">
+                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                    {selectedLine && (
+                        <button
+                            onClick={() => setSelectedLine(null)}
+                            className="h-[42px] px-6 bg-white border border-slate-200 rounded-full flex items-center gap-2 text-[11px] font-black text-slate-600 hover:bg-slate-50 transition-all shadow-sm uppercase tracking-widest group"
+                        >
+                            <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" /> BACK
+                        </button>
+                    )}
 
-                                            {/* Info Icon: Assignment Mode */}
-                                            <button
-                                                onClick={() => { setDetailModalEntry(entry); setDetailModalType('assignment'); }}
-                                                className="w-9 h-9 rounded-lg bg-white border border-ind-border/50 flex items-center justify-center text-blue-500 hover:text-blue-700 hover:border-blue-300 shadow-sm transition-all"
-                                                title="Assignment Details"
-                                            >
-                                                <Info size={16} />
-                                            </button>
+                    {/* Status Filter */}
+                    <div className="relative group w-full md:w-48">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 p-1 bg-orange-50 rounded text-orange-500 group-focus-within:text-orange-600 pointer-events-none">
+                            <LayoutGrid size={11} />
+                        </div>
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            className="w-full bg-white border border-slate-200 focus:border-orange-500 rounded-full h-[42px] pl-12 pr-10 text-slate-700 font-bold text-[11px] tracking-wide outline-none transition-all shadow-sm cursor-pointer appearance-none uppercase"
+                        >
+                            <option value="All Status">All Status</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Verified">Verified</option>
+                            <option value="Rejected">Rejected</option>
+                        </select>
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                            <ChevronDown size={14} />
+                        </div>
+                    </div>
 
-                                            {/* Check Icon: Verify Mode (Only if pending) */}
-                                            {entry.status === 'PENDING_SUPERVISOR' && (
-                                                <button
-                                                    disabled={verifying === entry.id}
-                                                    onClick={() => { setDetailModalEntry(entry); setDetailModalType('verify'); }}
-                                                    className="w-9 h-9 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 shadow-md shadow-emerald-500/20 transition-all flex items-center justify-center disabled:opacity-50"
-                                                    title="Verify Entry"
-                                                >
-                                                    {verifying === entry.id ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-                                                </button>
-                                            )}
-                                        </div>
-                                    </td>
+                    {/* Search */}
+                    <div className="relative group w-full md:w-72">
+                        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-orange-500 transition-colors" size={14} />
+                        <input
+                            type="text"
+                            placeholder="SEARCH SHORTAGES..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full bg-white border border-slate-200 focus:border-orange-500 rounded-full h-[42px] pl-14 pr-6 text-slate-700 font-bold text-[11px] tracking-wide placeholder:text-slate-300 outline-none transition-all shadow-sm uppercase"
+                        />
+                    </div>
+                </div>
+
+                {/* Date Filter */}
+                <div className="relative group flex-shrink-0">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 p-1 bg-indigo-50/50 rounded text-indigo-400 group-focus-within:text-orange-500 pointer-events-none">
+                        <Calendar size={12} />
+                    </div>
+                    <input
+                        type="date"
+                        value={selectedDate}
+                        onChange={(e) => setSelectedDate(e.target.value)}
+                        className="bg-white border border-slate-200 focus:border-orange-500 rounded-full h-[42px] pl-12 pr-5 text-slate-700 font-bold text-[11px] tracking-wide outline-none transition-all shadow-sm w-[200px] uppercase cursor-pointer"
+                    />
+                </div>
+            </div>
+
+            {/* Data Table */}
+            <div className="flex-1 overflow-hidden bg-white border border-slate-200 rounded-3xl shadow-sm flex flex-col mx-1">
+                <div className="flex-1 overflow-auto custom-scrollbar">
+                    {!selectedLine ? (
+                        /* Dashboard Summary Table (Image 1 Style) */
+                        <table className="min-w-full bg-white text-sm">
+                            <thead className="bg-white text-slate-900 border-b-2 border-orange-500 uppercase text-[12px] font-black tracking-widest sticky top-0 z-[50]">
+                                <tr>
+                                    <th className="px-8 py-5 text-left whitespace-nowrap">SR.NO</th>
+                                    <th className="px-8 py-5 text-left whitespace-nowrap">LINE NAME</th>
+                                    <th className="px-8 py-5 text-center whitespace-nowrap">TOTAL MACHINES</th>
+                                    <th className="px-8 py-5 text-center whitespace-nowrap">ACTIVE SHORTAGES</th>
+                                    <th className="px-8 py-5 text-center whitespace-nowrap">STATUS</th>
+                                    <th className="px-8 py-5 text-right whitespace-nowrap">ACTIONS</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                    {filteredEntries.length === 0 && (
-                        <div className="py-20 text-center bg-white">
-                            <Car size={32} className="text-ind-border mx-auto mb-4" />
-                            <p className="text-sm font-black text-ind-text3 uppercase tracking-widest">No shortage requests found.</p>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {lineSummaries.map((line, idx) => (
+                                    <tr key={line.lineName} className="hover:bg-slate-50/50 transition-colors group">
+                                        <td className="px-8 py-6">
+                                            <span className="text-[12px] font-black text-slate-900">{idx + 1}</span>
+                                        </td>
+                                        <td className="px-8 py-6">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center text-orange-600 border border-orange-100 shadow-sm">
+                                                    <Factory size={22} />
+                                                </div>
+                                                <h4 className="font-black text-slate-900 uppercase tracking-tight text-[16px]">
+                                                    {line.lineName}
+                                                </h4>
+                                            </div>
+                                        </td>
+                                        <td className="px-8 py-6 text-center">
+                                            <span className="px-4 py-1.5 text-[10px] font-black bg-blue-50 text-blue-600 rounded-full border border-blue-100 uppercase tracking-widest">
+                                                {line.totalMachines.size} Machines
+                                            </span>
+                                        </td>
+                                        <td className="px-8 py-6 text-center">
+                                            <span className="text-[12px] font-black text-orange-600 uppercase tracking-[0.1em]">
+                                                {line.totalShortages} TOTAL
+                                            </span>
+                                        </td>
+                                        <td className="px-8 py-6 text-center">
+                                            {line.pendingCount === 0 ? (
+                                                <span className="px-4 py-1.5 text-[10px] font-black bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 uppercase tracking-widest">
+                                                    ALL FILLED
+                                                </span>
+                                            ) : (
+                                                <span className="px-4 py-1.5 text-[10px] font-black bg-orange-50 text-orange-600 rounded-full border border-orange-100 uppercase tracking-widest">
+                                                    {line.pendingCount} PENDING
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="px-8 py-6 text-right">
+                                            <button
+                                                onClick={() => setSelectedLine(line.lineName)}
+                                                className="px-6 py-2.5 bg-white border border-slate-200 rounded-full text-[11px] font-black text-slate-600 hover:bg-slate-50 hover:border-slate-400 transition-all shadow-sm flex items-center justify-center gap-2 ml-auto uppercase tracking-widest group"
+                                            >
+                                                <Eye size={14} className="text-orange-500 group-hover:scale-110 transition-transform" /> VIEW
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    ) : (
+                        /* Drill-down Detailed Table (Image 2 Style) */
+                        <table className="min-w-full bg-white text-sm">
+                            <thead className="bg-white text-slate-900 border-b-2 border-orange-500 uppercase text-[12px] font-black tracking-widest sticky top-0 z-[50]">
+                                <tr>
+                                    <th className="px-8 py-5 text-left whitespace-nowrap">SR.NO</th>
+                                    <th className="px-8 py-5 text-left whitespace-nowrap">SUB MACHINE</th>
+                                    <th className="px-8 py-5 text-left whitespace-nowrap">PART NUMBER</th>
+                                    <th className="px-8 py-5 text-center whitespace-nowrap">DEMAND DATE</th>
+                                    <th className="px-8 py-5 text-center whitespace-nowrap">COVERAGE DAY</th>
+                                    <th className="px-8 py-5 text-center whitespace-nowrap">SAP STOCK</th>
+                                    <th className="px-8 py-5 text-center whitespace-nowrap">OPENING</th>
+                                    <th className="px-8 py-5 text-center whitespace-nowrap">TODAY'S</th>
+                                    <th className="px-8 py-5 text-right whitespace-nowrap">ACTIONS</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {filteredEntries.map((entry, idx) => {
+                                    const req = entry.shortage_request;
+                                    const item = req?.inventory_item;
+                                    const needTotal = (req?.shortage_quantity && req.shortage_quantity > 0) ? req.shortage_quantity : (item?.demand_quantity || 0);
+                                    const perDay = (req?.per_day && req.per_day > 0) ? req.per_day : needTotal;
+                                    const coverage = (perDay > 0 ? (entry.todays_stock / perDay).toFixed(1) : "—");
+                                    const machineName = (entry as any).sub_machine_name || (req as any).sub_machine_name || `${selectedLine}A`; // Fallback like Image 2
+
+                                    return (
+                                        <tr key={entry.id} className="hover:bg-slate-50/50 transition-colors group">
+                                            <td className="px-8 py-6">
+                                                <span className="text-[12px] font-black text-slate-900">{idx + 1}</span>
+                                            </td>
+                                            <td className="px-8 py-6">
+                                                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-orange-50 border border-orange-100 text-orange-600 shadow-sm">
+                                                    <Zap size={13} fill="currentColor" />
+                                                    <span className="text-[11px] font-black uppercase tracking-tight">{machineName}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-8 py-6">
+                                                <span className="text-[12px] font-black text-slate-900 uppercase tracking-tight block max-w-[220px] truncate">
+                                                    {item?.sap_part_number}
+                                                </span>
+                                            </td>
+                                            <td className="px-8 py-6 text-center">
+                                                <span className="text-[12px] font-black text-slate-900 tabular-nums">
+                                                    {entry.created_at ? new Date(entry.created_at).toLocaleDateString() : '—'}
+                                                </span>
+                                            </td>
+                                            <td className="px-8 py-6 text-center">
+                                                <span className={cn(
+                                                    "text-[11px] font-black tabular-nums px-3 py-1 rounded-lg border",
+                                                    coverage === "—" ? "text-slate-300 border-transparent" :
+                                                    Number(coverage) >= 5 ? "text-emerald-600 bg-emerald-50 border-emerald-100" : "text-rose-600 bg-rose-50 border-rose-100"
+                                                )}>
+                                                    {coverage === "—" ? "—" : coverage}
+                                                </span>
+                                            </td>
+                                            <td className="px-8 py-6 text-center">
+                                                <span className="text-[13px] font-black text-slate-900 tabular-nums">{entry.sap_stock ?? '—'}</span>
+                                            </td>
+                                            <td className="px-8 py-6 text-center">
+                                                <span className="text-[13px] font-black text-slate-900 tabular-nums">{entry.opening_stock ?? '—'}</span>
+                                            </td>
+                                            <td className="px-8 py-6 text-center">
+                                                <span className="text-[13px] font-black text-orange-600 tabular-nums">{entry.todays_stock ?? '—'}</span>
+                                            </td>
+                                            <td className="px-8 py-6 text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button
+                                                        onClick={() => { setDetailModalEntry(entry); setDetailModalType('view'); }}
+                                                        className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-orange-500 hover:border-orange-200 shadow-sm transition-all"
+                                                        title="View Details"
+                                                    >
+                                                        <Eye size={18} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => { setDetailModalEntry(entry); setDetailModalType('assignment'); }}
+                                                        className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-blue-500 hover:text-blue-700 hover:border-blue-300 shadow-sm transition-all"
+                                                        title="Assignment Info"
+                                                    >
+                                                        <Info size={18} />
+                                                    </button>
+                                                    {entry.status === 'PENDING_SUPERVISOR' && (
+                                                        <button
+                                                            disabled={verifying === entry.id}
+                                                            onClick={() => { setDetailModalEntry(entry); setDetailModalType('verify'); }}
+                                                            className="w-10 h-10 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center disabled:opacity-50"
+                                                            title="Verify Shortage"
+                                                        >
+                                                            {verifying === entry.id ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    )}
+                    {((!selectedLine && lineSummaries.length === 0) || (selectedLine && filteredEntries.length === 0)) && (
+                        <div className="py-24 text-center bg-white">
+                            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <Car size={40} className="text-slate-200" />
+                            </div>
+                            <p className="text-[12px] font-black text-slate-400 uppercase tracking-widest">No shortage records found in this view.</p>
                         </div>
                     )}
                 </div>
@@ -751,6 +879,6 @@ export default function SupervisorShortageVerify() {
                     isVerifyMode={detailModalType === 'verify'}
                 />
             )}
-        </>
+        </div>
     );
 }

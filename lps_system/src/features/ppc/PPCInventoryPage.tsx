@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     Package, RefreshCw, Plus, Search, Filter, Download,
     CheckCircle2, AlertTriangle, Clock, ArrowRight, ChevronDown,
-    X, Loader2, Boxes, AlertCircle, CheckCircle, Upload
+    X, Loader2, Boxes, AlertCircle, CheckCircle, Upload, Trash2
 } from 'lucide-react';
 import { getToken } from '../../lib/storage';
 import { API_BASE as API } from '../../lib/apiConfig';
@@ -412,6 +412,8 @@ export default function PPCInventoryPage() {
     const [showAddModal, setShowAddModal] = useState(false);
     const [showSeedModal, setShowSeedModal] = useState(false);
     const [shortageModalItems, setShortageModalItems] = useState<InventoryItem[] | null>(null);
+    const [itemToDelete, setItemToDelete] = useState<InventoryItem | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // Inline edit state
     const [editingStockId, setEditingStockId] = useState<number | null>(null);
@@ -498,6 +500,9 @@ export default function PPCInventoryPage() {
         ).values()
     ).sort((a, b) => a.vehicleName.localeCompare(b.vehicleName));
 
+    const seededDemandIds = new Set(items.map(i => i.demand_id).filter(id => id !== null));
+    const availableDemands = demands.filter(d => !seededDemandIds.has(d.id));
+
     const filtered = items.filter(item => {
         if (!filterVehicle) return false;
         const q = search.toLowerCase();
@@ -541,6 +546,29 @@ export default function PPCInventoryPage() {
             if (res.ok) fetchAll();
         } finally {
             setEditingStockId(null);
+        }
+    };
+
+    const handleDeleteItem = async () => {
+        if (!itemToDelete) return;
+        setIsDeleting(true);
+        try {
+            const res = await fetch(`${API}/ppc/inventory/${itemToDelete.id}`, {
+                method: 'DELETE',
+                headers: authHeaders()
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast.success('Item deleted successfully');
+                setItemToDelete(null);
+                fetchAll();
+            } else {
+                toast.error(data.message || 'Delete failed');
+            }
+        } catch (err) {
+            toast.error('Delete failed');
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -609,7 +637,6 @@ export default function PPCInventoryPage() {
                         </select>
                         <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     </div>
-                    {shortage > 0 && <button onClick={() => setShortageModalItems(filtered.filter(i => i.action === 'NEW_DEMAND'))} className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-bold transition-all shadow-sm whitespace-nowrap"><AlertCircle size={15} /> Create Demand</button>}
                     <button onClick={() => setShowSeedModal(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-semibold transition-all whitespace-nowrap"><Boxes size={15} /> Import Demand</button>
                     <button onClick={handleExport} className="group flex items-center gap-2 px-4 py-2.5 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition-all whitespace-nowrap"><Download size={15} /> Export</button>
                 </div>
@@ -744,10 +771,19 @@ export default function PPCInventoryPage() {
 
                                         {/* ACTION */}
                                         <td className="px-4 py-4 whitespace-nowrap">
-                                            <ActionBadge
-                                                action={item.action}
-                                                onNewDemand={() => setShortageModalItems([item])}
-                                            />
+                                            <div className="flex items-center gap-2">
+                                                <ActionBadge 
+                                                    action={item.action} 
+                                                    onNewDemand={() => setShortageModalItems([item])} 
+                                                />
+                                                <button
+                                                    onClick={() => setItemToDelete(item)}
+                                                    className="p-2 hover:bg-rose-50 text-gray-400 hover:text-rose-500 rounded-lg transition-colors"
+                                                    title="Delete Item"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 );
@@ -779,8 +815,38 @@ export default function PPCInventoryPage() {
             </div>
 
             {/* Modals */}
-            {showSeedModal && <SeedModal demands={demands} onClose={() => setShowSeedModal(false)} onSuccess={fetchAll} />}
+            {showSeedModal && <SeedModal demands={availableDemands} onClose={() => setShowSeedModal(false)} onSuccess={fetchAll} />}
             {shortageModalItems && <ShortageRequestModal shortageItems={shortageModalItems} deos={deos} supervisors={supervisors} lines={lines} onClose={() => setShortageModalItems(null)} onSuccess={fetchAll} />}
+
+            {/* Delete Confirmation Modal */}
+            <div className={`fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity ${itemToDelete ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+                <div className={`bg-white rounded-[32px] shadow-2xl w-full max-w-md p-8 text-center transition-transform duration-300 ${itemToDelete ? 'scale-100' : 'scale-95'}`}>
+                    <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center text-rose-500 mx-auto mb-6">
+                        <AlertTriangle size={36} />
+                    </div>
+                    <h3 className="text-xl font-black text-gray-900 uppercase mb-2">Confirm Deletion</h3>
+                    <p className="text-gray-500 text-sm font-bold px-4 mb-8">
+                        Are you sure you want to delete <span className="text-rose-600 font-black">{itemToDelete?.sap_part_number}</span>? This will also remove all associated production and shortage records.
+                    </p>
+                    <div className="grid grid-cols-2 gap-4">
+                        <button 
+                            onClick={() => setItemToDelete(null)}
+                            disabled={isDeleting}
+                            className="py-4 bg-gray-50 text-gray-500 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-gray-100 hover:bg-gray-100 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            onClick={handleDeleteItem}
+                            disabled={isDeleting}
+                            className="py-4 bg-rose-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-rose-100 hover:bg-rose-700 transition-all flex items-center justify-center gap-2"
+                        >
+                            {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                            {isDeleting ? 'Deleting...' : 'Yes, Delete'}
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }

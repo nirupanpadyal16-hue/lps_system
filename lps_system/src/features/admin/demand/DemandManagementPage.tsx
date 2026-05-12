@@ -62,11 +62,19 @@ const DemandManagementPage = () => {
     const [activeTab, setActiveTab] = useState('ALL');
     const [selectedInfoDemand, setSelectedInfoDemand] = useState<Demand | null>(null);
 
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
+
     useEffect(() => {
         loadData();
         const interval = setInterval(loadData, 60000); // 1 minute
         return () => clearInterval(interval);
     }, []);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery, selectedDate, activeTab]);
 
     const loadData = async () => {
         try {
@@ -146,6 +154,12 @@ const DemandManagementPage = () => {
 
         return matchesSearch && matchesTab && matchesDate;
     });
+
+    const totalPages = Math.ceil(filteredDemands.length / itemsPerPage);
+    const paginatedDemands = filteredDemands.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+    );
 
     if (isManager) return null;
 
@@ -291,7 +305,7 @@ const DemandManagementPage = () => {
                         {/* Body */}
                         <tbody className="divide-y divide-ind-border/40">
                             <AnimatePresence>
-                                {filteredDemands.map((demand) => (
+                                {paginatedDemands.map((demand) => (
                                     <motion.tr
                                         key={demand.id}
                                         initial={{ opacity: 0, y: 10 }}
@@ -385,6 +399,60 @@ const DemandManagementPage = () => {
                         </tbody>
                     </table>
                 </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                    <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-white sticky bottom-0">
+                        <div className="flex items-center gap-4">
+                            <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">
+                                Showing <span className="text-slate-900 font-black">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="text-slate-900 font-black">{Math.min(currentPage * itemsPerPage, filteredDemands.length)}</span> of <span className="text-slate-900 font-black">{filteredDemands.length}</span> demands
+                            </p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                className="px-4 py-2 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:bg-slate-50 hover:text-ind-primary disabled:opacity-30 transition-all"
+                            >
+                                Previous
+                            </button>
+                            
+                            <div className="flex items-center gap-1 mx-2">
+                                {[...Array(totalPages)].map((_, i) => {
+                                    const page = i + 1;
+                                    if (page === 1 || page === totalPages || (page >= currentPage - 1 && page <= currentPage + 1)) {
+                                        return (
+                                            <button
+                                                key={page}
+                                                onClick={() => setCurrentPage(page)}
+                                                className={`w-9 h-9 rounded-xl text-[11px] font-black transition-all ${
+                                                    currentPage === page
+                                                        ? "bg-gradient-to-r from-[#F37021] to-orange-600 text-white shadow-lg shadow-orange-200"
+                                                        : "bg-white border border-slate-200 text-slate-400 hover:border-ind-primary hover:text-ind-primary"
+                                                }`}
+                                            >
+                                                {page}
+                                            </button>
+                                        );
+                                    }
+                                    if (page === currentPage - 2 || page === currentPage + 2) {
+                                        return <span key={page} className="text-slate-300 font-black px-1">...</span>;
+                                    }
+                                    return null;
+                                })}
+                            </div>
+
+                            <button
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                                className="px-4 py-2 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:bg-slate-50 hover:text-ind-primary disabled:opacity-30 transition-all"
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Assignment Details Modal */}

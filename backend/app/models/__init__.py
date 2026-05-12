@@ -4,7 +4,7 @@ from .models import (
     MaterialData, InventoryItem, PartShortageRequest, ShortageDailyEntry,
     DEOProductionEntry, PartMachineMapping,
     # New models
-    RMCheckRequest, DispatchRecord, MachineProductionEntry, Notification
+    RMCheckRequest, DispatchRecord, MachineProductionEntry, Notification, DeoAdHocPart
 )
 
 

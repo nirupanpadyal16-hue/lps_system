@@ -541,6 +541,8 @@ class DEOProductionEntry(db.Model):
     sap_part_number = db.Column(db.String(255), index=True)
     part_number = db.Column(db.String(255))
     part_description = db.Column(db.Text)
+    adhoc_part_id = db.Column(db.Integer, db.ForeignKey('deo_adhoc_parts.id', ondelete='SET NULL'), nullable=True, index=True)
+    adhoc_part = db.relationship('DeoAdHocPart', backref='deo_production_entries')
     
     # Production Data (Separate Columns)
     per_day = db.Column(db.Float, default=0.0)
@@ -577,7 +579,9 @@ class DEOProductionEntry(db.Model):
             "row_status": self.row_status,
             "supervisor_reviewed": self.supervisor_reviewed,
             "rejection_reason": self.rejection_reason,
-            "deo_reply": self.deo_reply
+            "deo_reply": self.deo_reply,
+            "adhoc_part_id": self.adhoc_part_id,
+            "is_adhoc": self.adhoc_part_id is not None
         }
 
 # ----------------------------- DailyProductionLog -----------------------------
@@ -898,6 +902,7 @@ class PartShortageRequest(db.Model):
             "line_name": self.production_line.name if self.production_line else None,
             "machine_id": self.machine_id,
             "machine_name": self.machine.name if self.machine else None,
+            "master_machine": next((m.machine for m in [PartMachineMapping.query.filter_by(sap_part_number=self.inventory_item.sap_part_number).first()] if m), None) if self.inventory_item else None,
             "rejection_reason": next((e.rejection_reason for e in sorted(self.daily_entries, key=lambda x: x.id, reverse=True) if e.rejection_reason), None)
         }
 
@@ -1107,6 +1112,7 @@ class MachineProductionEntry(db.Model):
     # Links
     deo_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
     inventory_item_id = db.Column(db.Integer, db.ForeignKey('inventory_items.id', ondelete='SET NULL'), nullable=True, index=True)
+    adhoc_part_id = db.Column(db.Integer, db.ForeignKey('deo_adhoc_parts.id', ondelete='SET NULL'), nullable=True, index=True)
     demand_id = db.Column(db.Integer, db.ForeignKey('demands.id', ondelete='SET NULL'), nullable=True, index=True)
     machine_id = db.Column(db.Integer, db.ForeignKey('production_lines.id', ondelete='SET NULL'), nullable=True, index=True)
 
@@ -1134,6 +1140,7 @@ class MachineProductionEntry(db.Model):
     deo = db.relationship('User', foreign_keys=[deo_id], backref='machine_entries')
     supervisor = db.relationship('User', foreign_keys=[supervisor_id], backref='supervised_machine_entries')
     inventory_item = db.relationship('InventoryItem', backref='machine_entries')
+    adhoc_part = db.relationship('DeoAdHocPart', backref='machine_entries')
     demand = db.relationship('Demand', backref='machine_entries')
     machine = db.relationship('ProductionLine', foreign_keys=[machine_id])
 
@@ -1191,13 +1198,16 @@ class MachineProductionEntry(db.Model):
             "demand_id": self.demand_id,
             "demand_formatted_id": self.demand.formatted_id if self.demand else None,
             "machine_id": self.machine_id,
-            "machine_name": self.machine.name if self.machine else None,
+            "machine_name": self.machine.parent.name if self.machine and self.machine.parent else (self.machine.name if self.machine else None),
+            "sub_machine_name": self.machine.name if self.machine and self.machine.parent else None,
             "date": self.date.isoformat() if self.date else None,
             "shift": self.shift,
             "shift_start": self.shift_start,
             "shift_end": self.shift_end,
             "sap_part_number": self.sap_part_number,
             "parts_produced": self.parts_produced,
+            "adhoc_part_id": self.adhoc_part_id,
+            "is_adhoc": self.adhoc_part_id is not None,
             "machine_runtime_mins": self.machine_runtime_mins,
             "deo_notes": self.deo_notes,
             "status": self.status,
@@ -1207,6 +1217,25 @@ class MachineProductionEntry(db.Model):
             "verified_at": self.verified_at.isoformat() if self.verified_at else None,
             "rejection_reason": self.rejection_reason,
             "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+# ----------------------------- DeoAdHocPart -----------------------------
+class DeoAdHocPart(db.Model):
+    """
+    Stored parts entered manually by DEO that are NOT found in master InventoryItem.
+    """
+    __tablename__ = 'deo_adhoc_parts'
+    id = db.Column(db.Integer, primary_key=True)
+    sap_part_number = db.Column(db.String(255), unique=True, index=True)
+    description = db.Column(db.String(500), nullable=True)
+    created_at = db.Column(db.DateTime, default=db.func.now())
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "sap_part_number": self.sap_part_number,
+            "description": self.description,
+            "created_at": self.created_at.isoformat() if self.created_at else None
         }
 
 
@@ -1235,6 +1264,7 @@ class Notification(db.Model):
     demand_id = db.Column(db.Integer, db.ForeignKey('demands.id', ondelete='SET NULL'), nullable=True)
     rm_request_id = db.Column(db.Integer, db.ForeignKey('rm_check_requests.id', ondelete='SET NULL'), nullable=True)
     dispatch_id = db.Column(db.Integer, db.ForeignKey('dispatch_records.id', ondelete='SET NULL'), nullable=True)
+    shortage_request_id = db.Column(db.Integer, db.ForeignKey('part_shortage_requests.id', ondelete='SET NULL'), nullable=True)
 
     # Read state
     is_read = db.Column(db.Boolean, default=False, index=True)
@@ -1247,7 +1277,7 @@ class Notification(db.Model):
     demand = db.relationship('Demand', backref='notifications')
 
     @staticmethod
-    def send(user_id, title, message, notification_type='INFO', demand_id=None, rm_request_id=None, dispatch_id=None):
+    def send(user_id, title, message, notification_type='INFO', demand_id=None, rm_request_id=None, dispatch_id=None, shortage_request_id=None):
         """Helper to quickly create and commit a notification."""
         notif = Notification(
             user_id=user_id,
@@ -1257,6 +1287,7 @@ class Notification(db.Model):
             demand_id=demand_id,
             rm_request_id=rm_request_id,
             dispatch_id=dispatch_id,
+            shortage_request_id=shortage_request_id,
         )
         db.session.add(notif)
         return notif
@@ -1274,7 +1305,8 @@ class Notification(db.Model):
             "demand_id": self.demand_id,
             "rm_request_id": self.rm_request_id,
             "dispatch_id": self.dispatch_id,
+            "shortage_request_id": self.shortage_request_id,
             "is_read": self.is_read,
             "read_at": self.read_at.isoformat() if self.read_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
-        }
+        }

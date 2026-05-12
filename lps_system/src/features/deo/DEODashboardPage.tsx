@@ -8,12 +8,14 @@ import { API_BASE } from '../../lib/apiConfig';
 import { getToken } from '../../lib/storage';
 import {
     DEO_DASHBOARD,
-    DEO_SHORTAGE
+    DEO_SHORTAGE,
+    DEO_ENTRY
 } from '../../config/routePaths';
 import { CustomModal, RejectionModal } from './components/DEOModals';
 import { DEOStats } from './components/DEOStats';
 import { DEOAnalytics } from './components/DEOAnalytics';
 import DEOShortageRequests from './DEOShortageRequests';
+import DEODailyProduction from './components/DEODailyProduction';
 
 interface AssignedModel {
     id: number;
@@ -247,6 +249,7 @@ const DEODashboardPage = () => {
     const activeTab = useMemo(() => {
         const path = location.pathname;
         if (path === DEO_SHORTAGE) return 'SHORTAGE';
+        if (path === DEO_ENTRY) return 'DAILY_PRODUCTION';
         return 'DASHBOARD';
     }, [location.pathname]);
 
@@ -396,6 +399,13 @@ const DEODashboardPage = () => {
                     </div>
                 );
 
+            case 'DAILY_PRODUCTION':
+                return (
+                    <div className="animate-in fade-in duration-500 h-full flex flex-col min-h-0">
+                        <DEODailyProduction />
+                    </div>
+                );
+
             default: return null;
         }
     };
@@ -414,7 +424,7 @@ const DEODashboardPage = () => {
                     >
                         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                             {/* Scrollable Content Area */}
-                            <div className={`flex-1 ${activeTab === 'DASHBOARD' ? 'overflow-y-scroll custom-scrollbar pr-2 pb-2 pt-2' : 'overflow-hidden flex flex-col min-h-0'}`}>
+                            <div className={`flex-1 ${['DASHBOARD', 'DAILY_PRODUCTION'].includes(activeTab) ? 'overflow-y-scroll custom-scrollbar pr-2 pb-2 pt-2' : 'overflow-hidden flex flex-col min-h-0'}`}>
                                 {renderContent()}
                             </div>
                         </div>

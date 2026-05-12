@@ -1,7 +1,7 @@
 # backend/app/routes/deo/routes.py
 from datetime import datetime, date
 from flask import Blueprint, request, jsonify
-from app.models import db, User, CarModel, Demand, DailyProductionLog, DailyWorkStatus
+from app.models import db, User, CarModel, Demand, DailyProductionLog, DailyWorkStatus, ProductionLine, PartShortageRequest, PartMachineMapping
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.middleware.auth_middleware import role_required
 from app.utils.audit_logger import log_audit
@@ -247,6 +247,16 @@ def submit_log():
         
         if not entry:
             entry = DEOProductionEntry(log_id=log.id, sap_part_number=sap, date=today, car_model_id=model_id)
+            
+            # Ad-Hoc Part Registration (Independent of Master)
+            from app.models import DeoAdHocPart
+            adhoc = DeoAdHocPart.query.filter_by(sap_part_number=sap).first()
+            if not adhoc:
+                adhoc = DeoAdHocPart(sap_part_number=sap)
+                db.session.add(adhoc)
+                db.session.flush()
+            entry.adhoc_part_id = adhoc.id
+                
             db.session.add(entry)
             
         entry.sap_stock = parse_float(row.get('SAP Stock'))
@@ -362,7 +372,7 @@ def deo_update_row():
 
 @deo_bp.route('/shortage-requests', methods=['GET'])
 @jwt_required()
-@role_required(['DEO'])
+@role_required(['DEO', 'Supervisor', 'Admin', 'Manager', 'PPC_Planner'])
 def deo_get_shortage_requests():
     """DEO sees their assigned shortage requests with deadline countdown."""
     from app.models import PartShortageRequest
@@ -371,10 +381,57 @@ def deo_get_shortage_requests():
     user = User.query.filter_by(username=username).first()
     if not user:
         return jsonify({"success": False, "message": "User not found"}), 404
-    reqs = PartShortageRequest.query.filter_by(deo_id=user.id).order_by(
-        PartShortageRequest.id.desc()
-    ).all()
+    
+    # Staff/Admin/Managers see ALL shortage requests
+    if user.role in ['Admin', 'Manager', 'Supervisor', 'PPC_Planner']:
+        reqs = PartShortageRequest.query.order_by(PartShortageRequest.id.desc()).all()
+    else:
+        # DEO sees:
+        # 1. Requests specifically assigned to them
+        # 2. Unassigned requests on their assigned line/machine
+        # 3. If DEO has NO assigned line, show all unassigned requests for visibility
+        line_id = user.assigned_line_id
+        machine_id = user.assigned_machine_id
+        
+        query = PartShortageRequest.query
+        if line_id or machine_id:
+            reqs = query.filter(
+                (PartShortageRequest.deo_id == user.id) |
+                (
+                    (PartShortageRequest.deo_id == None) & 
+                    (
+                        (PartShortageRequest.line_id == line_id) |
+                        (PartShortageRequest.line_id == machine_id)
+                    )
+                )
+            ).order_by(PartShortageRequest.id.desc()).all()
+        else:
+            # Broaden visibility if user has no line assigned (helpful for initial setup/demo)
+            reqs = query.filter(
+                (PartShortageRequest.deo_id == user.id) |
+                (PartShortageRequest.deo_id == None)
+            ).order_by(PartShortageRequest.id.desc()).all()
+            
     return jsonify({"success": True, "data": [r.to_dict() for r in reqs]})
+
+
+@deo_bp.route('/production-lines', methods=['GET'])
+@jwt_required()
+@role_required(['DEO', 'Supervisor', 'Admin', 'Manager'])
+def get_production_lines():
+    """Return all active production lines/machines for dropdowns."""
+    lines = ProductionLine.query.filter_by(is_active=True).all()
+    # Also get unique machines from PartMachineMapping to ensure full list
+    mappings = db.session.query(PartMachineMapping.machine).distinct().all()
+    mapping_names = [m[0] for m in mappings if m[0]]
+    
+    line_names = [l.name for l in lines]
+    combined = sorted(list(set(line_names + mapping_names)))
+    
+    return jsonify({
+        "success": True,
+        "data": [{"id": name, "name": name} for name in combined]
+    })
 
 
 @deo_bp.route('/shortage-requests/<int:req_id>/fill', methods=['PATCH'])
@@ -394,8 +451,17 @@ def deo_fill_shortage_request(req_id):
     username = get_jwt_identity()
     from app.models import User
     user = User.query.filter_by(username=username).first()
-    if psr.deo_id != user.id:
+    
+    # Authorization: Must be specifically assigned OR on the same line if unassigned
+    is_assigned = psr.deo_id == user.id
+    is_line_match = psr.deo_id is None and (psr.line_id == user.assigned_line_id or psr.line_id == user.assigned_machine_id)
+    
+    if not (is_assigned or is_line_match):
         return jsonify({"success": False, "message": "Not authorized for this request"}), 403
+
+    # If first time filling an unassigned request, take ownership
+    if psr.deo_id is None:
+        psr.deo_id = user.id
 
     if psr.status in ['COMPLETED']:
         return jsonify({"success": False, "message": f"Cannot fill request in '{psr.status}' status"}), 400
@@ -508,10 +574,21 @@ def create_machine_entry():
     machine_id = data.get('machine_id') or (user.assigned_machine_id)
     parts_produced = float(data.get('parts_produced', 0))
     machine_runtime_mins = float(data.get('machine_runtime_mins', 0))
-    sap_part_number = data.get('sap_part_number', '')
+    sap_part_number = data.get('sap_part_number', '').strip().upper()
 
-    if not inventory_item_id:
-        return jsonify({"success": False, "message": "inventory_item_id is required"}), 400
+    if not inventory_item_id and not sap_part_number:
+        return jsonify({"success": False, "message": "inventory_item_id or sap_part_number is required"}), 400
+
+    adhoc_part_id = None
+    if not inventory_item_id and sap_part_number:
+        # Handle Ad-Hoc Part
+        from app.models import DeoAdHocPart
+        adhoc_part = DeoAdHocPart.query.filter_by(sap_part_number=sap_part_number).first()
+        if not adhoc_part:
+            adhoc_part = DeoAdHocPart(sap_part_number=sap_part_number)
+            db.session.add(adhoc_part)
+            db.session.flush()
+        adhoc_part_id = adhoc_part.id
 
     if parts_produced < 0:
         return jsonify({"success": False, "message": "parts_produced cannot be negative"}), 400
@@ -527,6 +604,7 @@ def create_machine_entry():
     entry = MachineProductionEntry(
         deo_id=user.id,
         inventory_item_id=inventory_item_id,
+        adhoc_part_id=adhoc_part_id,
         demand_id=demand_id,
         machine_id=machine_id,
         date=date.today(),
@@ -591,6 +669,23 @@ def deo_get_notifications():
     unread = Notification.query.filter_by(user_id=user.id, is_read=False).count()
     return jsonify({"success": True, "data": [n.to_dict() for n in notifs], "unread_count": unread})
 
+
+@deo_bp.route('/machines', methods=['GET'])
+@jwt_required()
+@role_required(['DEO', 'Supervisor', 'Admin'])
+def get_machines():
+    """Returns machines (ProductionLine with parent_id=None) and their sub-machines."""
+    machines = ProductionLine.query.filter_by(parent_id=None).all()
+    return jsonify({"success": True, "data": [m.to_dict() for m in machines]})
+
+@deo_bp.route('/inventory', methods=['GET'])
+@jwt_required()
+@role_required(['DEO', 'Supervisor', 'Admin'])
+def deo_get_inventory():
+    """Returns all inventory items (parts) for production selection."""
+    from app.models import InventoryItem
+    items = InventoryItem.query.all()
+    return jsonify({"success": True, "data": [i.to_dict() for i in items]})
 
 @deo_bp.route('/notifications/<int:notif_id>/read', methods=['POST'])
 @jwt_required()

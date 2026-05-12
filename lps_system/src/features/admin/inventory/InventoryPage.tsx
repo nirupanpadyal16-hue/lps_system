@@ -698,16 +698,6 @@ export default function InventoryPage() {
                         <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     </div>
 
-                    {/* Action buttons */}
-                    {shortage > 0 && (
-                        <button
-                            onClick={handleBatchNewDemand}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-bold transition-all shadow-sm whitespace-nowrap"
-                        >
-                            <AlertCircle size={15} />
-                            Create Demand
-                        </button>
-                    )}
                     <button onClick={() => setShowSeedModal(true)}
                         className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-semibold transition-all whitespace-nowrap">
                         <Boxes size={15} /> Import Demand
@@ -729,7 +719,7 @@ export default function InventoryPage() {
                     <table className="w-full ">
                         <thead className='sticky top-0 z-[50]'>
                             <tr className="border-b-2 border-[#f37021] bg-white">
-                                {['SN', 'Vehicle', 'SAP Part No.', 'Part Description', 'Current Stock', 'Demand Qty', 'Shortage', 'Status', 'Action'].map(h => (
+                                {['SN', 'Vehicle', 'SAP Part No.', 'Part Description', 'Current Stock', 'Demand Qty', 'Shortage', 'Status'].map(h => (
                                     <th key={h} className="px-4 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">{h}</th>
                                 ))}
                             </tr>
@@ -882,14 +872,6 @@ export default function InventoryPage() {
                 Completed
             </span>
         )}
-    </td>
-
-    {/* ACTION */}
-    <td className="px-4 py-2 whitespace-nowrap">
-        <ActionBadge
-            action={item.action}
-            onNewDemand={() => setShortageModalItems([item])}
-        />
     </td>
 </tr>
                                 );

@@ -24,6 +24,8 @@ import toast from 'react-hot-toast';
 
 interface PartDetail {
   common: {
+    part_no: string;
+    sr_no: any;
     id: number;
     model: string;
     part_number: string;
@@ -32,6 +34,8 @@ interface PartDetail {
     saleable_no: string;
     assembly_number: string;
     is_ad_hoc: boolean;
+    demand_quantity?: number;
+    shortage_quantity?: number;
   };
   production_data: Record<string, any>;
   material_data: Record<string, any>;
@@ -172,7 +176,9 @@ export default function PPCMachineRegistryPage() {
               saleable_no: '',
               assembly_number: item.assembly_number || item.inventory_item?.assembly_number || '',
               sr_no: item.serial_number || item.sn_no || item.sr_no || item.inventory_item?.sr_no || item.inventory_item?.serial_number || '',
-              is_ad_hoc: false
+              is_ad_hoc: false,
+              demand_quantity: item.demand_quantity,
+              shortage_quantity: item.shortage_quantity,
             },
             production_data: {
               'SR.NO': item.serial_number || item.sn_no || item.sr_no || item.inventory_item?.sr_no || item.inventory_item?.serial_number || '',
@@ -440,6 +446,7 @@ export default function PPCMachineRegistryPage() {
               <tr className="border-b-2 border-[#f37021] bg-white">
                 <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">Sn.no</th>
                 <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">VEHICLE MODEL</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">DEMAND QTY</th>
                 <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">SAP PART NUMBER</th>
                 <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">PART NUMBER</th>
                 <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">PART DESCRIPTION</th>
@@ -466,127 +473,135 @@ export default function PPCMachineRegistryPage() {
                 </tr>
               ) : paginatedParts.length > 0 ? (
                 paginatedParts.map((part, idx) => {
-                  const inv = inventoryItems.find(i => 
+                  const inv = inventoryItems.find(i =>
                     i.sap_part_number.trim().toLowerCase() === part.common.sap_part_number.trim().toLowerCase()
                   );
                   const status = inv?.rm_status || 'PENDING';
 
                   return (
-                  <motion.tr
-                    key={part.common.id}
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: Math.min(idx * 0.01, 0.3) }}
-                    className="hover:bg-slate-50/50 transition-colors group"
-                  >
-                    <td className="px-6 py-4 text-[11px] font-black text-slate-600 whitespace-nowrap">
-                      {(() => {
-                        const val = part.common.sr_no || part.production_data?.['SR.NO'] || part.production_data?.['SN NO'];
-                        return (!val || val === 'nan') ? '—' : val;
-                      })()}
-                    </td>
-                    <td className="px-6 py-4 text-[11px] font-black text-slate-800 uppercase whitespace-nowrap">
-                      {part.common.model}
-                    </td>
-                    <td className="px-6 py-4 text-[11px] font-black text-orange-500 whitespace-nowrap">{part.common.sap_part_number}</td>
-                    <td className="px-6 py-4 text-[11px] font-bold text-slate-600 whitespace-nowrap">
-                      {(() => {
-                        const val = part.common.part_number || part.common.part_no || part.production_data?.['PART NUMBER'] || part.production_data?.['PART NO'];
-                        return (!val || val === 'nan') ? '—' : val;
-                      })()}
-                    </td>
-                    <td className="px-6 py-4 text-[11px] font-medium text-slate-500 truncate max-w-[250px]" title={part.common.description}>
-                      {(!part.common.description || part.common.description === 'nan') ? '—' : part.common.description}
-                    </td>
-                    <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
-                      {getMaterialValue(part, ['RM Thk mm', 'RM Thk Mm', 'RM Thickness'])}
-                    </td>
-                    <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
-                      {getMaterialValue(part, ['Sheet Width', 'SHEET WIDTH'])}
-                    </td>
-                    <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
-                      {getMaterialValue(part, ['Sheet Length', 'SHEET LENGTH'])}
-                    </td>
-                    <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
-                      {getMaterialValue(part, ['No of comp per sheet', 'No Of Comp Per Sheet', 'NO OF COMP PER SHEET'])}
-                    </td>
-                    <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
-                      {getMaterialValue(part, ['RM SIZE', 'RM Size'])}
-                    </td>
-                    <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
-                      {getMaterialValue(part, ['RM Grade', 'RM GRADE'])}
-                    </td>
-                    <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
-                      {getMaterialValue(part, ['Act RM Sizes', 'ACT RM SIZES'])}
-                    </td>
-                    <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
-                      {getMaterialValue(part, ['Revised', 'REVISED'])}
-                    </td>
-                    <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
-                      {getMaterialValue(part, ['VALIDITY', 'Validity'])}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {(() => {
-                        const statusConfig: Record<string, { label: string; bg: string; text: string; dot: string }> = {
-                          'RM_SUBMITTED': { label: 'WAITING FOR REVIEW', bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-400' },
-                          'RM_ACCEPTED': { label: 'COMPLETED', bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-400' },
-                          'RM_REJECTED': { label: 'REJECTED', bg: 'bg-rose-50', text: 'text-rose-700', dot: 'bg-rose-400' },
-                          'PENDING': { label: 'REVIEW RM DATA', bg: 'bg-slate-50', text: 'text-slate-500', dot: 'bg-slate-300' },
-                        };
-
-                        const config = statusConfig[status] || statusConfig['PENDING'];
-
-                        return (
-                          <div className={cn("inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-black tracking-wider uppercase", config.bg, config.text)}>
-                            <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", config.dot)} />
-                            {config.label}
+                    <motion.tr
+                      key={part.common.id}
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: Math.min(idx * 0.01, 0.3) }}
+                      className="hover:bg-slate-50/50 transition-colors group"
+                    >
+                      <td className="px-6 py-4 text-[11px] font-black text-slate-600 whitespace-nowrap">
+                        {(() => {
+                          const val = part.common.sr_no || part.production_data?.['SR.NO'] || part.production_data?.['SN NO'];
+                          return (!val || val === 'nan') ? '—' : val;
+                        })()}
+                      </td>
+                      <td className="px-6 py-4 text-[11px] font-black text-slate-800 uppercase whitespace-nowrap">
+                        {part.common.model}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="px-2 py-0.5 bg-orange-50 text-orange-600 rounded-md text-[10px] font-black border border-orange-100 shadow-sm">
+                            {part.common.shortage_quantity ?? part.common.demand_quantity ?? 0}
                           </div>
-                        );
-                      })()}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-center gap-2">
-                        <button
-                          disabled={status === 'RM_SUBMITTED' || status === 'RM_ACCEPTED'}
-                          onClick={() => {
-                            setSelectedPart(part);
-                            const md = part.material_data || {};
-                            setRMForm({
-                              rm_thk_mm: md['RM Thk mm'] || '',
-                              sheet_width: md['Sheet Width'] || '',
-                              sheet_length: md['Sheet Length'] || '',
-                              no_of_comp_per_sheet: md['No of comp per sheet'] || '',
-                              rm_size: md['RM SIZE'] || '',
-                              rm_grade: md['RM Grade'] || '',
-                              act_rm_sizes: md['Act RM Sizes'] || '',
-                              ppc_notes: ''
-                            });
-                            setShowRMModal(true);
-                          }}
-                          className={cn(
-                            "p-1.5 rounded-lg transition-all",
-                            (status === 'RM_SUBMITTED' || status === 'RM_ACCEPTED')
-                              ? "bg-slate-100 text-slate-300 cursor-not-allowed" 
-                              : "bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white"
-                          )}
-                          title={
-                            status === 'RM_SUBMITTED' ? "Waiting for Store Keeper review" :
-                            status === 'RM_ACCEPTED' ? "RM already accepted" : "Check RM"
-                          }
-                        >
-                          <CheckCircle2 size={14} />
-                        </button>
-                        <button
-                          onClick={() => openEditModal(part)}
-                          className="p-1.5 bg-orange-50 text-orange-600 hover:bg-orange-500 hover:text-white rounded-lg transition-all"
-                          title="Edit Details"
-                        >
-                          <Edit3 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </motion.tr>
-                )})
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-[11px] font-black text-orange-500 whitespace-nowrap">{part.common.sap_part_number}</td>
+                      <td className="px-6 py-4 text-[11px] font-bold text-slate-600 whitespace-nowrap">
+                        {(() => {
+                          const val = part.common.part_number || part.common.part_no || part.production_data?.['PART NUMBER'] || part.production_data?.['PART NO'];
+                          return (!val || val === 'nan') ? '—' : val;
+                        })()}
+                      </td>
+                      <td className="px-6 py-4 text-[11px] font-medium text-slate-500 truncate max-w-[250px]" title={part.common.description}>
+                        {(!part.common.description || part.common.description === 'nan') ? '—' : part.common.description}
+                      </td>
+                      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+                        {getMaterialValue(part, ['RM Thk mm', 'RM Thk Mm', 'RM Thickness'])}
+                      </td>
+                      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+                        {getMaterialValue(part, ['Sheet Width', 'SHEET WIDTH'])}
+                      </td>
+                      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+                        {getMaterialValue(part, ['Sheet Length', 'SHEET LENGTH'])}
+                      </td>
+                      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+                        {getMaterialValue(part, ['No of comp per sheet', 'No Of Comp Per Sheet', 'NO OF COMP PER SHEET'])}
+                      </td>
+                      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+                        {getMaterialValue(part, ['RM SIZE', 'RM Size'])}
+                      </td>
+                      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+                        {getMaterialValue(part, ['RM Grade', 'RM GRADE'])}
+                      </td>
+                      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+                        {getMaterialValue(part, ['Act RM Sizes', 'ACT RM SIZES'])}
+                      </td>
+                      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+                        {getMaterialValue(part, ['Revised', 'REVISED'])}
+                      </td>
+                      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+                        {getMaterialValue(part, ['VALIDITY', 'Validity'])}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {(() => {
+                          const statusConfig: Record<string, { label: string; bg: string; text: string; dot: string }> = {
+                            'RM_SUBMITTED': { label: 'WAITING FOR REVIEW', bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-400' },
+                            'RM_ACCEPTED': { label: 'COMPLETED', bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-400' },
+                            'RM_REJECTED': { label: 'REJECTED', bg: 'bg-rose-50', text: 'text-rose-700', dot: 'bg-rose-400' },
+                            'PENDING': { label: 'REVIEW RM DATA', bg: 'bg-slate-50', text: 'text-slate-500', dot: 'bg-slate-300' },
+                          };
+
+                          const config = statusConfig[status] || statusConfig['PENDING'];
+
+                          return (
+                            <div className={cn("inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-black tracking-wider uppercase", config.bg, config.text)}>
+                              <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", config.dot)} />
+                              {config.label}
+                            </div>
+                          );
+                        })()}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            disabled={status === 'RM_SUBMITTED' || status === 'RM_ACCEPTED'}
+                            onClick={() => {
+                              setSelectedPart(part);
+                              const md = part.material_data || {};
+                              setRMForm({
+                                rm_thk_mm: md['RM Thk mm'] || '',
+                                sheet_width: md['Sheet Width'] || '',
+                                sheet_length: md['Sheet Length'] || '',
+                                no_of_comp_per_sheet: md['No of comp per sheet'] || '',
+                                rm_size: md['RM SIZE'] || '',
+                                rm_grade: md['RM Grade'] || '',
+                                act_rm_sizes: md['Act RM Sizes'] || '',
+                                ppc_notes: ''
+                              });
+                              setShowRMModal(true);
+                            }}
+                            className={cn(
+                              "p-1.5 rounded-lg transition-all",
+                              (status === 'RM_SUBMITTED' || status === 'RM_ACCEPTED')
+                                ? "bg-slate-100 text-slate-300 cursor-not-allowed"
+                                : "bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white"
+                            )}
+                            title={
+                              status === 'RM_SUBMITTED' ? "Waiting for Store Keeper review" :
+                                status === 'RM_ACCEPTED' ? "RM already accepted" : "Check RM"
+                            }
+                          >
+                            <CheckCircle2 size={14} />
+                          </button>
+                          <button
+                            onClick={() => openEditModal(part)}
+                            className="p-1.5 bg-orange-50 text-orange-600 hover:bg-orange-500 hover:text-white rounded-lg transition-all"
+                            title="Edit Details"
+                          >
+                            <Edit3 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </motion.tr>
+                  )
+                })
               ) : (
                 <tr>
                   <td colSpan={15} className="py-32 text-center text-slate-300">
@@ -791,10 +806,23 @@ export default function PPCMachineRegistryPage() {
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-4xl bg-white rounded-[32px] shadow-2xl border border-slate-100 overflow-hidden">
               <div className="bg-white px-8 py-6 border-b border-slate-50 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-orange-500 flex items-center justify-center text-white shadow-xl shadow-orange-100"><Factory size={22} /></div>
-                  <div>
-                    <h3 className="text-xl font-black text-slate-800 tracking-tight uppercase">RM Data Check</h3>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{selectedPart.common.sap_part_number}</p>
+                  {/* Smaller Logo/Icon */}
+                  <div className="w-8 h-8 rounded-xl bg-orange-500 flex items-center justify-center text-white shadow-lg shadow-orange-100 flex-shrink-0">
+                    <Factory size={16} />
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-lg font-black text-slate-800 tracking-tight uppercase whitespace-nowrap">RM Data Check</h3>
+                    <div className="w-px h-4 bg-slate-200" />
+                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{selectedPart.common.sap_part_number}</p>
+
+                    {/* Demand Qty Pill Badge - Single line with different colors */}
+                    {selectedPart.common.shortage_quantity !== undefined && (
+                      <div className="flex items-center gap-2 px-3 py-1 rounded-full border border-orange-100 bg-white shadow-sm ml-1 flex-shrink-0">
+                        <span className="text-[9px] font-black text-orange-500 uppercase tracking-tighter">Demand Qty</span>
+                        <span className="text-[11px] font-black text-slate-800 leading-none">{selectedPart.common.shortage_quantity}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <button onClick={() => setShowRMModal(false)} className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-300 hover:text-slate-500 hover:bg-slate-50 transition-all"><X size={20} /></button>
@@ -811,13 +839,13 @@ export default function PPCMachineRegistryPage() {
                     { key: 'no_of_comp_per_sheet', label: 'Components / Sheet' },
                   ].map(({ key, label }) => (
                     <div key={key} className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{label}</label>
-                      <input type="text" value={rmForm[key as keyof typeof rmForm]} onChange={e => setRMForm({ ...rmForm, [key]: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500" />
+                      <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-1">{label}</label>
+                      <input type="text" value={rmForm[key as keyof typeof rmForm]} onChange={e => setRMForm({ ...rmForm, [key]: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-black text-slate-800 outline-none focus:border-orange-500 shadow-sm" />
                     </div>
                   ))}
                   <div className="md:col-span-2 lg:col-span-3 space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">PPC Notes</label>
-                    <textarea rows={3} value={rmForm.ppc_notes} onChange={e => setRMForm({ ...rmForm, ppc_notes: e.target.value })} className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500" />
+                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-1">PPC Notes</label>
+                    <textarea rows={3} value={rmForm.ppc_notes} onChange={e => setRMForm({ ...rmForm, ppc_notes: e.target.value })} className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-black text-slate-800 outline-none focus:border-orange-500 shadow-sm" />
                   </div>
                 </div>
                 <div className="flex items-center justify-end gap-4 pt-6 border-t border-slate-50">

@@ -20,7 +20,7 @@ admin_bp = Blueprint('admin', __name__)
 
 @admin_bp.route('/identity/staff', methods=['GET'])
 @jwt_required()
-@role_required(['Admin', 'Manager', 'Supervisor'])
+@role_required(['Admin', 'Manager', 'Supervisor', 'PPC_Planner'])
 def get_staff():
     role = request.args.get('role')
     line_id = request.args.get('line_id')
@@ -44,7 +44,7 @@ def get_staff():
 # ---------------------------------------------------------------------------
 @admin_bp.route('/lines', methods=['GET'])
 @jwt_required()
-@role_required(['Admin', 'Manager'])
+@role_required(['Admin', 'Manager', 'PPC_Planner'])
 def get_lines():
     lines = ProductionLine.query.all()
     return jsonify({
@@ -54,7 +54,7 @@ def get_lines():
 
 @admin_bp.route('/machines/status', methods=['GET'])
 @jwt_required()
-@role_required(['Admin', 'Manager'])
+@role_required(['Admin', 'Manager', 'Supervisor', 'DEO', 'PPC_Planner'])
 def get_machines_status():
     from app.models import ProductionLine, PartShortageRequest
     lines = ProductionLine.query.filter_by(parent_id=None).all()
@@ -326,13 +326,36 @@ def delete_demand(id):
         return jsonify({"success": False, "message": "Demand not found"}), 404
     
     model_id = demand.model_id
-    from app.models import InventoryItem
-    # Cleanup associated logs, work status, and unique model clone
+    from app.models import (
+        InventoryItem, MachineProductionEntry, RMCheckRequest, 
+        PartShortageRequest, ShortageDailyEntry, DispatchRecord
+    )
+    
+    # 1. Cleanup Production & Dispatch Logs
+    MachineProductionEntry.query.filter_by(demand_id=id).delete()
     DailyProductionLog.query.filter_by(demand_id=id).delete()
+    DispatchRecord.query.filter_by(demand_id=id).delete()
+    
+    # 2. Cleanup RM & Shortage Requests
+    # Get all inventory items first to ensure deep cleanup
+    items = InventoryItem.query.filter_by(demand_id=id).all()
+    item_ids = [it.id for it in items]
+    
+    if item_ids:
+        RMCheckRequest.query.filter(RMCheckRequest.inventory_item_id.in_(item_ids)).delete(synchronize_session=False)
+        
+        # Shortage requests usually cascade via DB FK but we'll be explicit
+        psrs = PartShortageRequest.query.filter(PartShortageRequest.inventory_item_id.in_(item_ids)).all()
+        psr_ids = [p.id for p in psrs]
+        if psr_ids:
+            ShortageDailyEntry.query.filter(ShortageDailyEntry.shortage_request_id.in_(psr_ids)).delete(synchronize_session=False)
+            PartShortageRequest.query.filter(PartShortageRequest.id.in_(psr_ids)).delete(synchronize_session=False)
+            
+    # 3. Cleanup Inventory Items
     InventoryItem.query.filter_by(demand_id=id).delete()
     
+    # 4. Cleanup Unique Model Clone (if applicable)
     if model_id:
-        # Prevent foreign key constraint errors by cleaning up daily status records
         DailyWorkStatus.query.filter_by(car_model_id=model_id).delete()
         InventoryItem.query.filter_by(car_model_id=model_id).delete()
         
@@ -344,8 +367,8 @@ def delete_demand(id):
             db.session.delete(model)
     
     db.session.commit()
-    log_audit("DELETE_DEMAND_ADMIN")
-    return jsonify({"success": True, "message": "Demand deleted successfully"})
+    log_audit("DELETE_DEMAND_THOROUGH")
+    return jsonify({"success": True, "message": "Demand and all associated production data deleted successfully"})
 
 # Helper for pagination (reuse from routes if needed)
 def paginate_query(query, default_limit=50, max_limit=200):
@@ -488,7 +511,7 @@ def record_production():
 
 @admin_bp.route('/identity/users', methods=['GET'])
 @jwt_required()
-@role_required(['Admin'])
+@role_required(['Admin', 'PPC_Planner'])
 def get_users():
     query = User.query.order_by(User.id.desc())
     users, total, page, limit = paginate_query(query)
@@ -985,10 +1008,12 @@ def create_inventory_item():
         vehicle_name=data.get('vehicle_name', ''),
         sap_part_number=data['sap_part_number'],
         part_description=data.get('part_description', ''),
-        current_stock=current_stock,
+        initial_stock=current_stock,
+        produced_qty=0.0,
         demand_quantity=demand_qty,
         status='SUFFICIENT' if current_stock >= demand_qty else 'SHORTAGE'
     )
+    item.sync_current_stock()
     db.session.add(item)
     db.session.commit()
     log_audit("CREATE_INVENTORY_ITEM")
@@ -1034,9 +1059,10 @@ def seed_inventory_from_demand(demand_id):
             sap_part_number=part.sap_part_number
         ).first()
         if existing:
-            existing.current_stock = current_stock
+            existing.initial_stock = current_stock
             existing.demand_quantity = part_qty
             existing.status = status
+            existing.sync_current_stock()
             updated_count += 1
         else:
             new_item = InventoryItem(
@@ -1046,10 +1072,12 @@ def seed_inventory_from_demand(demand_id):
                 vehicle_name=model_name,
                 sap_part_number=part.sap_part_number,
                 part_description=part.description or '',
-                current_stock=current_stock,
+                initial_stock=current_stock,
+                produced_qty=0.0,
                 demand_quantity=part_qty,
                 status=status
             )
+            new_item.sync_current_stock()
             db.session.add(new_item)
             created_count += 1
     db.session.commit()
@@ -1087,7 +1115,13 @@ def update_inventory_item(item_id):
         return jsonify({"success": False, "message": "Inventory item not found"}), 404
     data = request.json or {}
     if 'current_stock' in data:
-        item.current_stock = float(data['current_stock'])
+        # Update initial_stock so the total effective stock changes
+        # effective_stock = initial_stock + produced_qty
+        # Since we are manually setting the "total" current stock, 
+        # we adjust initial_stock to (total - produced_qty)
+        new_total = float(data['current_stock'])
+        item.initial_stock = new_total - (item.produced_qty or 0.0)
+        item.sync_current_stock()
     if 'demand_quantity' in data:
         item.demand_quantity = float(data['demand_quantity'])
     if 'part_description' in data:
@@ -1096,10 +1130,13 @@ def update_inventory_item(item_id):
         item.sap_part_number = data['sap_part_number']
     if 'vehicle_name' in data:
         item.vehicle_name = data['vehicle_name']
+    
+    # Re-evaluate status using effective_stock
     if 'status' not in data:
-        item.status = 'SUFFICIENT' if item.current_stock >= item.demand_quantity else 'SHORTAGE'
+        item.status = 'SUFFICIENT' if item.effective_stock >= item.demand_quantity else 'SHORTAGE'
     else:
         item.status = data['status']
+        
     db.session.commit()
     # Check if demand should be COMPLETED
     if item.demand_id:
@@ -1113,14 +1150,31 @@ def update_inventory_item(item_id):
 @jwt_required()
 @role_required(['Admin', 'PPC_Planner'])
 def delete_inventory_item(item_id):
-    from app.models import InventoryItem
+    from app.models import (
+        InventoryItem, MachineProductionEntry, DispatchRecord, 
+        RMCheckRequest, PartShortageRequest, ShortageDailyEntry
+    )
     item = InventoryItem.query.get(item_id)
     if not item:
         return jsonify({"success": False, "message": "Inventory item not found"}), 404
+    
+    # 1. Cleanup associated production entries
+    MachineProductionEntry.query.filter_by(inventory_item_id=item_id).delete()
+    DispatchRecord.query.filter_by(inventory_item_id=item_id).delete()
+    
+    # 2. Cleanup RM & Shortage Requests (Manual cleanup for clarity)
+    RMCheckRequest.query.filter_by(inventory_item_id=item_id).delete()
+    
+    psrs = PartShortageRequest.query.filter_by(inventory_item_id=item_id).all()
+    psr_ids = [p.id for p in psrs]
+    if psr_ids:
+        ShortageDailyEntry.query.filter(ShortageDailyEntry.shortage_request_id.in_(psr_ids)).delete(synchronize_session=False)
+        PartShortageRequest.query.filter(PartShortageRequest.id.in_(psr_ids)).delete(synchronize_session=False)
+
     db.session.delete(item)
     db.session.commit()
-    log_audit("DELETE_INVENTORY_ITEM")
-    return jsonify({"success": True, "message": "Inventory item deleted"})
+    log_audit("DELETE_INVENTORY_ITEM_THOROUGH")
+    return jsonify({"success": True, "message": "Inventory item and associated data deleted"})
 
 
 # ---------------------------------------------------------------------------
@@ -1129,7 +1183,7 @@ def delete_inventory_item(item_id):
 
 @admin_bp.route('/shortage-requests', methods=['GET'])
 @jwt_required()
-@role_required(['Admin'])
+@role_required(['Admin', 'PPC_Planner'])
 def get_shortage_requests():
     from app.models import PartShortageRequest
     status_f = request.args.get('status')

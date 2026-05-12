@@ -72,6 +72,9 @@ export const deoMachineApi = {
   getEntries: (params?: { date?: string; demand_id?: number }) =>
     axios.get(`${BASE_URL}/deo/machine-entries`, { ...authHeaders(), params }),
   createEntry: (data: any) => axios.post(`${BASE_URL}/deo/machine-entries`, data, authHeaders()),
+  getShortageRequests: () => axios.get(`${BASE_URL}/deo/shortage-requests`, authHeaders()),
+  getMachines: () => axios.get(`${BASE_URL}/deo/machines`, authHeaders()),
+  getInventory: () => axios.get(`${BASE_URL}/deo/inventory`, authHeaders()),
   getNotifications: () => axios.get(`${BASE_URL}/deo/notifications`, authHeaders()),
   markNotificationRead: (id: number) =>
     axios.post(`${BASE_URL}/deo/notifications/${id}/read`, {}, authHeaders()),

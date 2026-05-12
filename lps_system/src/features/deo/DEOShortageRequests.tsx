@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
     CheckCircle2, AlertTriangle, X, Database, LayoutGrid, Search, ChevronDown, Info, Car,
-    Loader2, Package,  Calendar, Timer, Clock, Zap, User, MapPin, Eye
+    Loader2, Package, Calendar, Timer, Clock, Zap, User, MapPin, Eye, Factory, ArrowLeft
 } from 'lucide-react';
 import { API_BASE } from '../../lib/apiConfig';
 import { getToken } from '../../lib/storage';
 import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '../../lib/utils';
 
 const API = API_BASE;
 
@@ -44,6 +45,27 @@ interface ShortageRequest {
     supervisor_email?: string;
     deo_name?: string;
     deo_email?: string;
+    master_machine?: string;
+}
+
+interface DisplayItem {
+    machineName: string;
+    shortage: ShortageRequest | undefined;
+}
+
+interface SubMachine {
+    id: number;
+    name: string;
+    is_active: boolean;
+    status: string;
+}
+
+interface LineGroup {
+    name: string;
+    total_shortages: number;
+    pending_count: number;
+    sub_machines: string[];
+    total_machines_master?: number | null;
 }
 
 function TimelineBar({ daysRemaining, isOverdue }: { daysRemaining: number | null; isOverdue: boolean }) {
@@ -108,12 +130,20 @@ const ViewFillModal = ({ request, onClose }: { request: ShortageRequest; onClose
                                 <div className="flex items-center justify-between gap-4 flex-wrap">
                                     <div className="flex gap-6">
                                         <p className="font-bold tracking-tight">
+                                            <span className="text-[9px] text-slate-900 font-black uppercase tracking-widest block mb-0.5">Machine</span>
+                                            <span className="text-xs text-black font-black uppercase">{request.line_name || 'Generic'}</span>
+                                        </p>
+                                        <p className="font-bold tracking-tight">
                                             <span className="text-[9px] text-slate-900 font-black uppercase tracking-widest block mb-0.5">Vehicle</span>
                                             <span className="text-xs text-black font-black uppercase">{item?.vehicle_name || 'Generic'}</span>
                                         </p>
                                         <p className="font-bold tracking-tight">
                                             <span className="text-[9px] text-slate-900 font-black uppercase tracking-widest block mb-0.5">Need Total</span>
                                             <span className="text-xs text-black font-black uppercase">{needTotal} units</span>
+                                        </p>
+                                        <p className="font-bold tracking-tight">
+                                            <span className="text-[9px] text-indigo-600 font-black uppercase tracking-widest block mb-0.5">SAP Current</span>
+                                            <span className="text-xs text-indigo-700 font-black uppercase">{item?.current_stock || 0}</span>
                                         </p>
                                     </div>
                                     <TimelineBar daysRemaining={request.days_remaining} isOverdue={request.is_overdue} />
@@ -231,7 +261,6 @@ const FillModal = ({ request, onClose, onSuccess }: {
     };
 
     const item = request.inventory_item;
-    const totalDays = request.total_days;
     const needTotal = (request.shortage_quantity && request.shortage_quantity > 0) ? request.shortage_quantity : (item?.demand_quantity || 0);
     const perDay = (request.per_day && request.per_day > 0) ? request.per_day : needTotal;
     const tStock = Number(form.todays_stock) || 0;
@@ -288,7 +317,6 @@ const FillModal = ({ request, onClose, onSuccess }: {
 
                 <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 bg-white">
                     <div className="p-6 space-y-2 overflow-y-auto custom-scrollbar flex-1">
-                        {/* Metrics Section */}
                         <div className="flex flex-col gap-3">
                             <div className="flex flex-col gap-4">
                                 <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
@@ -300,12 +328,20 @@ const FillModal = ({ request, onClose, onSuccess }: {
                                 <div className="flex items-center justify-between gap-4 flex-wrap">
                                     <div className="flex gap-6">
                                         <p className="font-bold tracking-tight">
+                                            <span className="text-[9px] text-slate-900 font-black uppercase tracking-widest block mb-0.5">Machine</span>
+                                            <span className="text-xs text-black font-black uppercase">{request.line_name || 'Generic'}</span>
+                                        </p>
+                                        <p className="font-bold tracking-tight">
                                             <span className="text-[9px] text-slate-900 font-black uppercase tracking-widest block mb-0.5">Vehicle</span>
                                             <span className="text-xs text-black font-black uppercase">{item?.vehicle_name || 'Generic'}</span>
                                         </p>
                                         <p className="font-bold tracking-tight">
                                             <span className="text-[9px] text-slate-900 font-black uppercase tracking-widest block mb-0.5">Need Total</span>
                                             <span className="text-xs text-black font-black uppercase">{needTotal} units</span>
+                                        </p>
+                                        <p className="font-bold tracking-tight">
+                                            <span className="text-[9px] text-indigo-600 font-black uppercase tracking-widest block mb-0.5">SAP Current</span>
+                                            <span className="text-xs text-indigo-700 font-black uppercase">{item?.current_stock || 0}</span>
                                         </p>
                                     </div>
                                     <TimelineBar daysRemaining={request.days_remaining} isOverdue={request.is_overdue} />
@@ -337,7 +373,6 @@ const FillModal = ({ request, onClose, onSuccess }: {
 
                         <hr className="border-slate-100" />
 
-                        {/* Input Form Fields */}
                         <div className="space-y-6">
                             <div className="grid grid-cols-3 gap-5">
                                 {[
@@ -389,7 +424,6 @@ const FillModal = ({ request, onClose, onSuccess }: {
                         </div>
                     </div>
 
-                    {/* Footer */}
                     <div className="p-7 py-5 border-t border-gray-100 flex gap-4">
                         <button type="button" onClick={onClose}
                             className="flex-1 py-3.5 rounded-full border border-slate-200 text-xs font-black text-slate-500 hover:bg-slate-50 transition-all uppercase tracking-widest">
@@ -413,10 +447,6 @@ const FillModal = ({ request, onClose, onSuccess }: {
 
 const DetailsModal = ({ request, onClose }: { request: ShortageRequest, onClose: () => void }) => {
     const item = request.inventory_item;
-    const modelName = item?.vehicle_name || 'PART';
-    const demandId = request.formatted_id || 'DEM-000';
-    const status = request.status || 'PENDING';
-
     const startDate = request.created_at ? new Date(request.created_at).toISOString().split('T')[0] : '—';
     const endDate = request.deadline || '—';
 
@@ -440,11 +470,6 @@ const DetailsModal = ({ request, onClose }: { request: ShortageRequest, onClose:
                                 <p className="text-[10px] font-black text-slate-900 uppercase tracking-widest whitespace-nowrap leading-none flex-shrink-0">
                                     {request.inventory_item?.sap_part_number}
                                 </p>
-                                <div className="flex-shrink-0">
-                                    <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[9px] font-black border border-indigo-100 uppercase tracking-widest">
-                                        IN PROGRESS
-                                    </span>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -458,7 +483,7 @@ const DetailsModal = ({ request, onClose }: { request: ShortageRequest, onClose:
                         <div className="bg-orange-50/30 rounded-3xl p-6 border border-orange-100/50">
                             <div className="text-[10px] font-bold text-black uppercase tracking-widest mb-2 flex items-center gap-2">
                                 <MapPin size={12} />
-                                <span className="text-[10px] font-black text-black uppercase tracking-widest mb-2 flex items-center gap-2">Production Context</span>
+                                <span>Production Context</span>
                             </div>
                             <div className="space-y-5">
                                 <div className="flex items-center gap-4">
@@ -489,20 +514,16 @@ const DetailsModal = ({ request, onClose }: { request: ShortageRequest, onClose:
                         <div className="bg-orange-50/30 rounded-3xl p-6 border border-orange-100/50">
                             <div className="text-[10px] font-black text-black uppercase tracking-widest mb-2 flex items-center gap-2">
                                 <Clock size={12} />
-                                <span className="text-[10px] font-bold text-black uppercase tracking-widest mb-2 flex items-center gap-2">Timeline Details</span>
+                                <span>Timeline Details</span>
                             </div>
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center">
-                                    <span className="
-
-text-[9px] font-black text-ind-text3 uppercase tracking-widest">Start Date</span>
-                                    <span className="text-xs font-black text-ind-text group-hover:text-ind-primary transition-colors tabular-nums">{startDate}</span>
+                                    <span className="text-[9px] font-black text-ind-text3 uppercase tracking-widest">Start Date</span>
+                                    <span className="text-xs font-black text-ind-text tabular-nums">{startDate}</span>
                                 </div>
                                 <div className="flex justify-between items-center">
-                                    <span className="
-
-text-[9px] font-black text-ind-text3 uppercase tracking-widest">Target End</span>
-                                    <span className="text-xs font-black text-ind-text group-hover:text-ind-primary transition-colors tabular-nums">{endDate}</span>
+                                    <span className="text-[9px] font-black text-ind-text3 uppercase tracking-widest">Target End</span>
+                                    <span className="text-xs font-black text-ind-text tabular-nums">{endDate}</span>
                                 </div>
                             </div>
                         </div>
@@ -512,7 +533,7 @@ text-[9px] font-black text-ind-text3 uppercase tracking-widest">Target End</span
                         <div className="bg-orange-50/30 rounded-3xl p-6 border border-orange-100/50">
                             <div className="text-[10px] font-black text-black uppercase tracking-widest mb-2 flex items-center gap-2">
                                 <Package size={11} />
-                                <span className="text-[10px] font-black text-black uppercase tracking-widest mb-2 flex items-center gap-2">Assigned Personnel</span>
+                                <span>Assigned Personnel</span>
                             </div>
 
                             <div className="space-y-5">
@@ -554,7 +575,6 @@ text-[9px] font-black text-ind-text3 uppercase tracking-widest">Target End</span
                             </div>
                         </div>
 
-                        {/* Submitted Stock Data */}
                         {request.status !== 'PENDING' && (
                             <div className="bg-emerald-50/30 rounded-3xl p-6 border border-emerald-100/50">
                                 <div className="text-[10px] font-black text-black uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -604,6 +624,7 @@ text-[9px] font-black text-ind-text3 uppercase tracking-widest">Target End</span
 
 export default function DEOShortageRequests() {
     const [requests, setRequests] = useState<ShortageRequest[]>([]);
+    const [lineGroupsMaster, setLineGroupsMaster] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [fillRequest, setFillRequest] = useState<ShortageRequest | null>(null);
     const [infoRequest, setInfoRequest] = useState<ShortageRequest | null>(null);
@@ -611,30 +632,40 @@ export default function DEOShortageRequests() {
     const [filterStatus, setFilterStatus] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedDate, setSelectedDate] = useState('');
+    const [activeViewMachine, setActiveViewMachine] = useState<string | null>(null);
 
-    useEffect(() => {
-        const parentMain = document.querySelector('main');
-        if (parentMain) {
-            const originalOverflow = parentMain.style.overflow;
-            parentMain.style.overflow = 'hidden';
-            return () => { parentMain.style.overflow = originalOverflow; };
+    const fetchLineGroups = async () => {
+        try {
+            const res = await fetch(`${API}/admin/machines/status`, { headers: authHeaders() });
+            const data = await res.json();
+            if (data.success) {
+                setLineGroupsMaster(data.data);
+            }
+        } catch (err) {
+            console.error("Failed to fetch line groups:", err);
         }
-    }, []);
+    };
 
     const fetchRequests = async (isBackground = false) => {
         if (!isBackground) setLoading(true);
         try {
             const res = await fetch(`${API}/deo/shortage-requests`, { headers: authHeaders() });
             const data = await res.json();
-            if (data.success) setRequests(data.data);
+            if (data.success) {
+                setRequests(data.data);
+            }
         } finally {
             if (!isBackground) setLoading(false);
         }
     };
 
     useEffect(() => {
+        fetchLineGroups();
         fetchRequests();
-        const interval = setInterval(() => fetchRequests(true), 15000);
+        const interval = setInterval(() => {
+            fetchLineGroups();
+            fetchRequests(true);
+        }, 15000);
         const handleFocus = () => fetchRequests(true);
         window.addEventListener('focus', handleFocus);
         return () => {
@@ -642,6 +673,74 @@ export default function DEOShortageRequests() {
             window.removeEventListener('focus', handleFocus);
         };
     }, []);
+
+    const filteredRequests = useMemo(() => {
+        return requests.filter(r => {
+            let matches = true;
+            if (filterStatus === 'pending') matches = r.status === 'PENDING';
+            else if (filterStatus === 'in-progress') matches = r.status === 'IN_PROGRESS' || r.status === 'REJECTED' || r.status === 'DEO_FILLED' || r.status === 'VERIFIED';
+            else if (filterStatus === 'rejected') matches = r.status === 'REJECTED';
+            else if (filterStatus === 'completed') matches = r.status === 'COMPLETED' || r.status === 'VERIFIED';
+
+            if (!matches) return false;
+
+            const query = searchQuery.toLowerCase();
+            const partMatch = r.inventory_item?.sap_part_number?.toLowerCase().includes(query) ||
+                r.inventory_item?.part_description?.toLowerCase().includes(query) ||
+                r.inventory_item?.vehicle_name?.toLowerCase().includes(query);
+            const idMatch = r.formatted_id.toLowerCase().includes(query);
+            if (searchQuery && !partMatch && !idMatch) return false;
+
+            if (selectedDate && selectedDate !== "") {
+                const rDate = r.created_at?.split('T')[0];
+                if (rDate !== selectedDate) return false;
+            }
+
+            return true;
+        });
+    }, [requests, filterStatus, searchQuery, selectedDate]);
+
+    const derivedLineGroups = useMemo(() => {
+        const groups: Record<string, LineGroup> = {};
+        
+        requests.forEach(req => {
+            const rawLine = req.master_machine || req.line_name || 'UNASSIGNED';
+            const individualLines = rawLine.split(',').map(s => s.trim()).filter(Boolean);
+            
+            individualLines.forEach(lineName => {
+                if (!groups[lineName]) {
+                    const masterGroup = lineGroupsMaster.find(lg => lg.name === lineName);
+                    groups[lineName] = {
+                        name: lineName,
+                        total_shortages: 0,
+                        pending_count: 0,
+                        sub_machines: [],
+                        total_machines_master: masterGroup ? masterGroup.total_machines : null
+                    };
+                }
+                groups[lineName].total_shortages += 1;
+                if (req.status === 'PENDING' || req.status === 'IN_PROGRESS' || req.status === 'REJECTED') {
+                    groups[lineName].pending_count += 1;
+                }
+                
+                const subMachineName = req.line_name || lineName;
+                if (!groups[lineName].sub_machines.includes(subMachineName)) {
+                    groups[lineName].sub_machines.push(subMachineName);
+                }
+            });
+        });
+
+        return Object.values(groups).sort((a, b) => a.name.localeCompare(b.name));
+    }, [requests, lineGroupsMaster]);
+
+    const shortagesForActiveGroup = useMemo(() => {
+        if (!activeViewMachine) return [];
+        return filteredRequests.filter(req => {
+            const rawLine = req.master_machine || req.line_name || 'UNASSIGNED';
+            const individualLines = rawLine.split(',').map(s => s.trim());
+            return individualLines.includes(activeViewMachine);
+        });
+    }, [filteredRequests, activeViewMachine]);
 
     if (loading) {
         return (
@@ -651,227 +750,331 @@ export default function DEOShortageRequests() {
         );
     }
 
-    const filteredRequests = requests.filter(r => {
-        let matches = true;
-        if (filterStatus === 'pending') matches = r.status === 'PENDING';
-        else if (filterStatus === 'in-progress') matches = r.status === 'IN_PROGRESS' || r.status === 'REJECTED' || r.status === 'DEO_FILLED' || r.status === 'VERIFIED';
-        else if (filterStatus === 'rejected') matches = r.status === 'REJECTED';
-        else if (filterStatus === 'completed') matches = r.status === 'COMPLETED' || r.status === 'VERIFIED';
-
-        if (!matches) return false;
-
-        if (searchQuery) {
-            const query = searchQuery.toLowerCase();
-            const partMatch = r.inventory_item?.sap_part_number?.toLowerCase().includes(query) ||
-                r.inventory_item?.part_description?.toLowerCase().includes(query) ||
-                r.inventory_item?.vehicle_name?.toLowerCase().includes(query);
-            const idMatch = r.formatted_id.toLowerCase().includes(query);
-            if (!partMatch && !idMatch) return false;
-        }
-
-        if (selectedDate && selectedDate !== "") {
-            const rDate = r.created_at?.split('T')[0];
-            if (rDate !== selectedDate) return false;
-        }
-
-        return true;
-    });
-
     return (
-        <div className="h-full flex flex-col space-y-1 animate-in fade-in duration-700 overflow-hidden text-slate-900">
-            <div className="flex xl:flex-row xl:items-center justify-between gap-4 bg-white border-b border-slate-100 mb-2 py-1">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 p-2">
-                    <div className="space-y-1">
-                        <h1 className="text-[24px] font-black text-ind-text tracking-tight leading-none">
-                            Shortage Requests
-                        </h1>
-                    </div>
+        <div className="h-full flex flex-col space-y-1 animate-in fade-in duration-700 overflow-hidden text-slate-900 bg-gray-50/30 p-2">
+            <div className="flex xl:flex-row xl:items-center justify-between gap-4 bg-white border border-slate-200 rounded-2xl mb-2 p-4 shadow-sm">
+                <div className="flex flex-col gap-1">
+                    <h1 className="text-[24px] font-black text-ind-text tracking-tight leading-none flex items-center gap-2">
+                        <Factory className="text-orange-600" />
+                        {activeViewMachine ? `Shortages: ${activeViewMachine}` : 'Shortage Dashboard'}
+                    </h1>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        {activeViewMachine ? '' : ''}
+                    </p>
                 </div>
 
-                <div className="flex items-center bg-white backdrop-blur-md rounded-2xl border border-ind-border/50 p-1 shadow-sm overflow-hidden scale-90 origin-right mx-2">
-                    <div className="px-4 py-1 text-center border-r border-ind-border/50">
-                        <span className="block text-[8px] font-bold text-ind-text3 uppercase tracking-wider">TOTAL</span>
+                <div className="flex items-center bg-gray-50 rounded-2xl border border-slate-200 p-1 shadow-inner">
+                    <div className="px-4 py-1 text-center border-r border-slate-200 min-w-[80px]">
+                        <span className="block text-[8px] font-bold text-slate-400 uppercase tracking-wider">TOTAL</span>
                         <span className="block text-lg font-black text-slate-800 leading-none">{requests.length}</span>
                     </div>
-                    <div className="px-4 py-1 text-center border-r border-ind-border/50 text-amber-500">
+                    <div className="px-4 py-1 text-center border-r border-slate-200 text-amber-500 min-w-[80px]">
                         <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">PENDING</span>
                         <span className="block text-lg font-black leading-none">{requests.filter(r => r.status === 'PENDING').length}</span>
                     </div>
-                    <div className="px-4 py-1 text-center border-r border-ind-border/50 text-blue-500">
-                        <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">IN PROGRESS</span>
-                        <span className="block text-lg font-black leading-none">{requests.filter(r => r.status === 'IN_PROGRESS' || r.status === 'REJECTED' || r.status === 'DEO_FILLED').length}</span>
-                    </div>
-                    <div className="px-4 py-1 text-center text-emerald-500">
-                        <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">COMPLETED</span>
-                        <span className="block text-lg font-black leading-none">{requests.filter(r => r.status === 'COMPLETED' || r.status === 'VERIFIED').length}</span>
+                    <div className="px-4 py-1 text-center text-emerald-500 min-w-[80px]">
+                        <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">VERIFIED</span>
+                        <span className="block text-lg font-black leading-none">{requests.filter(r => r.status === 'VERIFIED' || r.status === 'COMPLETED').length}</span>
                     </div>
                 </div>
             </div>
 
-            <div className="flex flex-col md:flex-row items-center justify-between gap-2 px-2 mb-2">
-                <div className="h-[38px] bg-white rounded-full px-3 border border-ind-border/40 shadow-sm flex items-center gap-2 min-w-[160px] hover:border-orange-400 transition-all group">
-                    <div className="w-7 h-7 rounded-lg bg-orange-50 flex items-center justify-center text-orange-500 flex-shrink-0 group-hover:bg-orange-100 transition-colors">
-                        <LayoutGrid size={14} />
-                    </div>
-                    <div className="flex-1 relative">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-3 px-1 mb-3">
+                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                    {activeViewMachine && (
+                        <button
+                            onClick={() => setActiveViewMachine(null)}
+                            className="h-[42px] px-6 bg-white border border-slate-200 rounded-full text-[11px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm"
+                        >
+                            <ArrowLeft size={16} /> Back
+                        </button>
+                    )}
+
+                    {/* Status Filter */}
+                    <div className="relative group w-full md:w-48">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 p-1 bg-orange-50 rounded text-orange-500 group-focus-within:text-orange-600 pointer-events-none">
+                            <LayoutGrid size={11} />
+                        </div>
                         <select
                             value={filterStatus}
                             onChange={(e) => setFilterStatus(e.target.value)}
-                            className="w-full bg-transparent text-[11px] font-black tracking-wider text-gray-800 appearance-none cursor-pointer focus:outline-none pr-6 text-center"
+                            className="w-full bg-white border border-slate-200 focus:border-orange-500 rounded-full h-[42px] pl-12 pr-10 text-slate-700 font-bold text-[11px] tracking-wide outline-none transition-all shadow-sm cursor-pointer appearance-none uppercase"
                         >
-                            <option value="all" className="bg-slate-50 text-center py-2">All status</option>
-                            <option value="pending" className="bg-white text-center py-2">Pending</option>
-                            <option value="in-progress" className="bg-slate-50 text-center py-2">In progress</option>
-                            <option value="rejected" className="bg-white text-center py-2">Rejected</option>
-                            <option value="completed" className="bg-slate-50 text-center py-2">Completed</option>
+                            <option value="all">All Status</option>
+                            <option value="pending">Pending</option>
+                            <option value="in-progress">In progress</option>
+                            <option value="rejected">Rejected</option>
+                            <option value="completed">Completed</option>
                         </select>
-                        <ChevronDown size={14} className="absolute right-0 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                    </div>
-                </div>
-
-                <div className="h-[38px] bg-white rounded-full px-3 border border-ind-border/40 shadow-sm flex items-center gap-2 flex-1 max-w-md hover:border-ind-primary transition-all group">
-                    <Search size={14} className="text-gray-400 group-hover:text-ind-primary transition-colors flex-shrink-0" />
-                    <input
-                        type="text"
-                        placeholder="Search shortages..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="flex-1 bg-transparent text-[10px] font-black uppercase tracking-wider text-gray-800 outline-none placeholder:text-gray-300"
-                    />
-                </div>
-
-                <div className="h-[38px] bg-white rounded-full px-3 border border-ind-border/40 shadow-sm flex items-center justify-between gap-2 min-w-[180px] hover:border-indigo-400 transition-all group relative">
-                    <div className="flex items-center gap-2 flex-1">
-                        <div className="w-6 h-6 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-500 flex-shrink-0 group-hover:bg-indigo-100 transition-colors">
-                            <Calendar size={13} />
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                            <ChevronDown size={14} />
                         </div>
+                    </div>
+
+                    {/* Search */}
+                    <div className="relative group w-full md:w-72">
+                        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-orange-500 transition-colors" size={14} />
                         <input
-                            type="date"
-                            value={selectedDate}
-                            onChange={(e) => setSelectedDate(e.target.value)}
-                            className="bg-transparent text-[10px] font-black text-gray-800 tracking-wider outline-none w-full uppercase cursor-pointer"
+                            type="text"
+                            placeholder="Search shortages..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full bg-white border border-slate-200 focus:border-orange-500 rounded-full h-[42px] pl-14 pr-6 text-slate-700 font-bold text-[11px] tracking-wide placeholder:text-slate-300 outline-none transition-all shadow-sm uppercase"
                         />
                     </div>
-                    <ChevronDown size={14} className="text-gray-400 flex-shrink-0 pointer-events-none" />
+                </div>
+
+                {/* Date Filter */}
+                <div className="relative group flex-shrink-0">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 p-1 bg-indigo-50/50 rounded text-indigo-400 group-focus-within:text-orange-500 pointer-events-none">
+                        <Calendar size={12} />
+                    </div>
+                    <input
+                        type="date"
+                        value={selectedDate}
+                        onChange={(e) => setSelectedDate(e.target.value)}
+                        className="bg-white border border-slate-200 focus:border-orange-500 rounded-full h-[42px] pl-12 pr-5 text-slate-700 font-bold text-[11px] tracking-wide outline-none transition-all shadow-sm w-[180px] uppercase cursor-pointer"
+                    />
                 </div>
             </div>
 
-            <div className="overflow-x-auto rounded-2xl border border-ind-border/50 shadow-sm">
-                <div className="flex-1 custom-scrollbar  h-[calc(100vh-200px)] overflow-y-auto">
-                    <table className="min-w-full bg-white text-sm">
-                        <thead className="sticky top-0 z-10 bg-ind-bg shadow-sm">
-                            <tr className="bg-ind-bg text-black border-b-2 border-[#f37021] uppercase text-[11px] tracking-wider sticky top-0 z-[50]">
-                                <th className="px-6 py-2 text-left">REQUEST</th>
-                                <th className="px-6 py-2 text-center">STATUS</th>
-                                <th className="px-6 py-2 text-center">CREATED DATE</th>
-                                <th className="px-6 py-2 text-center">TARGET</th>
-                                <th className="px-6 py-2 text-center">ACTIONS</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-ind-border/40 ">
-                            {filteredRequests.map((req) => {
-                                const isRejected = req.status === 'REJECTED';
-                                const isDeoFilled = req.status === 'DEO_FILLED';
-                                const isCompleted = req.status === 'COMPLETED';
-
-                                return (
-                                    <tr key={req.id} className={`hover:bg-ind-bg/40 transition-colors group ${isRejected ? 'bg-rose-50/20' : ''}`}>
-                                        <td className="px-6 py-2">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-ind-primary">
-                                                    <Package size={18} />
-                                                </div>
-                                                <div>
-                                                    <div className="flex items-center gap-2.5 mb-1">
-                                                        <h3 className="font-bold text-slate-800">
-                                                            {req.inventory_item?.vehicle_name || 'PART'}
-                                                        </h3>
-                                                        {isRejected && (
-                                                            <span className="bg-rose-500 text-white text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-widest animate-pulse">
-                                                                Needs Correction
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-[10px] text-ind-text3 font-bold uppercase">{req.formatted_id}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </td>
-
-                                        <td className="px-8 py-2.5">
-                                            <div className="flex flex-col items-center gap-1">
-                                                <span className={`px-3 py-1 rounded-full text-[10px] font-bold border ${isRejected ? 'bg-rose-50 text-rose-600 border-rose-100' :
-                                                    req.status === 'PENDING' ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                                                        (req.status === 'IN_PROGRESS' || isDeoFilled) ? 'bg-blue-50 text-blue-600 border-blue-100' :
-                                                            (req.status === 'VERIFIED' || isCompleted) ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                                                                'bg-slate-50 text-slate-600 border-slate-100'
-                                                    }`}>
-                                                    {req.status === 'DEO_FILLED' ? 'SUBMITTED' :
-                                                        req.status === 'IN_PROGRESS' ? 'IN PROGRESS' :
-                                                            req.status === 'VERIFIED' ? 'COMPLETED' :
-                                                                req.status.replace('_', ' ')}
-                                                </span>
-                                            </div>
-                                        </td>
-
-                                        <td className="px-8 py-2.5 text-center">
-                                            <div className="flex flex-col items-center justify-center">
-                                                <p className="text-[11px] font-black text-slate-800 uppercase tracking-widest">
-                                                    {req.created_at ? new Date(req.created_at).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
-                                                </p>
-                                            </div>
-                                        </td>
-
-                                        <td className="px-8 py-2.5">
-                                            <div className="flex flex-col items-center">
-                                                <div className="flex items-baseline gap-2">
-                                                    <span className="font-bold text-slate-800">
-                                                        {(req.shortage_quantity > 0 ? req.shortage_quantity : (req.inventory_item?.demand_quantity || 0)).toLocaleString()}
-                                                    </span>
-                                                    <span className="font-bold text-slate-800">Units</span>
-                                                </div>
-                                            </div>
-                                        </td>
-
-                                        <td className="px-10 py-2.5">
-                                            <div className="flex items-center justify-center gap-3 pr-4">
-                                                <button
-                                                    onClick={() => setViewFillRequest(req)}
-                                                    disabled={req.status === 'PENDING'}
-                                                    className={`w-9 h-9 rounded-lg border flex items-center justify-center transition-all ${req.status === 'PENDING'
-                                                        ? 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed'
-                                                        : 'bg-white border-ind-border/50 text-slate-600 hover:text-slate-900 hover:border-slate-300 shadow-sm'
-                                                        }`}
-                                                    title="View Submitted Data"
-                                                >
-                                                    <Eye size={16} />
-                                                </button>
-                                                <button
-                                                    onClick={() => setInfoRequest(req)}
-                                                    className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors"
-                                                    title="View Details"
-                                                >
-                                                    <Info size={18} />
-                                                </button>
-                                                <button
-                                                    onClick={() => setFillRequest(req)}
-                                                    className={`w-9 h-9 rounded-lg flex items-center justify-center text-white transition-all shadow-md ${isRejected ? 'bg-rose-500 hover:bg-rose-600' :
-                                                        req.status === 'IN_PROGRESS' || isDeoFilled || isCompleted ? 'bg-emerald-400 opacity-40 cursor-not-allowed pointer-events-none' :
-                                                            'bg-[#10b981] hover:bg-emerald-600'
-                                                        }`}
-                                                    title={isRejected ? "Needs Correction" : "Fill Data"}
-                                                >
-                                                    <CheckCircle2 size={16} />
-                                                </button>
-                                            </div>
-                                        </td>
+            <div className="flex-1 overflow-hidden bg-white border border-slate-200 rounded-3xl shadow-sm flex flex-col">
+                <div className="flex-1 overflow-auto custom-scrollbar">
+                    <AnimatePresence mode="wait">
+                        {!activeViewMachine ? (
+                            <motion.table
+                                key="groups"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                className="w-full text-sm text-left border-collapse"
+                            >
+                                <thead className="bg-white text-slate-900 border-b-2 border-orange-500 uppercase text-[11px] font-black tracking-widest sticky top-0 z-[50]">
+                                    <tr>
+                                        <th className="px-6 py-4 text-left whitespace-nowrap">Sr.No</th>
+                                        <th className="px-6 py-4 text-left whitespace-nowrap">Line Name</th>
+                                        <th className="px-6 py-4 text-center whitespace-nowrap">Total Machines</th>
+                                        <th className="px-6 py-4 text-center whitespace-nowrap">Active Shortages</th>
+                                        <th className="px-6 py-4 text-center whitespace-nowrap">Status</th>
+                                        <th className="px-6 py-4 text-right whitespace-nowrap">Actions</th>
                                     </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                    <div className="h-32" />
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {derivedLineGroups.filter(lg => lg.name.toLowerCase().includes(searchQuery.toLowerCase())).map((lg, idx) => (
+                                        <tr key={lg.name} className="hover:bg-slate-50 transition-colors group cursor-pointer" onClick={() => setActiveViewMachine(lg.name)}>
+                                            <td className="px-6 py-4">
+                                                <span className="text-[11px] font-black text-slate-900">{idx + 1}</span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600 group-hover:scale-110 transition-transform border border-orange-100 shadow-sm">
+                                                        <Factory size={20} />
+                                                    </div>
+                                                    <span className="text-[13px] font-black text-slate-900 tracking-tight">{lg.name}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <span className="px-3 py-1 bg-slate-50 text-slate-900 rounded-full text-[10px] font-black border border-slate-100">
+                                                    {lg.total_machines_master || lg.sub_machines.length} Machines
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <span className="text-[11px] font-black text-orange-600 uppercase tracking-tight">
+                                                    {lg.total_shortages} Total
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <span className={cn(
+                                                    "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border",
+                                                    lg.pending_count === 0 ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-amber-50 text-amber-600 border-amber-100"
+                                                )}>
+                                                    {lg.pending_count === 0 ? 'ALL FILLED' : `${lg.pending_count} PENDING`}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <button className="px-5 h-8 bg-white border border-slate-200 text-orange-600 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ml-auto shadow-sm group-hover:bg-orange-500 group-hover:text-white group-hover:border-orange-500 transition-all">
+                                                    <Eye size={12} />
+                                                    View
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </motion.table>
+                        ) : (
+                            <motion.table
+                                key="details"
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -20 }}
+                                className="w-full text-sm text-left border-collapse"
+                            >
+                                <thead className="bg-white text-slate-900 border-b-2 border-orange-500 uppercase text-[11px] font-black tracking-widest sticky top-0 z-[50]">
+                                    <tr>
+                                        <th className="px-6 py-4 text-left whitespace-nowrap">Sr.NO</th>
+                                        <th className="px-6 py-4 text-left whitespace-nowrap">Sub Machine</th>
+                                        <th className="px-6 py-4 text-left whitespace-nowrap">Part Number</th>
+                                        <th className="px-6 py-4 text-center whitespace-nowrap">Demand Date</th>
+                                        <th className="px-6 py-4 text-center whitespace-nowrap">Coverage Day</th>
+                                        <th className="px-6 py-4 text-center whitespace-nowrap">SAP Stock</th>
+                                        <th className="px-6 py-3 text-center whitespace-nowrap">Opening</th>
+                                        <th className="px-6 py-3 text-center whitespace-nowrap">Today's</th>
+                                        <th className="px-6 py-3 text-center whitespace-nowrap">Target</th>
+                                        <th className="px-6 py-3 text-center whitespace-nowrap">Status</th>
+                                        <th className="px-6 py-3 text-right whitespace-nowrap">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {(() => {
+                                        const masterLine = lineGroupsMaster.find(lg => lg.name === activeViewMachine);
+                                        const allSubMachines = masterLine ? masterLine.sub_machines : [];
+                                        
+                                        const displayItems = (() => {
+                                            if (allSubMachines.length === 0) {
+                                                return shortagesForActiveGroup.map(req => ({
+                                                    machineName: req.line_name || 'Generic',
+                                                    shortage: req
+                                                }));
+                                            }
+
+                                            const matchedReqIds = new Set<number>();
+                                            const result = allSubMachines.map((sub: SubMachine) => {
+                                                const match = shortagesForActiveGroup.find(req => 
+                                                    req.line_name?.trim().toUpperCase() === sub.name?.trim().toUpperCase()
+                                                );
+                                                if (match) matchedReqIds.add(match.id);
+                                                return { machineName: sub.name, shortage: match };
+                                            });
+
+                                            const genericShortages = shortagesForActiveGroup.filter(req => !matchedReqIds.has(req.id));
+                                            let genericIdx = 0;
+                                            return result.map((item: DisplayItem) => {
+                                                if (!item.shortage && genericIdx < genericShortages.length) {
+                                                    return {
+                                                        machineName: item.machineName,
+                                                        shortage: genericShortages[genericIdx++]
+                                                    };
+                                                }
+                                                return item;
+                                            });
+                                        })();
+
+                                        return displayItems.map((item: DisplayItem, idx: number) => {
+                                            const req = item.shortage;
+                                            const machineName = item.machineName;
+                                            const isRejected = req?.status === 'REJECTED';
+                                            const isDeoFilled = req?.status === 'DEO_FILLED';
+                                            const isCompleted = req?.status === 'COMPLETED' || req?.status === 'VERIFIED';
+                                            const shortageQty = req ? (req.shortage_quantity > 0 ? req.shortage_quantity : (req.inventory_item?.demand_quantity || 0)) : 0;
+                                            
+                                            // Coverage logic
+                                            let coverage = "—";
+                                            if (req?.todays_stock && req.per_day) {
+                                                coverage = (req.todays_stock / req.per_day).toFixed(1);
+                                            }
+
+                                            return (
+                                                <tr key={machineName} className={cn(
+                                                    "hover:bg-slate-50 transition-colors group",
+                                                    isRejected && "bg-rose-50/30"
+                                                )}>
+                                                    <td className="px-6 py-4">
+                                                        <span className="text-[11px] font-black text-slate-900">{idx + 1}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center gap-2 px-3 py-1 bg-orange-50/50 rounded-full border border-orange-100/50 w-fit">
+                                                            <Zap size={10} className="text-orange-500" />
+                                                            <span className="text-[10px] font-black text-slate-900 uppercase tracking-tight">{machineName}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className="text-[11px] font-black text-slate-900 uppercase tracking-tight">
+                                                            {req?.inventory_item?.sap_part_number || '—'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <span className="text-[10px] font-black text-slate-900 uppercase tracking-wider">
+                                                            {req?.created_at ? new Date(req.created_at).toLocaleDateString() : '—'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <span className={cn(
+                                                            "text-[10px] font-black tabular-nums px-2 py-1 rounded border",
+                                                            coverage === "—" ? "text-slate-300 border-transparent" :
+                                                            Number(coverage) >= 5 ? "text-emerald-600 bg-emerald-50 border-emerald-100" : "text-rose-600 bg-rose-50 border-rose-100"
+                                                        )}>
+                                                            {coverage} {coverage !== "—" && "Days"}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <span className="text-[11px] font-black text-slate-900 tabular-nums">
+                                                            {req?.sap_stock ?? '—'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <span className="text-[11px] font-black text-slate-900 tabular-nums">
+                                                            {req?.opening_stock ?? '—'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <span className="text-[11px] font-black text-orange-600 tabular-nums">
+                                                            {req?.todays_stock ?? '—'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <span className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-[10px] font-black border border-indigo-100">
+                                                            {shortageQty > 0 ? shortageQty.toLocaleString() : '—'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <span className={cn(
+                                                            "px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border",
+                                                            !req ? "bg-slate-50 text-slate-400 border-slate-200" :
+                                                            isRejected ? "bg-rose-50 text-rose-600 border-rose-100 animate-pulse" :
+                                                            isCompleted ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                                                            "bg-indigo-50 text-indigo-600 border-indigo-100"
+                                                        )}>
+                                                            {req ? (isDeoFilled ? 'SUBMITTED' : req.status.replace('_', ' ')) : 'IDLE'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        {req ? (
+                                                            <div className="flex items-center justify-end gap-2">
+                                                                <button
+                                                                    onClick={() => setViewFillRequest(req)}
+                                                                    disabled={req.status === 'PENDING'}
+                                                                    className={cn(
+                                                                        "w-8 h-8 rounded-lg border flex items-center justify-center transition-all shadow-sm",
+                                                                        req.status === 'PENDING' ? "bg-slate-50 text-slate-200 border-slate-100" : "bg-white text-slate-600 border-slate-200 hover:border-indigo-400 hover:text-indigo-600"
+                                                                    )}
+                                                                >
+                                                                    <Eye size={14} />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setFillRequest(req)}
+                                                                    disabled={isCompleted || (isDeoFilled && !isRejected)}
+                                                                    className={cn(
+                                                                        "w-8 h-8 rounded-lg flex items-center justify-center text-white transition-all shadow-md",
+                                                                        isRejected ? "bg-rose-500 hover:bg-rose-600" :
+                                                                        (isCompleted || isDeoFilled) ? "bg-emerald-400 opacity-30 cursor-not-allowed" :
+                                                                        "bg-emerald-500 hover:bg-emerald-600"
+                                                                    )}
+                                                                >
+                                                                    <CheckCircle2 size={14} />
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-[10px] font-black text-slate-200 uppercase tracking-widest">—</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        });
+                                    })()}
+                                </tbody>
+                            </motion.table>
+                        )}
+                    </AnimatePresence>
                 </div>
             </div>
 

@@ -1,3 +1,4 @@
+/*
 import React, { useState, useEffect } from 'react';
 import { deoMachineApi } from '../../api/newRolesApi';
 import toast from 'react-hot-toast';
@@ -76,13 +77,11 @@ const DEOMachineEntryPage: React.FC = () => {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
-      {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Machine Production Entry</h1>
         <p className="text-sm text-gray-500 mt-1">{todayStr}</p>
       </div>
 
-      {/* Current Shift Banner */}
       {shiftInfo && (
         <div className={`mb-6 rounded-2xl p-4 flex items-center justify-between ${
           shiftInfo.current_shift === 'Shift 1' ? 'bg-amber-50 border border-amber-200' :
@@ -101,13 +100,10 @@ const DEOMachineEntryPage: React.FC = () => {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Entry Form */}
         <div className="lg:col-span-2">
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
             <h2 className="text-base font-bold text-gray-800 mb-4">Add Production Entry</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
-
-              {/* Select Part */}
               <div>
                 <label className="block text-xs font-semibold text-gray-500 mb-1">Part *</label>
                 <select
@@ -125,7 +121,6 @@ const DEOMachineEntryPage: React.FC = () => {
                 </select>
               </div>
 
-              {/* Shift */}
               <div>
                 <label className="block text-xs font-semibold text-gray-500 mb-1">Shift *</label>
                 <div className="grid grid-cols-3 gap-2">
@@ -149,7 +144,6 @@ const DEOMachineEntryPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Parts Produced */}
               <div>
                 <label className="block text-xs font-semibold text-gray-500 mb-1">Parts Produced *</label>
                 <input
@@ -164,7 +158,6 @@ const DEOMachineEntryPage: React.FC = () => {
                 />
               </div>
 
-              {/* Machine Runtime & Downtime */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Runtime (hrs)</label>
@@ -192,7 +185,6 @@ const DEOMachineEntryPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Notes */}
               <div>
                 <label className="block text-xs font-semibold text-gray-500 mb-1">Notes</label>
                 <textarea
@@ -217,7 +209,6 @@ const DEOMachineEntryPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Today's Entries */}
         <div className="lg:col-span-3">
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
             <h2 className="text-base font-bold text-gray-800 mb-4">Today's Entries</h2>
@@ -291,4 +282,12 @@ const DEOMachineEntryPage: React.FC = () => {
   );
 };
 
+export default DEOMachineEntryPage;
+*/
+
+// Placeholder to avoid import errors
+import React from 'react';
+const DEOMachineEntryPage: React.FC = () => {
+  return null;
+};
 export default DEOMachineEntryPage;

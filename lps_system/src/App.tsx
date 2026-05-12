@@ -158,7 +158,7 @@ function App() {
                         <Route path={DEO_VERIFY} element={<DEODashboardPage />} />
                         <Route path={DEO_NOTIFICATIONS} element={<DEODashboardPage />} />
                         <Route path={DEO_SHORTAGE} element={<DEODashboardPage />} />
-                        <Route path={DEO_MACHINE_ENTRY} element={<DEOMachineEntryPage />} />
+                        // <Route path={DEO_MACHINE_ENTRY} element={<DEOMachineEntryPage />} />
                       </Route>
 
                       {/* Supervisor Machine Monitor — Supervisor + Admin only */}

@@ -96,6 +96,52 @@ def update_demand(demand_id):
     return jsonify({"success": True, "data": demand.to_dict()})
 
 
+@ppc_bp.route('/demands/<int:demand_id>', methods=['DELETE'])
+@jwt_required()
+@require_ppc
+def delete_demand(demand_id):
+    """
+    PPC Planner deletes a demand. Perform thorough cleanup of all associated data.
+    """
+    demand = Demand.query.get(demand_id)
+    if not demand:
+        return jsonify({"success": False, "message": "Demand not found"}), 404
+    
+    model_id = demand.model_id
+    from app.models import (
+        InventoryItem, MachineProductionEntry, RMCheckRequest, 
+        PartShortageRequest, ShortageDailyEntry, DispatchRecord, DailyProductionLog, DailyWorkStatus
+    )
+    
+    # 1. Cleanup Production & Dispatch Logs
+    MachineProductionEntry.query.filter_by(demand_id=demand_id).delete()
+    DailyProductionLog.query.filter_by(demand_id=demand_id).delete()
+    DispatchRecord.query.filter_by(demand_id=demand_id).delete()
+    
+    # 2. Cleanup RM & Shortage Requests
+    items = InventoryItem.query.filter_by(demand_id=demand_id).all()
+    item_ids = [it.id for it in items]
+    if item_ids:
+        RMCheckRequest.query.filter(RMCheckRequest.inventory_item_id.in_(item_ids)).delete(synchronize_session=False)
+        psrs = PartShortageRequest.query.filter(PartShortageRequest.inventory_item_id.in_(item_ids)).all()
+        psr_ids = [p.id for p in psrs]
+        if psr_ids:
+            ShortageDailyEntry.query.filter(ShortageDailyEntry.shortage_request_id.in_(psr_ids)).delete(synchronize_session=False)
+            PartShortageRequest.query.filter(PartShortageRequest.id.in_(psr_ids)).delete(synchronize_session=False)
+            
+    # 3. Cleanup Inventory Items
+    InventoryItem.query.filter_by(demand_id=demand_id).delete()
+    
+    # 4. Cleanup Unique Model Clone
+    if model_id:
+        DailyWorkStatus.query.filter_by(car_model_id=model_id).delete()
+        InventoryItem.query.filter_by(car_model_id=model_id).delete()
+        
+    db.session.delete(demand)
+    db.session.commit()
+    return jsonify({"success": True, "message": "Demand and all associated data deleted successfully"})
+
+
 # ─────────────────────────────────────────────────────────
 # INVENTORY  (view + Excel stock upload)
 # ─────────────────────────────────────────────────────────
@@ -110,6 +156,37 @@ def get_inventory():
         query = query.filter_by(demand_id=demand_id)
     items = query.order_by(InventoryItem.serial_number).all()
     return jsonify({"success": True, "data": [i.to_dict() for i in items]})
+
+
+@ppc_bp.route('/inventory/<int:item_id>', methods=['DELETE'])
+@jwt_required()
+@require_ppc
+def delete_inventory_item(item_id):
+    """
+    PPC Planner deletes a single inventory item from a demand.
+    """
+    from app.models import (
+        InventoryItem, MachineProductionEntry, DispatchRecord, 
+        RMCheckRequest, PartShortageRequest, ShortageDailyEntry
+    )
+    item = InventoryItem.query.get(item_id)
+    if not item:
+        return jsonify({"success": False, "message": "Inventory item not found"}), 404
+    
+    # Cleanup associated records
+    MachineProductionEntry.query.filter_by(inventory_item_id=item_id).delete()
+    DispatchRecord.query.filter_by(inventory_item_id=item_id).delete()
+    RMCheckRequest.query.filter_by(inventory_item_id=item_id).delete()
+    
+    psrs = PartShortageRequest.query.filter_by(inventory_item_id=item_id).all()
+    psr_ids = [p.id for p in psrs]
+    if psr_ids:
+        ShortageDailyEntry.query.filter(ShortageDailyEntry.shortage_request_id.in_(psr_ids)).delete(synchronize_session=False)
+        PartShortageRequest.query.filter(PartShortageRequest.id.in_(psr_ids)).delete(synchronize_session=False)
+
+    db.session.delete(item)
+    db.session.commit()
+    return jsonify({"success": True, "message": "Inventory item and associated data deleted"})
 
 
 @ppc_bp.route('/inventory/upload-stock', methods=['POST'])
@@ -208,26 +285,45 @@ def get_machine_registry():
     - Demand formatted_id for identification
     - RM check request status
     """
-    demand_id = request.args.get('demand_id', type=int)
+    demand_param = request.args.get('demand_id')
+    demand_id = None
+    if demand_param:
+        if str(demand_param).isdigit():
+            demand_id = int(demand_param)
+        else:
+            d_obj = Demand.query.filter_by(formatted_id=demand_param).first()
+            if d_obj: demand_id = d_obj.id
 
-    # Active demand IDs
-    active_statuses = ['PENDING', 'RM_CHECK', 'RM_SENT', 'RM_ACCEPTED', 'IN_PRODUCTION']
-    active_demand_ids = db.session.query(Demand.id).filter(
-        Demand.status.in_(active_statuses)
-    ).all()
-    active_ids = [d.id for d in active_demand_ids]
 
-    if not active_ids:
-        return jsonify({"success": True, "data": []})
+    # Primary filter: Only show shortage items (Stock < Demand)
+    query = InventoryItem.query.filter(
+        (InventoryItem.initial_stock + InventoryItem.produced_qty) < InventoryItem.demand_quantity
+    )
 
-    query = InventoryItem.query.filter(InventoryItem.demand_id.in_(active_ids))
     if demand_id:
+        # If user explicitly selected a demand, show its shortages regardless of general active status
         query = query.filter_by(demand_id=demand_id)
+    else:
+        # Active demand IDs
+        active_statuses = ['PENDING', 'RM_CHECK', 'RM_SENT', 'RM_ACCEPTED', 'IN_PRODUCTION', 'IN_PROGRESS', 'IN PROGRESS', 'ACTIVE']
+        active_demand_ids = db.session.query(Demand.id).filter(
+            Demand.status.in_(active_statuses)
+        ).all()
+        active_ids = [d[0] for d in active_demand_ids]
+        
+        if not active_ids:
+            return jsonify({"success": True, "data": []})
+            
+        # Otherwise, show shortages for all active demands
+        query = query.filter(InventoryItem.demand_id.in_(active_ids))
     
     items = query.order_by(InventoryItem.demand_id, InventoryItem.serial_number).all()
 
-    # Fallback: If demand_id provided but no inventory items yet, show MasterData parts for that model
-    if demand_id and not items:
+    # Check if ANY inventory items exist for this demand (regardless of stock)
+    any_exists = InventoryItem.query.filter_by(demand_id=demand_id).first() if demand_id else None
+
+    # Fallback: If demand_id provided but NO inventory records exist at all, show MasterData parts
+    if demand_id and not any_exists:
         demand = Demand.query.get(demand_id)
         if demand:
             master_parts = MasterData.query.filter(MasterData.model.ilike(f"%{demand.model_name}%")).all()

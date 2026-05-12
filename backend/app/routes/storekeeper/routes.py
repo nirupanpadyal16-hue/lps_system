@@ -5,7 +5,7 @@ from datetime import datetime
 from app.extensions import db
 from app.models import (
     User, Demand, InventoryItem, RMCheckRequest,
-    DispatchRecord, Notification, Status
+    DispatchRecord, Notification, Status, PartShortageRequest, ProductionLine
 )
 
 sk_bp = Blueprint('storekeeper', __name__)
@@ -87,27 +87,71 @@ def accept_rm_request(rm_id):
 
     db.session.flush()
 
-    # Notify Supervisor(s) assigned to the demand's line
-    supervisors = []
-    if rm.demand_id:
+
+    # ─── AUTOMATICALLY CREATE PART SHORTAGE REQUEST ───
+    if item and item.effective_stock < item.demand_quantity:
+        # Generate PSR formatted_id
+        from sqlalchemy import func
+        max_psr_id = db.session.query(func.max(PartShortageRequest.id)).scalar() or 0
+        psr_formatted_id = f"PSR-{(max_psr_id + 1):03d}"
+        
+        # Get assignments from demand's model
         demand = Demand.query.get(rm.demand_id)
-        if demand and demand.model and demand.model.supervisor_id:
-            supervisors.append(demand.model.supervisor_id)
-
-    # If no specific supervisor, notify all active supervisors
-    if not supervisors:
-        sups = User.query.filter_by(role='Supervisor', is_active=True).all()
-        supervisors = [s.id for s in sups]
-
-    for sup_id in supervisors:
-        Notification.send(
-            user_id=sup_id,
-            title="RM Material Accepted — Ready for Production",
-            message=f"Store Keeper {user.name} accepted RM for part {item.sap_part_number if item else 'N/A'}. Raw material is at plant.",
-            notification_type='RM_ACCEPTED',
-            demand_id=rm.demand_id,
-            rm_request_id=rm.id
+        model = demand.model if demand else None
+        
+        psr = PartShortageRequest(
+            formatted_id=psr_formatted_id,
+            inventory_item_id=item.id,
+            shortage_quantity=item.shortage_quantity,
+            deadline=rm.demand.end_date if rm.demand else None, # Fallback to demand end date
+            status='PENDING',
+            deo_id=model.assigned_deo_id if model else None,
+            supervisor_id=model.supervisor_id if model else None,
+            line_id=model.production_line_id if model else None,
         )
+        db.session.add(psr)
+        
+        # Update item status to PENDING_DEO
+        item.status = 'PENDING_DEO'
+        
+        # ─── AUTOMATICALLY NOTIFY DEOs & SUPERVISORS ON THE LINE ───
+        line_id = model.production_line_id if model else None
+        
+        # 1. Notify Supervisors on this line (or specific one)
+        target_supervisors = []
+        if model and model.supervisor_id:
+            target_supervisors.append(model.supervisor_id)
+        elif line_id:
+            sups = User.query.filter_by(role='Supervisor', assigned_line_id=line_id, is_active=True).all()
+            target_supervisors = [s.id for s in sups]
+            
+        for sup_id in target_supervisors:
+            Notification.send(
+                user_id=sup_id,
+                title="New Shortage Material Ready",
+                message=f"RM for part {item.sap_part_number} (Demand: {demand.formatted_id if demand else 'N/A'}) has been accepted. Shortage: {psr.shortage_quantity}.",
+                notification_type='SHORTAGE_ASSIGNED',
+                demand_id=rm.demand_id,
+                shortage_request_id=psr.id
+            )
+
+        # 2. Notify DEOs on this line (or specific one)
+        target_deos = []
+        if model and model.assigned_deo_id:
+            target_deos.append(model.assigned_deo_id)
+        elif line_id:
+            deos = User.query.filter_by(role='DEO', assigned_line_id=line_id, is_active=True).all()
+            target_deos = [d.id for d in deos]
+            
+        for deo_id in target_deos:
+            Notification.send(
+                user_id=deo_id,
+                title="New Shortage Material Ready",
+                message=f"RM for part {item.sap_part_number} has been accepted. Please fill stock data for shortage of {psr.shortage_quantity}.",
+                notification_type='SHORTAGE_ASSIGNED',
+                demand_id=rm.demand_id,
+                shortage_request_id=psr.id
+            )
 
     # Notify PPC Planner
     if rm.ppc_planner_id:
