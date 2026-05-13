@@ -35,6 +35,13 @@ const SHIFT_OPTIONS = [
   { id: 'Shift 3', label: 'Shift III', icon: '🌙' },
 ];
 
+const STATUS_OPTIONS = [
+  { id: 'All', label: 'All Status' },
+  { id: 'PENDING', label: 'Pending' },
+  { id: 'REJECTED', label: 'Rejected' },
+  { id: 'VERIFIED', label: 'Completed' },
+];
+
 interface InventoryItem {
   id: number;
   sap_part_number: string;
@@ -57,8 +64,10 @@ interface ProductionEntry {
   sub_machine_name: string;
   sap_part_number: string;
   parts_produced: number;
+  machine_run_time?: number;
   deo_notes?: string;
   status: string;
+  rejection_reason?: string;
 }
 
 const DEODailyProduction: React.FC = () => {
@@ -72,6 +81,7 @@ const DEODailyProduction: React.FC = () => {
   // Main View States
   const [filterDate, setFilterDate] = useState('');
   const [filterShift, setFilterShift] = useState('All');
+  const [filterStatus, setFilterStatus] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -85,6 +95,8 @@ const DEODailyProduction: React.FC = () => {
   const [remark, setRemark] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [rejectionReason, setRejectionReason] = useState<string | null>(null);
+  const [editingStatus, setEditingStatus] = useState<string | null>(null);
 
   const fetchData = async (dateOverride?: string) => {
     setLoading(true);
@@ -95,7 +107,11 @@ const DEODailyProduction: React.FC = () => {
         deoMachineApi.getInventory(),
         deoMachineApi.getMachines()
       ]);
-      setHistoryEntries(historyRes.data?.data || []);
+      const mappedHistory = (historyRes.data?.data || []).map((e: any) => ({
+        ...e,
+        machine_run_time: e.machine_runtime_mins
+      }));
+      setHistoryEntries(mappedHistory);
       setInventoryItems(inventoryRes.data?.data || []);
       setMachines(machinesRes.data?.data || []);
     } catch (error) {
@@ -117,7 +133,8 @@ const DEODailyProduction: React.FC = () => {
           name: sm.name,
           part_id: '',
           sap_part_number: '',
-          production: ''
+          production: '',
+          run_time: ''
         };
       });
       setSubMachineLogs(newLogs);
@@ -129,6 +146,8 @@ const DEODailyProduction: React.FC = () => {
     setRemark('');
     setIsEditing(false);
     setEditingId(null);
+    setRejectionReason(null);
+    setEditingStatus(null);
     setFormDate(new Date().toISOString().split('T')[0]);
     setFormShift('Shift I');
     setSubMachineLogs([]);
@@ -140,26 +159,29 @@ const DEODailyProduction: React.FC = () => {
     setFormDate(entry.date);
     setFormShift(entry.shift);
     setRemark(entry.deo_notes || '');
-    
+    setRejectionReason(entry.rejection_reason || null);
+    setEditingStatus(entry.status);
+
     const part = inventoryItems.find(p => p.sap_part_number === entry.sap_part_number);
-    
+
     setSubMachineLogs([{
       id: entry.machine_id || `temp_${Math.random()}`,
       name: entry.sub_machine_name || '',
       sap_part_number: entry.sap_part_number,
       part_id: part?.id.toString() || '',
-      production: entry.parts_produced.toString()
+      production: entry.parts_produced.toString(),
+      run_time: entry.machine_run_time?.toString() || ''
     }]);
 
     const parentMachine = machines.find(m => m.children.some(c => c.id === parseInt(entry.machine_id)));
     setSelectedMachine(parentMachine || null);
-    
+
     setShowFormModal(true);
   };
 
   const handleSubmit = async () => {
     const validLogs = subMachineLogs.filter(log => log.production);
-    
+
     if (validLogs.length === 0) {
       toast.error('Please enter production quantity');
       return;
@@ -176,7 +198,7 @@ const DEODailyProduction: React.FC = () => {
     try {
       for (const log of validLogs) {
         let mId = typeof log.id === 'string' && log.id.startsWith('temp_') ? null : log.id;
-        
+
         // Intelligent ID Lookup: If manual entry, try to find the real machine ID by name
         if (!mId && log.name) {
           for (const m of machines) {
@@ -191,20 +213,27 @@ const DEODailyProduction: React.FC = () => {
             }
           }
         }
-        
-        await deoMachineApi.createEntry({
+
+        const entryData = {
           inventory_item_id: log.part_id ? parseInt(log.part_id) : null,
           shift: formShift,
           date: formDate,
           parts_produced: parseFloat(log.production),
           machine_id: mId,
           sap_part_number: log.sap_part_number,
+          machine_runtime_mins: log.run_time ? parseFloat(log.run_time) : null,
           deo_notes: remark
-        });
+        };
+
+        if (isEditing && editingId) {
+          await deoMachineApi.updateMachineEntry(editingId, entryData);
+        } else {
+          await deoMachineApi.createEntry(entryData);
+        }
       }
       setShowFormModal(false);
       setShowSuccess(true);
-      setFilterDate(formDate); 
+      setFilterDate(formDate);
       fetchData(formDate); // Force refresh with new date immediately
       handleReset();
     } catch (error) {
@@ -216,11 +245,11 @@ const DEODailyProduction: React.FC = () => {
 
   const filteredHistory = useMemo(() => {
     return historyEntries.filter(entry => {
-      const matchesSearch = 
+      const matchesSearch =
         entry.machine_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         entry.sub_machine_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         entry.sap_part_number?.toLowerCase().includes(searchTerm.toLowerCase());
-      
+
       const entryShift = entry.shift.toLowerCase();
       const selectedShift = filterShift.toLowerCase();
 
@@ -233,9 +262,20 @@ const DEODailyProduction: React.FC = () => {
         matchesShift = isShift1 || isShift2 || isShift3;
       }
 
-      return matchesSearch && matchesShift;
+      // Status filtering
+      const itemStatus = (entry.status || 'PENDING').toUpperCase();
+      let matchesStatus = filterStatus === 'All';
+      if (!matchesStatus) {
+        if (filterStatus === 'VERIFIED') {
+          matchesStatus = ['APPROVED', 'VERIFIED', 'READY', 'DONE'].includes(itemStatus);
+        } else {
+          matchesStatus = itemStatus === filterStatus;
+        }
+      }
+
+      return matchesSearch && matchesShift && matchesStatus;
     });
-  }, [historyEntries, searchTerm, filterShift]);
+  }, [historyEntries, searchTerm, filterShift, filterStatus]);
 
   const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
   const paginatedHistory = filteredHistory.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -284,67 +324,101 @@ const DEODailyProduction: React.FC = () => {
 
           {/* Bottom Row: Filters & Primary Action */}
           <div className="px-4 flex flex-col md:flex-row items-center justify-between gap-2">
-            <div className="flex items-center gap-3 w-full md:w-auto">
-              <div className="relative group w-full md:w-[200px]">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 p-1 bg-indigo-50/50 rounded text-indigo-400">
-                  <Calendar size={12} />
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <div className="relative group w-full md:w-52">
+                <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#f37021] transition-colors" />
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full h-[36px] bg-white border border-ind-border/60 rounded-full pl-9 pr-3 text-[10px] font-bold text-slate-700 outline-none focus:border-[#f37021] transition-all shadow-sm placeholder:text-slate-300"
+                />
+              </div>
+              <div className="relative group w-full md:w-[160px]">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 p-0.5 bg-indigo-50/50 rounded text-indigo-400">
+                  <Calendar size={10} />
                 </div>
-                <input 
-                  type="date" 
+                <input
+                  type="date"
                   value={filterDate}
                   onChange={(e) => setFilterDate(e.target.value)}
-                  className="w-full bg-white border border-ind-border/60 focus:border-ind-primary rounded-full h-[42px] pl-12 pr-10 text-slate-700 font-bold text-[11px] tracking-wide outline-none transition-all shadow-sm"
+                  className="w-full bg-white border border-ind-border/60 focus:border-ind-primary rounded-full h-[36px] pl-10 pr-8 text-slate-700 font-bold text-[10px] tracking-wide outline-none transition-all shadow-sm"
                 />
                 {filterDate && (
-                  <button onClick={() => setFilterDate('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-black text-rose-500 px-1 bg-white hover:underline">CLEAR</button>
+                  <button onClick={() => setFilterDate('')} className="absolute right-8 top-1/2 -translate-y-1/2 text-[8px] font-black text-rose-500 px-1 bg-white hover:underline">CLEAR</button>
                 )}
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-ind-text3 opacity-50">
+                  <ChevronDown size={12} />
+                </div>
               </div>
 
-              <div className="relative group w-full md:w-48">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 p-1 bg-orange-50 rounded text-ind-primary">
-                  <Clock size={11} />
+              <div className="relative group w-full md:w-36">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 p-0.5 bg-orange-50 rounded text-ind-primary">
+                  <Clock size={10} />
                 </div>
-                <select 
+                <select
                   value={filterShift}
                   onChange={(e) => setFilterShift(e.target.value)}
-                  className="w-full bg-white border border-ind-border/60 focus:border-ind-primary rounded-full h-[42px] pl-12 pr-10 text-slate-700 font-bold text-[11px] tracking-wide outline-none appearance-none"
+                  className="w-full bg-white border border-ind-border/60 focus:border-ind-primary rounded-full h-[36px] pl-10 pr-8 text-slate-700 font-bold text-[10px] tracking-wide outline-none appearance-none cursor-pointer"
                 >
                   {SHIFT_OPTIONS.map(opt => (
                     <option key={opt.id} value={opt.id}>{opt.label}</option>
                   ))}
                 </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-ind-text3">
-                  <ChevronDown size={14} />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-ind-text3 opacity-50">
+                  <ChevronDown size={12} />
+                </div>
+              </div>
+
+              <div className="relative group w-full md:w-36">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 p-0.5 bg-orange-50 rounded text-ind-primary">
+                  <CheckCircle2 size={10} />
+                </div>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="w-full bg-white border border-ind-border/60 focus:border-ind-primary rounded-full h-[36px] pl-10 pr-8 text-slate-700 font-bold text-[10px] tracking-wide outline-none appearance-none cursor-pointer"
+                >
+                  {STATUS_OPTIONS.map(opt => (
+                    <option key={opt.id} value={opt.id}>{opt.label}</option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-ind-text3 opacity-50">
+                  <ChevronDown size={12} />
                 </div>
               </div>
             </div>
 
-            <button 
+            <button
               onClick={() => {
                 handleReset();
                 setShowFormModal(true);
               }}
-              className="w-full md:w-auto bg-gradient-to-r from-[#F37021] to-orange-600 text-white px-8 h-[42px] rounded-full font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-orange-500/10 active:scale-95 transition-all"
+              className="w-full md:w-auto bg-gradient-to-r from-[#F37021] to-orange-600 text-white px-6 h-[36px] rounded-full font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-orange-500/10 active:scale-95 transition-all"
             >
-              <PlusCircle size={16} strokeWidth={2.5} />
-              Add Production log
+              <PlusCircle size={14} strokeWidth={2.5} />
+              Daily Production log
             </button>
           </div>
         </div>
 
         {/* TABLE AREA */}
-        <div className="px-2 py-2">
-          <div className="overflow-x-auto rounded-2xl border border-ind-border/50 shadow-sm h-[calc(100vh-220px)] overflow-y-auto bg-white transition-all custom-scrollbar">
+        <div className="px-2 pb-2">
+          <div className="overflow-x-auto rounded-2xl border border-ind-border/50 shadow-sm h-[calc(100vh-220px)] overflow-y-auto bg-white transition-all custom-scrollbar flex flex-col">
+            <div className="flex-1 overflow-auto">
             <table className="min-w-full bg-white text-sm">
               <thead className="bg-ind-bg text-black border-b-2 border-[#f37021] uppercase text-[11px] tracking-wider sticky top-0 z-[50]">
                 <tr>
-                  <th className="px-6 py-2 text-left">sr no</th>
-                  <th className="px-6 py-2 text-left">machine</th>
-                  <th className="px-6 py-2 text-left">submachine</th>
-                  <th className="px-6 py-2 text-left">SAP Part No</th>
-                  <th className="px-6 py-2 text-right">Total Production</th>
-                  <th className="px-6 py-2 text-center">shift</th>
-                  <th className="px-6 py-2 text-right">action</th>
+                  <th className="px-6 py-2 text-left whitespace-nowrap">SR NO</th>
+                  <th className="px-6 py-2 text-left whitespace-nowrap">MACHINE</th>
+                  <th className="px-6 py-2 text-left whitespace-nowrap">SUBMACHINE</th>
+                  <th className="px-6 py-2 text-left whitespace-nowrap">SAP PART NO</th>
+                  <th className="px-6 py-2 text-right whitespace-nowrap">DAILY PRODUCTION</th>
+                  <th className="px-6 py-2 text-right whitespace-nowrap">MACHINE RUN TIME</th>
+                  <th className="px-6 py-2 text-center whitespace-nowrap">SHIFT</th>
+                  <th className="px-6 py-2 text-center whitespace-nowrap">STATUS</th>
+                  <th className="px-6 py-2 text-right whitespace-nowrap">ACTION</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-ind-border/40">
@@ -382,20 +456,41 @@ const DEODailyProduction: React.FC = () => {
                       <td className="px-6 py-3.5 text-right font-black text-[#f37021]">
                         {entry.parts_produced}
                       </td>
+                      <td className="px-6 py-3.5 text-right font-black text-blue-600">
+                        {entry.machine_run_time || '0'} hrs
+                      </td>
                       <td className="px-6 py-3.5 text-center">
                         <span className={cn(
                           "px-4 py-1 rounded-full text-[10px] font-black border uppercase tracking-widest",
                           entry.shift.toLowerCase().includes('1') || entry.shift.toLowerCase().includes('i') ? "bg-orange-50 text-orange-600 border-orange-100" :
-                          entry.shift.toLowerCase().includes('2') || entry.shift.toLowerCase().includes('ii') ? "bg-blue-50 text-blue-600 border-blue-100" :
-                          "bg-purple-50 text-purple-600 border-purple-100"
+                            entry.shift.toLowerCase().includes('2') || entry.shift.toLowerCase().includes('ii') ? "bg-blue-50 text-blue-600 border-blue-100" :
+                              "bg-purple-50 text-purple-600 border-purple-100"
                         )}>
                           {getShiftLabel(entry.shift)}
                         </span>
                       </td>
+                      <td className="px-6 py-3.5 text-center">
+                        <span className={cn(
+                          "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border",
+                          ['APPROVED', 'VERIFIED', 'READY', 'DONE'].includes((entry.status || 'PENDING').toUpperCase())
+                            ? "bg-emerald-50 text-emerald-600 border-emerald-100 shadow-sm shadow-emerald-500/10"
+                            : entry.status === 'REJECTED'
+                              ? "bg-rose-50 text-rose-600 border-rose-100 shadow-sm shadow-rose-500/10"
+                              : "bg-amber-50 text-amber-600 border-amber-100 shadow-sm shadow-amber-500/10"
+                        )}>
+                          {entry.status || 'PENDING'}
+                        </span>
+                      </td>
                       <td className="px-6 py-3.5 text-right transition-opacity">
-                        <button 
+                        <button
                           onClick={() => handleEdit(entry)}
-                          className="text-blue-600 hover:scale-110 transition-transform p-2 hover:bg-blue-50 rounded-lg"
+                          disabled={['APPROVED', 'VERIFIED', 'READY', 'DONE'].includes((entry.status || 'PENDING').toUpperCase())}
+                          className={cn(
+                            "transition-all p-2 rounded-lg",
+                            ['APPROVED', 'VERIFIED', 'READY', 'DONE'].includes((entry.status || 'PENDING').toUpperCase())
+                              ? "text-slate-200 cursor-not-allowed bg-slate-50"
+                              : "text-blue-600 hover:scale-110 hover:bg-blue-50"
+                          )}
                         >
                           <Edit2 size={14} />
                         </button>
@@ -407,50 +502,69 @@ const DEODailyProduction: React.FC = () => {
             </table>
           </div>
 
-          {/* PAGINATION */}
-          {totalPages > 1 && (
-            <div className="mt-4 flex items-center justify-center gap-2">
-              <button 
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="p-2 text-slate-400 disabled:opacity-30"
-              >
-                <ChevronDown className="rotate-90" size={16} />
-              </button>
-              {[...Array(totalPages)].map((_, i) => (
+          {/* PAGINATION FOOTER */}
+          {filteredHistory.length > 0 && (
+            <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-white sticky bottom-0 z-[60]">
+              <div className="flex items-center gap-4">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  Showing <span className="text-slate-900">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="text-slate-900">{Math.min(currentPage * itemsPerPage, filteredHistory.length)}</span> of <span className="text-slate-900">{filteredHistory.length}</span> logs
+                </p>
+              </div>
+
+              <div className="flex items-center gap-1">
                 <button
-                  key={i}
-                  onClick={() => setCurrentPage(i + 1)}
-                  className={cn(
-                    "w-8 h-8 rounded-lg text-[10px] font-black transition-all",
-                    currentPage === i + 1 ? "bg-orange-500 text-white shadow-lg" : "bg-slate-100 text-slate-400 hover:bg-slate-200"
-                  )}
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 border border-slate-200 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 disabled:opacity-50 transition-all text-slate-600"
                 >
-                  {i + 1}
+                  Prev
                 </button>
-              ))}
-              <button 
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="p-2 text-slate-400 disabled:opacity-30"
-              >
-                <ChevronDown className="-rotate-90" size={16} />
-              </button>
+
+                <div className="flex items-center gap-1 mx-2">
+                  {[...Array(totalPages)].map((_, i) => {
+                    const page = i + 1;
+                    if (page === 1 || page === totalPages || (page >= currentPage - 1 && page <= currentPage + 1)) {
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          className={`w-8 h-8 rounded-lg text-[10px] font-black transition-all ${currentPage === page ? 'bg-[#f37021] text-white shadow-lg shadow-orange-500/20' : 'hover:bg-slate-100 text-slate-600'}`}
+                        >
+                          {page}
+                        </button>
+                      );
+                    }
+                    if (page === currentPage - 2 || page === currentPage + 2) {
+                      return <span key={page} className="text-slate-300 text-[10px] px-1">...</span>;
+                    }
+                    return null;
+                  })}
+                </div>
+
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 border border-slate-200 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 disabled:opacity-50 transition-all text-slate-600"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           )}
         </div>
       </div>
+    </div>
 
       {/* MINIMAL SUCCESS POPUP */}
       <AnimatePresence>
         {showSuccess && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
           >
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
@@ -463,7 +577,7 @@ const DEODailyProduction: React.FC = () => {
               </div>
               <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight mb-2">Entry Saved</h2>
               <p className="text-sm font-bold text-slate-400 mb-8">Data synchronized successfully</p>
-              <button 
+              <button
                 onClick={() => setShowSuccess(false)}
                 className="w-full py-4 bg-slate-900 text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] shadow-xl hover:bg-slate-800 transition-all active:scale-95"
               >
@@ -478,14 +592,14 @@ const DEODailyProduction: React.FC = () => {
       <AnimatePresence>
         {showFormModal && (
           <>
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowFormModal(false)}
               className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100]"
             />
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -514,7 +628,7 @@ const DEODailyProduction: React.FC = () => {
                       <label className="text-[10px] font-black text-slate-900 uppercase tracking-widest ml-1">Logging Date</label>
                       <div className="relative group">
                         <Calendar size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-orange-500 transition-colors" />
-                        <input 
+                        <input
                           type="date"
                           value={formDate}
                           onChange={(e) => setFormDate(e.target.value)}
@@ -527,7 +641,7 @@ const DEODailyProduction: React.FC = () => {
                       <label className="text-[10px] font-black text-slate-900 uppercase tracking-widest ml-1">Assigned Shift</label>
                       <div className="relative group">
                         <Clock size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
-                        <select 
+                        <select
                           value={formShift}
                           onChange={(e) => setFormShift(e.target.value)}
                           className="w-full bg-white border border-slate-200 rounded-xl py-3 pl-11 pr-10 text-xs font-black text-slate-800 outline-none appearance-none focus:border-orange-400 transition-all shadow-sm"
@@ -545,7 +659,7 @@ const DEODailyProduction: React.FC = () => {
                     <label className="text-[10px] font-black text-slate-900 uppercase tracking-widest ml-1">Production Machine</label>
                     <div className="relative group">
                       <Cpu size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-                      <select 
+                      <select
                         value={selectedMachine?.id || ''}
                         onChange={(e) => {
                           const m = machines.find(m => m.id === parseInt(e.target.value));
@@ -562,24 +676,25 @@ const DEODailyProduction: React.FC = () => {
                     </div>
                   </div>
 
-                    <div className="space-y-3">
-                      <label className="text-[10px] font-black text-slate-900 uppercase tracking-widest ml-1">Sub-Machine Matrix</label>
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-900 uppercase tracking-widest ml-1">Sub-Machine Matrix</label>
 
-                    
+
                     <div className="bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden shadow-inner">
                       <table className="w-full text-left">
                         <thead className="bg-slate-100/30">
                           <tr>
-                            <th className="px-5 py-3 text-[9px] font-black text-slate-900 uppercase tracking-widest">Sub Machine</th>
-                            <th className="px-5 py-3 text-[9px] font-black text-slate-900 uppercase tracking-widest">SAP Part Number</th>
-                            <th className="px-5 py-3 text-[9px] font-black text-slate-900 uppercase tracking-widest text-right">Qty</th>
+                            <th className="px-5 py-3 text-[9px] font-black text-slate-900 uppercase tracking-widest whitespace-nowrap">Sub Machine</th>
+                            <th className="px-5 py-3 text-[9px] font-black text-slate-900 uppercase tracking-widest whitespace-nowrap">SAP Part Number</th>
+                            <th className="px-5 py-3 text-[9px] font-black text-slate-900 uppercase tracking-widest text-right whitespace-nowrap">Qty</th>
+                            <th className="px-5 py-3 text-[9px] font-black text-slate-900 uppercase tracking-widest text-right whitespace-nowrap">Machine Run Time</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                           {subMachineLogs.map((log, idx) => (
                             <tr key={log.id} className="bg-white/50 hover:bg-white transition-colors">
                               <td className="px-5 py-3">
-                                <input 
+                                <input
                                   type="text"
                                   placeholder="Name"
                                   value={log.name}
@@ -594,7 +709,7 @@ const DEODailyProduction: React.FC = () => {
                               </td>
                               <td className="px-5 py-3">
                                 <div className="relative group">
-                                  <input 
+                                  <input
                                     type="text"
                                     placeholder="Enter SAP Part No"
                                     value={log.sap_part_number}
@@ -610,7 +725,7 @@ const DEODailyProduction: React.FC = () => {
                                 </div>
                               </td>
                               <td className="px-5 py-3 text-right">
-                                <input 
+                                <input
                                   type="number"
                                   placeholder="0"
                                   value={log.production}
@@ -622,18 +737,30 @@ const DEODailyProduction: React.FC = () => {
                                   className="w-20 bg-white border border-ind-border/60 rounded-lg py-1.5 px-3 text-[11px] font-black text-slate-800 text-right outline-none focus:border-orange-400"
                                 />
                               </td>
+                              <td className="px-5 py-3">
+                                <input
+                                  type="number"
+                                  placeholder="Hours"
+                                  value={log.run_time}
+                                  onChange={(e) => {
+                                    const newLogs = [...subMachineLogs];
+                                    newLogs[idx].run_time = e.target.value;
+                                    setSubMachineLogs(newLogs);
+                                  }}
+                                  className="w-20 bg-white border border-ind-border/60 rounded-lg py-1.5 px-3 text-[11px] font-black text-slate-800 text-right outline-none focus:border-orange-400"
+                                />
+                              </td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
                   </div>
-
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-900 uppercase tracking-widest ml-1">Operator Remarks</label>
                     <div className="relative group">
                       <FileText size={14} className="absolute left-4 top-4 text-slate-400" />
-                      <textarea 
+                      <textarea
                         rows={2}
                         placeholder="Enter observations or downtime reasons..."
                         value={remark}
@@ -642,13 +769,25 @@ const DEODailyProduction: React.FC = () => {
                       />
                     </div>
                   </div>
+
+                  {isEditing && editingStatus === 'REJECTED' && rejectionReason && (
+                    <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2">
+                      <label className="text-[10px] font-black text-rose-600 uppercase tracking-widest ml-1">Supervisor Review Feedback</label>
+                      <div className="relative group">
+                        <AlertCircle size={14} className="absolute left-4 top-4 text-rose-400" />
+                        <div className="w-full bg-rose-50/50 border border-rose-100 rounded-2xl py-3.5 pl-12 pr-6 text-xs font-bold text-rose-700 shadow-sm min-h-[60px]">
+                          {rejectionReason}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-6 border-t border-slate-50 bg-slate-50/50 flex items-center gap-3">
                   <button onClick={handleReset} className="flex-1 px-6 py-3 bg-white border border-slate-200 text-slate-400 rounded-xl text-[11px] font-black uppercase tracking-[0.2em] hover:bg-slate-50 transition-all flex items-center justify-center gap-2">
                     <RotateCcw size={16} /> Reset
                   </button>
-                  <button 
+                  <button
                     onClick={handleSubmit}
                     disabled={submitting}
                     className="flex-[2] px-6 py-3 bg-orange-500 text-white rounded-xl text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-orange-500/20 hover:bg-orange-600 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import {
-    ClipboardCheck, ArrowLeft, Clock, Shield, ShieldAlert, AlertCircle
+    ClipboardCheck, ArrowLeft, Clock, Shield, ShieldAlert, AlertCircle, Database
 } from 'lucide-react';
 import { cn } from '../../../../../lib/utils';
 import { SupervisorRowVerifyModal } from './SupervisorRowVerifyModal';
@@ -162,29 +162,36 @@ export const LogDetailView = ({
                 </div>
             </div>
 
-            {/* Data Table — Read Only */}
+            {/* Data Table — High Density Modernized */}
             <div className="bg-white rounded-[2rem] border border-ind-border/50 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto custom-scrollbar" style={{ maxHeight: '550px' }}>
-                    <table className="w-full min-w-[1200px] border-separate border-spacing-0">
+                <div className="overflow-x-auto custom-scrollbar" style={{ maxHeight: '600px' }}>
+                    <table className="w-full text-sm text-left border-separate border-spacing-0">
                         <thead className="sticky top-0 z-20">
-                            <tr className="bg-slate-50 border-b-2 border-slate-200">
+                            <tr className="bg-white border-b-2 border-orange-500">
                                 {displayColumns.map((h, i) => (
                                     <th
                                         key={h}
                                         className={cn(
-                                            "px-3 py-4 text-[10px] font-black uppercase tracking-widest text-center border-b border-slate-200 bg-slate-50 text-black z-30 whitespace-nowrap",
-                                            i === 0 && "sticky left-0 text-left z-40",
-                                            i === 1 && "sticky left-[40px] text-left z-40",
-                                            (h === "Sap stock" || h === "Opening stock" || h === "Todays stock") && "bg-orange-50/50"
+                                            "px-6 py-4 text-[11px] font-black uppercase tracking-widest text-slate-900 border-b-2 border-orange-500 bg-white z-30 whitespace-nowrap",
+                                            i === 0 && "sticky left-0 z-40",
+                                            (h === "Sap stock" || h === "Opening stock" || h === "Todays stock") && "bg-orange-50/20"
                                         )}
                                     >
-                                        {labelMap[h] || h}
+                                        <div className={cn(
+                                            "flex items-center gap-2",
+                                            i === 0 || i === 1 || h.includes("PART") ? "justify-start" : "justify-center"
+                                        )}>
+                                            {h === "SAP PART NUMBER" && <Database size={10} className="text-orange-500" />}
+                                            {labelMap[h] || h}
+                                        </div>
                                     </th>
                                 ))}
-                                <th className="px-3 py-4 text-[10px] font-black uppercase tracking-widest text-black text-center border-b border-slate-200 min-w-[150px] sticky right-0 bg-slate-50 z-30">Vetting action</th>
+                                <th className="px-6 py-4 text-[11px] font-black uppercase tracking-widest text-slate-900 text-center border-b-2 border-orange-500 sticky right-0 bg-white z-30 whitespace-nowrap">
+                                    Vetting action
+                                </th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-slate-50">
                             {logData.map((row: any, index: number) => {
                                 const coverage = parseFloat(row['Coverage Days'] || '0');
                                 const isLowCoverage = coverage > 0 && coverage < 5;
@@ -201,76 +208,85 @@ export const LogDetailView = ({
                                         key={row.id || index}
                                         onClick={() => setSelectedRowDetail({ ...row, index })}
                                         className={cn(
-                                            "border-b border-slate-50 transition-colors cursor-pointer group",
-                                            rowStatus === 'VERIFIED' && "bg-emerald-50/30 hover:bg-emerald-50/50",
-                                            rowStatus === 'REJECTED' && "bg-red-50/30 hover:bg-red-50/50",
-                                            !rowStatus && "hover:bg-ind-bg/50"
+                                            "hover:bg-slate-50 transition-colors cursor-pointer group",
+                                            rowStatus === 'VERIFIED' && "bg-emerald-50/20",
+                                            rowStatus === 'REJECTED' && "bg-rose-50/20"
                                         )}
                                     >
                                         {displayColumns.map((h, i) => {
                                             const val = h === "SN. NO" ? (index + 1).toString() : (row[h] || "—");
-                                            const isLeft = i < 2 || h === "PART NUMBER" || h === "PART DESCRIPTION" || h === "ASSEMBLY NUMBER";
-                                            const isIdentity = i < 5 && h !== "PER DAY";
-                                            const isStock = h.includes("Stock");
+                                            const isIdentity = h === "SAP PART NUMBER" || h === "PART NUMBER" || h === "SN. NO";
+                                            const isHighlight = h === "Todays stock" || h === "TOTAL PRODUCTION";
 
                                             return (
                                                 <td
                                                     key={h}
                                                     className={cn(
-                                                        "p-2 border-b border-slate-50 sticky bg-inherit z-10",
-                                                        i === 0 && "left-0",
-                                                        i === 1 && "left-[40px]"
+                                                        "px-6 py-4 border-b border-slate-50 transition-all",
+                                                        i === 0 && "sticky left-0 bg-inherit z-10",
+                                                        (h === "Sap stock" || h === "Opening stock" || h === "Todays stock") && "bg-orange-50/10 group-hover:bg-orange-100/20"
                                                     )}
                                                 >
                                                     <div className={cn(
-                                                        "w-full rounded-2xl p-4 flex items-center shadow-sm min-h-[60px] border border-ind-border/50",
-                                                        isLeft ? "justify-start px-6" : "justify-center",
-                                                        isStock ? "bg-orange-50/40" : "bg-white",
-                                                        h === "PART DESCRIPTION" && "min-w-[280px]",
-                                                        h === "ASSEMBLY NUMBER" && "min-w-[180px]",
-                                                        h === "SAP PART NUMBER" && "min-w-[160px]",
-                                                        h === "PART NUMBER" && "min-w-[160px]",
-                                                        h === "Coverage Days" && isLowCoverage && "bg-red-500 border-red-600 shadow-red-500/20"
+                                                        "flex items-center gap-2",
+                                                        i === 0 || i === 1 || h.includes("PART") ? "justify-start" : "justify-center"
                                                     )}>
-                                                        <span className={cn(
-                                                            "font-black tracking-tight",
-                                                            isLeft ? "text-left" : "text-center",
-                                                            isIdentity ? "text-[10px] uppercase text-ind-text" : "text-sm text-ind-text2",
-                                                            h === "SAP PART NUMBER" && "text-ind-primary",
-                                                            h === "PART DESCRIPTION" && "leading-[1.4]",
-                                                            h === "Coverage Days" && isLowCoverage ? "text-white" : "",
-                                                            h === "Coverage Days" && !isLowCoverage ? "text-ind-text" : ""
-                                                        )}>
-                                                            {val}
-                                                        </span>
+                                                        {h === "SN. NO" && (
+                                                            <span className="text-[11px] font-black text-slate-900">{val}</span>
+                                                        )}
+                                                        
+                                                        {h === "SAP PART NUMBER" && (
+                                                            <span className="text-[11px] font-black text-ind-primary uppercase tracking-tight">
+                                                                {val}
+                                                            </span>
+                                                        )}
+
+                                                        {h === "PART NUMBER" && (
+                                                            <span className="text-[11px] font-black text-slate-700 uppercase tracking-tight">
+                                                                {val}
+                                                            </span>
+                                                        )}
+
+                                                        {h === "PART DESCRIPTION" && (
+                                                            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-tight leading-tight max-w-[200px] truncate" title={val as string}>
+                                                                {val}
+                                                            </span>
+                                                        )}
+
+                                                        {!isIdentity && h !== "PART DESCRIPTION" && (
+                                                            <span className={cn(
+                                                                "text-[11px] font-black tabular-nums",
+                                                                isHighlight ? "text-orange-600 text-[13px]" : "text-slate-900",
+                                                                h === "Coverage Days" && (
+                                                                    isLowCoverage 
+                                                                        ? "px-2 py-1 bg-rose-100 text-rose-600 rounded border border-rose-200" 
+                                                                        : "px-2 py-1 bg-emerald-50 text-emerald-600 rounded border border-emerald-100"
+                                                                )
+                                                            )}>
+                                                                {val} {h === "Coverage Days" && val !== "—" && "Days"}
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </td>
                                             );
                                         })}
-                                        <td className="p-2 border-b border-slate-50 sticky right-0 bg-inherit z-10 text-center">
-                                            <div className="w-full rounded-2xl p-4 flex items-center justify-center border border-ind-border/50 shadow-sm bg-white min-h-[60px] min-w-[140px]">
+                                        <td className="px-6 py-4 border-b border-slate-50 sticky right-0 bg-inherit z-10 text-right">
+                                            <div className="flex items-center justify-end">
                                                 {rowStatus === 'VERIFIED' ? (
-                                                    <div className="px-6 py-2 rounded-xl bg-emerald-500 text-white text-[10px] font-bold tracking-wide shadow-lg shadow-emerald-500/20 animate-in fade-in zoom-in-95 duration-300">
+                                                    <div className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100 text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5">
+                                                        <div className="w-1 h-1 rounded-full bg-emerald-500" />
                                                         Verified
                                                     </div>
                                                 ) : rowStatus === 'REJECTED' ? (
-                                                    <div className="flex flex-col items-center gap-1">
-                                                        <div className="px-6 py-2 rounded-xl bg-red-500 text-white text-[10px] font-bold tracking-wide shadow-lg shadow-red-500/20 animate-in fade-in zoom-in-95 duration-300">
-                                                            Rejected
-                                                        </div>
-                                                        {row.rejection_reason && (
-                                                            <div className="flex items-center gap-1 text-red-500 animate-pulse">
-                                                                <AlertCircle size={10} />
-                                                                <span className="text-[8px] font-black uppercase tracking-tighter truncate max-w-[120px]" title={row.rejection_reason}>
-                                                                    {row.rejection_reason}
-                                                                </span>
-                                                            </div>
-                                                        )}
+                                                    <div className="px-3 py-1 rounded-full bg-rose-50 text-rose-600 border border-rose-100 text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5">
+                                                        <div className="w-1 h-1 rounded-full bg-rose-500" />
+                                                        Rejected
                                                     </div>
                                                 ) : (
-                                                    <div className="px-6 py-2 rounded-xl bg-ind-text text-white text-[10px] font-bold tracking-wide shadow-md group-hover:bg-ind-primary group-hover:scale-105 transition-all">
-                                                        Review for verify
-                                                    </div>
+                                                    <button className="px-4 py-2 rounded-xl bg-slate-900 text-white text-[9px] font-black uppercase tracking-widest hover:bg-ind-primary hover:shadow-lg hover:shadow-orange-500/20 transition-all flex items-center gap-2">
+                                                        Review
+                                                        <ArrowLeft className="rotate-180" size={12} />
+                                                    </button>
                                                 )}
                                             </div>
                                         </td>

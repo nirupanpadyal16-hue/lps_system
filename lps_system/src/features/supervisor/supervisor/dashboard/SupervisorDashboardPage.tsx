@@ -1,3 +1,14 @@
+/**
+ * SupervisorDashboardPage
+ * 
+ * The central orchestration component for the Supervisor role.
+ * This page manages:
+ * 1. Global state for production logs and assigned models.
+ * 2. Tab-based routing across Verify Logs, Machine Monitoring, and Reporting modules.
+ * 3. Real-time data synchronization with the backend API.
+ * 4. Modal management for row-level rejection and verification workflows.
+ */
+
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import {
@@ -19,11 +30,12 @@ import {
 import { CustomModal } from '../../../deo/components/DEOModals';
 import SupervisorShortageVerify from '../SupervisorShortageVerify';
 import { SupervisorCalendar } from '../components/SupervisorCalendar';
+import { supervisorMachineApi } from '../../../../api/newRolesApi';
 
 // Modular Components
 import { SupervisorVerifyLogs } from './components/SupervisorVerifyLogs';
 import { LogDetailView } from './components/LogDetailModal';
-import DEORowManualModal from '../../../deo/components/DEORowManualModal';
+import SupervisorVerificationModal from './components/SupervisorVerificationModal';
 import { RowRejectionModal } from './components/RowRejectionModal';
 import { SupervisorKPI } from './components/SupervisorKPI';
 import { SupervisorAnalytics } from './components/SupervisorAnalytics';
@@ -126,13 +138,13 @@ const SupervisorDashboardPage = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [verifications, setVerifications] = useState<Verification[]>([]);
+    const [productionLogs, setProductionLogs] = useState<any[]>([]);
     const [assignedModels, setAssignedModels] = useState<AssignedModel[]>([]);
     const [shortageEntries, setShortageEntries] = useState<any[]>([]);
     const [selectedLog, setSelectedLog] = useState<Verification | null>(null);
     const [selectedRowIndex, setSelectedRowIndex] = useState<number | null>(null);
     const [rejectingRowIndex, setRejectingRowIndex] = useState<number | null>(null);
     const [rowRejectionComment, setRowRejectionComment] = useState('');
-    const [activeVerifyTab, setActiveVerifyTab] = useState<'pending' | 'ready'>('pending');
     const [isLineOpen, setIsLineOpen] = useState(false);
     const [isCalendarOpen, setIsCalendarOpen] = useState(false);
     const [isVerifying, setIsVerifying] = useState(false); // scoped loading for bulk verify
@@ -159,7 +171,7 @@ const SupervisorDashboardPage = () => {
         const token = getToken();
 
         try {
-            const [modelsRes, data, shortageRes] = await Promise.all([
+            const [modelsRes, data, shortageRes, logsRes] = await Promise.all([
                 fetch(`${API_BASE}/deo/assigned-work`, {
                     headers: { Authorization: `Bearer ${token}` },
                 }),
@@ -167,6 +179,7 @@ const SupervisorDashboardPage = () => {
                 fetch(`${API_BASE}/supervisor/shortage-entries`, {
                     headers: { Authorization: `Bearer ${token}` },
                 }),
+                supervisorMachineApi.getMachineEntries({ date: selectedDate })
             ]);
 
             if (modelsRes.ok) {
@@ -179,7 +192,19 @@ const SupervisorDashboardPage = () => {
                     setShortageEntries(shortData.data);
                 }
             }
-            setVerifications(Array.isArray(data) ? data : (data?.data ?? []));
+            if (logsRes.data?.success) {
+                const mappedLogs = (logsRes.data.data || []).map((e: any) => ({
+                    ...e,
+                    machine_run_time: e.machine_runtime_mins
+                }));
+                setProductionLogs(mappedLogs);
+            }
+            const rawVerifications = Array.isArray(data) ? data : (data?.data ?? []);
+            const mappedVerifications = rawVerifications.map((v: any) => ({
+                ...v,
+                machine_run_time: v.machine_runtime_mins // Ensure mapping
+            }));
+            setVerifications(mappedVerifications);
             if (!silent) setError(null);
         } catch (err) {
             console.error('Failed to load supervisor data', err);
@@ -189,7 +214,7 @@ const SupervisorDashboardPage = () => {
             isRefreshing.current = false;
             if (!silent) setLoading(false);
         }
-    }, []);
+    }, [selectedDate]);
 
     // Initial load + 5s heartbeat (stale-closure-safe via refs)
     useEffect(() => {
@@ -205,7 +230,7 @@ const SupervisorDashboardPage = () => {
 
         return () => clearInterval(interval);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // intentionally run once; refs keep values current
+    }, [selectedDate]); // intentionally run once; refs keep values current
 
     // ── Filtering ────────────────────────────────────────────────────────────
     const uniqueLines = useMemo(
@@ -412,6 +437,28 @@ const SupervisorDashboardPage = () => {
         }
     };
 
+    const handleVerifyMachineEntry = async (id: number, status: 'VERIFIED' | 'REJECTED', reason: string = '') => {
+        try {
+            await supervisorMachineApi.verifyEntry(id, { status, reason });
+            refreshSupervisorData(true);
+            setSelectedLog(null);
+            openModal({
+                title: 'Entry Verified',
+                message: `Machine entry has been successfully ${status.toLowerCase()}.`,
+                type: 'alert',
+                onConfirm: closeModal
+            });
+        } catch (err) {
+            console.error('Failed to verify entry', err);
+            openModal({
+                title: 'Verification Failed',
+                message: 'Could not verify entry. Please try again.',
+                type: 'alert',
+                onConfirm: closeModal
+            });
+        }
+    };
+
     const handleSupervisorRowSave = async (updatedRow: LogRow) => {
         if (selectedRowIndex === null || !selectedLog) return;
 
@@ -496,11 +543,12 @@ const SupervisorDashboardPage = () => {
     const ROUTE_CONTENT: Record<string, React.ReactNode> = {
         [SUPERVISOR_VERIFY]: (
             <SupervisorVerifyLogs
-                verifications={filteredVerifications}
-                activeVerifyTab={activeVerifyTab}
-                setActiveVerifyTab={setActiveVerifyTab}
+                verifications={productionLogs}
                 setSelectedLog={setSelectedLog}
-            />
+                selectedLog={selectedLog}
+                onVerify={handleVerifyMachineEntry} activeVerifyTab={'pending'} setActiveVerifyTab={function (tab: 'pending' | 'ready'): void {
+                    throw new Error('Function not implemented.');
+                }} />
         ),
         [SUPERVISOR_SHORTAGE]: <SupervisorShortageVerify />,
         [SUPERVISOR_REPORTS]: <SupervisorReports />,
@@ -511,7 +559,7 @@ const SupervisorDashboardPage = () => {
     /* vidyasagar: This function controls what component is rendered based on the sidebar selection. Change routes or add new modules here. */
     const renderContent = () =>
         ROUTE_CONTENT[location.pathname] ?? (
-            <div className="space-y-2 pb-2 font-sans">
+            <div className="space-y-1 pb-0 font-sans">
                 {/* Header */}
                 <div className="flex flex-col lg:flex-row lg:items-center justify-end gap-2 px-2">                    <div className="flex items-center gap-2 relative">
                     {/* Line filter */}
@@ -664,30 +712,10 @@ const SupervisorDashboardPage = () => {
     return (
         <div className="max-w-[1760px] mx-auto font-sans bg-ind-bg">
             <div className="py-0 relative">
-                {selectedLog ? (
-                    <LogDetailView
-                        selectedLog={selectedLog}
-                        setSelectedLog={setSelectedLog}
-                        onBulkVerify={handleBulkVerify}
-                        onRejectLog={handleRejectLog}
-                        onRowVerify={handleRowVerify}
-                        isVerifying={isVerifying}
-                    />
-                ) : (
-                    renderContent()
-                )}
+                {renderContent()}
             </div>
 
             {/* ── Modals ─────────────────────────────────────────────────── */}
-            <DEORowManualModal
-                isOpen={selectedRowIndex !== null}
-                onClose={() => setSelectedRowIndex(null)}
-                row={selectedRowIndex !== null ? selectedLog?.log_data[selectedRowIndex] ?? null : null}
-                isSupervisor={true}           // FIX: was incorrectly false
-                onSave={handleSupervisorRowSave}
-                onVerify={handleSupervisorRowVerify}
-            />
-
             <RowRejectionModal
                 rejectingRowIndex={rejectingRowIndex}
                 setRejectingRowIndex={setRejectingRowIndex}

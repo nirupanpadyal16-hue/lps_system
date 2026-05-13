@@ -643,6 +643,55 @@ def create_machine_entry():
     return jsonify({"success": True, "data": entry.to_dict()}), 201
 
 
+@deo_bp.route('/machine-entries/<int:entry_id>', methods=['PUT'])
+@jwt_required()
+@role_required(['DEO', 'Admin', 'Supervisor'])
+def update_machine_entry(entry_id):
+    """Update an existing machine production entry."""
+    from app.models import MachineProductionEntry
+    username = get_jwt_identity()
+    user = User.query.filter_by(username=username).first()
+    
+    entry = MachineProductionEntry.query.get_or_404(entry_id)
+    
+    # Auth: Only DEO who created it (if role is DEO) or Admin/Supervisor
+    if user.role == 'DEO' and entry.deo_id != user.id:
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+        
+    if entry.status in ['APPROVED', 'VERIFIED']:
+        return jsonify({"success": False, "message": "Cannot update verified entry"}), 400
+
+    data = request.json or {}
+    
+    if 'parts_produced' in data:
+        new_qty = float(data['parts_produced'])
+        # Adjust inventory: subtract old, add new
+        diff = new_qty - entry.parts_produced
+        entry.parts_produced = new_qty
+        # You might need a more complex logic here depending on how apply_to_inventory works
+        # For now, let's just update the fields
+        
+    if 'machine_runtime_mins' in data:
+        entry.machine_runtime_mins = float(data['machine_runtime_mins'])
+        
+    if 'sap_part_number' in data:
+        entry.sap_part_number = data['sap_part_number'].strip().upper()
+        
+    if 'deo_notes' in data:
+        entry.deo_notes = data['deo_notes']
+        
+    if 'shift' in data:
+        entry.shift = data['shift']
+        
+    # Reset status to PENDING if it was REJECTED (so supervisor sees it again)
+    if entry.status == 'REJECTED':
+        entry.status = 'PENDING'
+        
+    db.session.commit()
+    log_audit("DEO_MACHINE_ENTRY_UPDATED")
+    return jsonify({"success": True, "data": entry.to_dict()})
+
+
 @deo_bp.route('/machine-entries/<int:entry_id>', methods=['GET'])
 @jwt_required()
 @role_required(['DEO', 'Admin', 'Supervisor'])

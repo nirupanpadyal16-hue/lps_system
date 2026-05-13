@@ -633,6 +633,8 @@ export default function DEOShortageRequests() {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedDate, setSelectedDate] = useState('');
     const [activeViewMachine, setActiveViewMachine] = useState<string | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 10;
 
     const fetchLineGroups = async () => {
         try {
@@ -741,6 +743,56 @@ export default function DEOShortageRequests() {
             return individualLines.includes(activeViewMachine);
         });
     }, [filteredRequests, activeViewMachine]);
+
+    // Current list for pagination
+    const currentList = useMemo(() => {
+        if (!activeViewMachine) {
+            return derivedLineGroups.filter(lg => lg.name.toLowerCase().includes(searchQuery.toLowerCase()));
+        }
+
+        // Detailed view items
+        const masterLine = lineGroupsMaster.find(lg => lg.name === activeViewMachine);
+        const allSubMachines = masterLine ? masterLine.sub_machines : [];
+
+        if (allSubMachines.length === 0) {
+            return shortagesForActiveGroup.map(req => ({
+                machineName: req.line_name || 'Generic',
+                shortage: req
+            }));
+        }
+
+        const matchedReqIds = new Set<number>();
+        const result = allSubMachines.map((sub: SubMachine) => {
+            const match = shortagesForActiveGroup.find(req =>
+                req.line_name?.trim().toUpperCase() === sub.name?.trim().toUpperCase()
+            );
+            if (match) matchedReqIds.add(match.id);
+            return { machineName: sub.name, shortage: match };
+        });
+
+        const genericShortages = shortagesForActiveGroup.filter(req => !matchedReqIds.has(req.id));
+        let genericIdx = 0;
+        return result.map((item: DisplayItem) => {
+            if (!item.shortage && genericIdx < genericShortages.length) {
+                return {
+                    machineName: item.machineName,
+                    shortage: genericShortages[genericIdx++]
+                };
+            }
+            return item;
+        });
+    }, [activeViewMachine, derivedLineGroups, searchQuery, lineGroupsMaster, shortagesForActiveGroup]);
+
+    const paginatedItems = useMemo(() => {
+        return currentList.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+    }, [currentList, currentPage, pageSize]);
+
+    const totalPages = Math.ceil(currentList.length / pageSize);
+
+    // Reset to page 1 when filters or view changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [activeViewMachine, searchQuery, filterStatus, selectedDate]);
 
     if (loading) {
         return (
@@ -860,45 +912,48 @@ export default function DEOShortageRequests() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                    {derivedLineGroups.filter(lg => lg.name.toLowerCase().includes(searchQuery.toLowerCase())).map((lg, idx) => (
-                                        <tr key={lg.name} className="hover:bg-slate-50 transition-colors group cursor-pointer" onClick={() => setActiveViewMachine(lg.name)}>
-                                            <td className="px-6 py-4">
-                                                <span className="text-[11px] font-black text-slate-900">{idx + 1}</span>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600 group-hover:scale-110 transition-transform border border-orange-100 shadow-sm">
-                                                        <Factory size={20} />
+                                    {paginatedItems.map((lg: any, idx) => {
+                                        const serialNum = (currentPage - 1) * pageSize + idx + 1;
+                                        return (
+                                            <tr key={lg.name} className="hover:bg-slate-50 transition-colors group cursor-pointer" onClick={() => setActiveViewMachine(lg.name)}>
+                                                <td className="px-6 py-4">
+                                                    <span className="text-[11px] font-black text-slate-900">{serialNum}</span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600 group-hover:scale-110 transition-transform border border-orange-100 shadow-sm">
+                                                            <Factory size={20} />
+                                                        </div>
+                                                        <span className="text-[13px] font-black text-slate-900 tracking-tight">{lg.name}</span>
                                                     </div>
-                                                    <span className="text-[13px] font-black text-slate-900 tracking-tight">{lg.name}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 text-center">
-                                                <span className="px-3 py-1 bg-slate-50 text-slate-900 rounded-full text-[10px] font-black border border-slate-100">
-                                                    {lg.total_machines_master || lg.sub_machines.length} Machines
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 text-center">
-                                                <span className="text-[11px] font-black text-orange-600 uppercase tracking-tight">
-                                                    {lg.total_shortages} Total
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 text-center">
-                                                <span className={cn(
-                                                    "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border",
-                                                    lg.pending_count === 0 ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-amber-50 text-amber-600 border-amber-100"
-                                                )}>
-                                                    {lg.pending_count === 0 ? 'ALL FILLED' : `${lg.pending_count} PENDING`}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 text-right">
-                                                <button className="px-5 h-8 bg-white border border-slate-200 text-orange-600 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ml-auto shadow-sm group-hover:bg-orange-500 group-hover:text-white group-hover:border-orange-500 transition-all">
-                                                    <Eye size={12} />
-                                                    View
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                    <span className="px-3 py-1 bg-slate-50 text-slate-900 rounded-full text-[10px] font-black border border-slate-100">
+                                                        {lg.total_machines_master || lg.sub_machines.length} Machines
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                    <span className="text-[11px] font-black text-orange-600 uppercase tracking-tight">
+                                                        {lg.total_shortages} Total
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                    <span className={cn(
+                                                        "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border",
+                                                        lg.pending_count === 0 ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-amber-50 text-amber-600 border-amber-100"
+                                                    )}>
+                                                        {lg.pending_count === 0 ? 'ALL FILLED' : `${lg.pending_count} PENDING`}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <button className="px-5 h-8 bg-white border border-slate-200 text-orange-600 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ml-auto shadow-sm group-hover:bg-orange-500 group-hover:text-white group-hover:border-orange-500 transition-all">
+                                                        <Eye size={12} />
+                                                        View
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </motion.table>
                         ) : (
@@ -925,157 +980,173 @@ export default function DEOShortageRequests() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                    {(() => {
-                                        const masterLine = lineGroupsMaster.find(lg => lg.name === activeViewMachine);
-                                        const allSubMachines = masterLine ? masterLine.sub_machines : [];
-                                        
-                                        const displayItems = (() => {
-                                            if (allSubMachines.length === 0) {
-                                                return shortagesForActiveGroup.map(req => ({
-                                                    machineName: req.line_name || 'Generic',
-                                                    shortage: req
-                                                }));
-                                            }
+                                    {paginatedItems.map((item: any, idx: number) => {
+                                        const req = item.shortage;
+                                        const machineName = item.machineName;
+                                        const isRejected = req?.status === 'REJECTED';
+                                        const isDeoFilled = req?.status === 'DEO_FILLED';
+                                        const isCompleted = req?.status === 'COMPLETED' || req?.status === 'VERIFIED';
+                                        const shortageQty = req ? (req.shortage_quantity > 0 ? req.shortage_quantity : (req.inventory_item?.demand_quantity || 0)) : 0;
+                                        const serialNum = (currentPage - 1) * pageSize + idx + 1;
 
-                                            const matchedReqIds = new Set<number>();
-                                            const result = allSubMachines.map((sub: SubMachine) => {
-                                                const match = shortagesForActiveGroup.find(req => 
-                                                    req.line_name?.trim().toUpperCase() === sub.name?.trim().toUpperCase()
-                                                );
-                                                if (match) matchedReqIds.add(match.id);
-                                                return { machineName: sub.name, shortage: match };
-                                            });
+                                        // Coverage logic
+                                        let coverage = "—";
+                                        if (req?.todays_stock && req.per_day) {
+                                            coverage = (req.todays_stock / req.per_day).toFixed(1);
+                                        }
 
-                                            const genericShortages = shortagesForActiveGroup.filter(req => !matchedReqIds.has(req.id));
-                                            let genericIdx = 0;
-                                            return result.map((item: DisplayItem) => {
-                                                if (!item.shortage && genericIdx < genericShortages.length) {
-                                                    return {
-                                                        machineName: item.machineName,
-                                                        shortage: genericShortages[genericIdx++]
-                                                    };
-                                                }
-                                                return item;
-                                            });
-                                        })();
-
-                                        return displayItems.map((item: DisplayItem, idx: number) => {
-                                            const req = item.shortage;
-                                            const machineName = item.machineName;
-                                            const isRejected = req?.status === 'REJECTED';
-                                            const isDeoFilled = req?.status === 'DEO_FILLED';
-                                            const isCompleted = req?.status === 'COMPLETED' || req?.status === 'VERIFIED';
-                                            const shortageQty = req ? (req.shortage_quantity > 0 ? req.shortage_quantity : (req.inventory_item?.demand_quantity || 0)) : 0;
-                                            
-                                            // Coverage logic
-                                            let coverage = "—";
-                                            if (req?.todays_stock && req.per_day) {
-                                                coverage = (req.todays_stock / req.per_day).toFixed(1);
-                                            }
-
-                                            return (
-                                                <tr key={machineName} className={cn(
-                                                    "hover:bg-slate-50 transition-colors group",
-                                                    isRejected && "bg-rose-50/30"
-                                                )}>
-                                                    <td className="px-6 py-4">
-                                                        <span className="text-[11px] font-black text-slate-900">{idx + 1}</span>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <div className="flex items-center gap-2 px-3 py-1 bg-orange-50/50 rounded-full border border-orange-100/50 w-fit">
-                                                            <Zap size={10} className="text-orange-500" />
-                                                            <span className="text-[10px] font-black text-slate-900 uppercase tracking-tight">{machineName}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <span className="text-[11px] font-black text-slate-900 uppercase tracking-tight">
-                                                            {req?.inventory_item?.sap_part_number || '—'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-center">
-                                                        <span className="text-[10px] font-black text-slate-900 uppercase tracking-wider">
-                                                            {req?.created_at ? new Date(req.created_at).toLocaleDateString() : '—'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-center">
-                                                        <span className={cn(
-                                                            "text-[10px] font-black tabular-nums px-2 py-1 rounded border",
-                                                            coverage === "—" ? "text-slate-300 border-transparent" :
+                                        return (
+                                            <tr key={machineName} className={cn(
+                                                "hover:bg-slate-50 transition-colors group",
+                                                isRejected && "bg-rose-50/30"
+                                            )}>
+                                                <td className="px-6 py-4">
+                                                    <span className="text-[11px] font-black text-slate-900">{serialNum}</span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center gap-2 px-3 py-1 bg-orange-50/50 rounded-full border border-orange-100/50 w-fit">
+                                                        <Zap size={10} className="text-orange-500" />
+                                                        <span className="text-[10px] font-black text-slate-900 uppercase tracking-tight">{machineName}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className="text-[11px] font-black text-slate-900 uppercase tracking-tight">
+                                                        {req?.inventory_item?.sap_part_number || '—'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                    <span className="text-[10px] font-black text-slate-900 uppercase tracking-wider">
+                                                        {req?.created_at ? new Date(req.created_at).toLocaleDateString() : '—'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                    <span className={cn(
+                                                        "text-[10px] font-black tabular-nums px-2 py-1 rounded border",
+                                                        coverage === "—" ? "text-slate-300 border-transparent" :
                                                             Number(coverage) >= 5 ? "text-emerald-600 bg-emerald-50 border-emerald-100" : "text-rose-600 bg-rose-50 border-rose-100"
-                                                        )}>
-                                                            {coverage} {coverage !== "—" && "Days"}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-center">
-                                                        <span className="text-[11px] font-black text-slate-900 tabular-nums">
-                                                            {req?.sap_stock ?? '—'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-center">
-                                                        <span className="text-[11px] font-black text-slate-900 tabular-nums">
-                                                            {req?.opening_stock ?? '—'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-center">
-                                                        <span className="text-[11px] font-black text-orange-600 tabular-nums">
-                                                            {req?.todays_stock ?? '—'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-center">
-                                                        <span className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-[10px] font-black border border-indigo-100">
-                                                            {shortageQty > 0 ? shortageQty.toLocaleString() : '—'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-center">
-                                                        <span className={cn(
-                                                            "px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border",
-                                                            !req ? "bg-slate-50 text-slate-400 border-slate-200" :
+                                                    )}>
+                                                        {coverage} {coverage !== "—" && "Days"}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                    <span className="text-[11px] font-black text-slate-900 tabular-nums">
+                                                        {req?.sap_stock ?? '—'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                    <span className="text-[11px] font-black text-slate-900 tabular-nums">
+                                                        {req?.opening_stock ?? '—'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                    <span className="text-[11px] font-black text-orange-600 tabular-nums">
+                                                        {req?.todays_stock ?? '—'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                    <span className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-[10px] font-black border border-indigo-100">
+                                                        {shortageQty > 0 ? shortageQty.toLocaleString() : '—'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                    <span className={cn(
+                                                        "px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border",
+                                                        !req ? "bg-slate-50 text-slate-400 border-slate-200" :
                                                             isRejected ? "bg-rose-50 text-rose-600 border-rose-100 animate-pulse" :
-                                                            isCompleted ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-                                                            "bg-indigo-50 text-indigo-600 border-indigo-100"
-                                                        )}>
-                                                            {req ? (isDeoFilled ? 'SUBMITTED' : req.status.replace('_', ' ')) : 'IDLE'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-right">
-                                                        {req ? (
-                                                            <div className="flex items-center justify-end gap-2">
-                                                                <button
-                                                                    onClick={() => setViewFillRequest(req)}
-                                                                    disabled={req.status === 'PENDING'}
-                                                                    className={cn(
-                                                                        "w-8 h-8 rounded-lg border flex items-center justify-center transition-all shadow-sm",
-                                                                        req.status === 'PENDING' ? "bg-slate-50 text-slate-200 border-slate-100" : "bg-white text-slate-600 border-slate-200 hover:border-indigo-400 hover:text-indigo-600"
-                                                                    )}
-                                                                >
-                                                                    <Eye size={14} />
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => setFillRequest(req)}
-                                                                    disabled={isCompleted || (isDeoFilled && !isRejected)}
-                                                                    className={cn(
-                                                                        "w-8 h-8 rounded-lg flex items-center justify-center text-white transition-all shadow-md",
-                                                                        isRejected ? "bg-rose-500 hover:bg-rose-600" :
+                                                                isCompleted ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                                                                    "bg-indigo-50 text-indigo-600 border-indigo-100"
+                                                    )}>
+                                                        {req ? (isDeoFilled ? 'SUBMITTED' : req.status.replace('_', ' ')) : 'IDLE'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    {req ? (
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            <button
+                                                                onClick={() => setViewFillRequest(req)}
+                                                                disabled={req.status === 'PENDING'}
+                                                                className={cn(
+                                                                    "w-8 h-8 rounded-lg border flex items-center justify-center transition-all shadow-sm",
+                                                                    req.status === 'PENDING' ? "bg-slate-50 text-slate-200 border-slate-100" : "bg-white text-slate-600 border-slate-200 hover:border-indigo-400 hover:text-indigo-600"
+                                                                )}
+                                                            >
+                                                                <Eye size={14} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setFillRequest(req)}
+                                                                disabled={isCompleted || (isDeoFilled && !isRejected)}
+                                                                className={cn(
+                                                                    "w-8 h-8 rounded-lg flex items-center justify-center text-white transition-all shadow-md",
+                                                                    isRejected ? "bg-rose-500 hover:bg-rose-600" :
                                                                         (isCompleted || isDeoFilled) ? "bg-emerald-400 opacity-30 cursor-not-allowed" :
-                                                                        "bg-emerald-500 hover:bg-emerald-600"
-                                                                    )}
-                                                                >
-                                                                    <CheckCircle2 size={14} />
-                                                                </button>
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-[10px] font-black text-slate-200 uppercase tracking-widest">—</span>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        });
-                                    })()}
+                                                                            "bg-emerald-500 hover:bg-emerald-600"
+                                                                )}
+                                                            >
+                                                                <CheckCircle2 size={14} />
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-[10px] font-black text-slate-200 uppercase tracking-widest">—</span>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </motion.table>
                         )}
                     </AnimatePresence>
                 </div>
+
+                {/* Pagination Footer */}
+                {currentList.length > 0 && (
+                    <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-white sticky bottom-0 z-[60]">
+                        <div className="flex items-center gap-4">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                Showing <span className="text-slate-900">{(currentPage - 1) * pageSize + 1}</span> to <span className="text-slate-900">{Math.min(currentPage * pageSize, currentList.length)}</span> of <span className="text-slate-900">{currentList.length}</span> {activeViewMachine ? 'machines' : 'lines'}
+                            </p>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                className="px-3 py-1.5 border border-slate-200 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 disabled:opacity-50 transition-all text-slate-600"
+                            >
+                                Prev
+                            </button>
+
+                            <div className="flex items-center gap-1 mx-2">
+                                {[...Array(totalPages)].map((_, i) => {
+                                    const page = i + 1;
+                                    if (page === 1 || page === totalPages || (page >= currentPage - 1 && page <= currentPage + 1)) {
+                                        return (
+                                            <button
+                                                key={page}
+                                                onClick={() => setCurrentPage(page)}
+                                                className={`w-8 h-8 rounded-lg text-[10px] font-black transition-all ${currentPage === page ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/20' : 'hover:bg-slate-100 text-slate-600'}`}
+                                            >
+                                                {page}
+                                            </button>
+                                        );
+                                    }
+                                    if (page === currentPage - 2 || page === currentPage + 2) {
+                                        return <span key={page} className="text-slate-300 text-[10px] px-1">...</span>;
+                                    }
+                                    return null;
+                                })}
+                            </div>
+
+                            <button
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                                className="px-3 py-1.5 border border-slate-200 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 disabled:opacity-50 transition-all text-slate-600"
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {fillRequest && (

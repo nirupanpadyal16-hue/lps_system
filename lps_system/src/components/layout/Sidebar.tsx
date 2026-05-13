@@ -120,7 +120,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             title: 'OVERSIGHT & VERIFICATION',
             items: [
                 { icon: LayoutDashboard, label: 'Dashboard', path: SUPERVISOR_DASHBOARD },
-                { icon: Factory, label: 'Machine Monitor', path: SUPERVISOR_MACHINE_MONITOR },
+                // { icon: Factory, label: 'Machine Monitor', path: SUPERVISOR_MACHINE_MONITOR },
+                { icon: ClipboardCheck, label: 'Verify Production Logs', path: SUPERVISOR_VERIFY },
                 { icon: Mail, label: 'Verify Shortage Requests', path: SUPERVISOR_SHORTAGE },
             ]
         }
