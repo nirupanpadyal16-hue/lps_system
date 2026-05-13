@@ -12,9 +12,9 @@ const SKDashboardPage: React.FC = () => {
   const [dispatchReady, setDispatchReady] = useState(0);
 
   useEffect(() => {
-    skApi.getNotifications().then(r => setUnread(r.data?.unread_count || 0)).catch(() => {});
-    skApi.getRMQueue('SUBMITTED').then(r => setPendingRM(r.data?.data?.length || 0)).catch(() => {});
-    skApi.getDispatchQueue().then(r => setDispatchReady(r.data?.data?.length || 0)).catch(() => {});
+    skApi.getNotifications().then(r => setUnread(r.data?.unread_count || 0)).catch(() => { });
+    skApi.getRMQueue('SUBMITTED').then(r => setPendingRM(r.data?.data?.length || 0)).catch(() => { });
+    skApi.getDispatchQueue().then(r => setDispatchReady(r.data?.data?.length || 0)).catch(() => { });
   }, [location.pathname]);
 
   const navItems = [

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    Plus, Search, Trash2, Eye, Activity, Factory, 
+    Plus, Search, Trash2, Eye, Activity, Factory,
     CheckCircle2, AlertCircle, X, ArrowLeft
 } from 'lucide-react';
 import { API_BASE } from '../../../lib/apiConfig';
@@ -39,7 +39,7 @@ const ProductionLinesPage = () => {
     // Modals
     const [isAddGroupModalOpen, setIsAddGroupModalOpen] = useState(false);
     const [isAddMachineModalOpen, setIsAddMachineModalOpen] = useState(false);
-    
+
     // Form state
     const [newGroupName, setNewGroupName] = useState('');
     const [newMachineName, setNewMachineName] = useState('');
@@ -69,7 +69,7 @@ const ProductionLinesPage = () => {
     }, []);
 
     // Filtered lines
-    const filteredLines = lines.filter(line => 
+    const filteredLines = lines.filter(line =>
         line.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
@@ -131,7 +131,7 @@ const ProductionLinesPage = () => {
     return (
         <div className="bg-gray-50 min-h-[calc(100vh-64px)] p-6 font-sans text-gray-800">
             <div className="max-w-[1600px] mx-auto bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[calc(100vh-112px)]">
-                
+
                 {/* Header Section */}
                 <div className="bg-white border-b border-gray-200 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0">
                     <div>
@@ -141,7 +141,7 @@ const ProductionLinesPage = () => {
                         </h1>
                         <p className="text-gray-500 text-sm mt-1">Real-time telemetry and machine allocation dashboard</p>
                     </div>
-                    
+
                     {!selectedLine ? (
                         <div className="flex items-center gap-4">
                             <div className="flex bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
@@ -158,7 +158,7 @@ const ProductionLinesPage = () => {
                                     <span className="font-bold text-lg text-gray-900">{inactiveLines}</span>
                                 </div>
                             </div>
-                            <button 
+                            <button
                                 onClick={() => setIsAddGroupModalOpen(true)}
                                 className="px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold rounded-lg flex items-center gap-2 transition-colors"
                             >
@@ -167,13 +167,13 @@ const ProductionLinesPage = () => {
                         </div>
                     ) : (
                         <div className="flex items-center gap-4">
-                            <button 
+                            <button
                                 onClick={() => setSelectedLineId(null)}
                                 className="px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg flex items-center gap-2 transition-colors border border-gray-200"
                             >
                                 <ArrowLeft size={16} /> Back to Groups
                             </button>
-                            <button 
+                            <button
                                 onClick={() => setIsAddMachineModalOpen(true)}
                                 className="px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold rounded-lg flex items-center gap-2 transition-colors"
                             >
@@ -188,7 +188,7 @@ const ProductionLinesPage = () => {
                     <AnimatePresence mode="wait">
                         {!selectedLine ? (
                             /* VIEW 1: Groups List */
-                            <motion.div 
+                            <motion.div
                                 key="groups"
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
@@ -197,7 +197,7 @@ const ProductionLinesPage = () => {
                             >
                                 <div className="mb-4 max-w-md relative">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                                    <input 
+                                    <input
                                         type="text"
                                         placeholder="Search line name..."
                                         value={searchTerm}
@@ -234,13 +234,13 @@ const ProductionLinesPage = () => {
                                                     </td>
                                                     <td className="py-4 px-6 text-right">
                                                         <div className="flex items-center justify-end gap-2">
-                                                            <button 
+                                                            <button
                                                                 onClick={() => setSelectedLineId(line.id)}
                                                                 className="px-3 py-1.5 bg-orange-100 text-orange-700 hover:bg-orange-200 rounded-md text-xs font-semibold transition-colors flex items-center gap-1"
                                                             >
                                                                 <Eye size={14} /> View
                                                             </button>
-                                                            <button 
+                                                            <button
                                                                 onClick={() => handleDeleteLine(line.id)}
                                                                 className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
                                                             >
@@ -256,7 +256,7 @@ const ProductionLinesPage = () => {
                             </motion.div>
                         ) : (
                             /* VIEW 2: Sub Machines List */
-                            <motion.div 
+                            <motion.div
                                 key="machines"
                                 initial={{ opacity: 0, x: 20 }}
                                 animate={{ opacity: 1, x: 0 }}
@@ -330,11 +330,10 @@ const ProductionLinesPage = () => {
                                                     </td>
                                                     <td className="py-3 px-6 text-center">
                                                         {sub.shortage_status ? (
-                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
-                                                                sub.shortage_status === 'Complete' 
-                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                                                                : 'bg-orange-50 text-orange-700 border-orange-200'
-                                                            }`}>
+                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${sub.shortage_status === 'Complete'
+                                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                                    : 'bg-orange-50 text-orange-700 border-orange-200'
+                                                                }`}>
                                                                 {sub.shortage_status}
                                                             </span>
                                                         ) : (
@@ -344,7 +343,7 @@ const ProductionLinesPage = () => {
                                                         )}
                                                     </td>
                                                     <td className="py-3 px-6 text-right">
-                                                        <button 
+                                                        <button
                                                             onClick={() => handleDeleteLine(sub.id)}
                                                             className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
                                                         >
@@ -366,22 +365,22 @@ const ProductionLinesPage = () => {
             <AnimatePresence>
                 {(isAddGroupModalOpen || isAddMachineModalOpen) && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                        <motion.div 
-                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
-                            className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" 
+                        <motion.div
+                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                            className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
                             onClick={() => { setIsAddGroupModalOpen(false); setIsAddMachineModalOpen(false); }}
                         />
-                        <motion.div 
-                            initial={{ scale: 0.95, opacity: 0, y: 10 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0, y: 10 }} 
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0, y: 10 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0, y: 10 }}
                             className="relative bg-white border border-gray-200 rounded-2xl p-6 max-w-sm w-full shadow-xl"
                         >
-                            <button 
+                            <button
                                 onClick={() => { setIsAddGroupModalOpen(false); setIsAddMachineModalOpen(false); }}
                                 className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 transition-colors"
                             >
                                 <X size={20} />
                             </button>
-                            
+
                             <h3 className="text-xl font-bold text-gray-900 mb-1">
                                 {isAddGroupModalOpen ? 'Create Line Group' : 'Register Machine'}
                             </h3>
@@ -394,24 +393,24 @@ const ProductionLinesPage = () => {
                                     <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
                                         {isAddGroupModalOpen ? 'Group Name' : 'Machine Name'}
                                     </label>
-                                    <input 
-                                        autoFocus required type="text" 
-                                        value={isAddGroupModalOpen ? newGroupName : newMachineName} 
-                                        onChange={e => isAddGroupModalOpen ? setNewGroupName(e.target.value) : setNewMachineName(e.target.value)} 
-                                        placeholder={isAddGroupModalOpen ? "e.g. 320T" : "e.g. 320T-A"} 
-                                        className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2.5 text-sm text-gray-900 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all font-medium" 
+                                    <input
+                                        autoFocus required type="text"
+                                        value={isAddGroupModalOpen ? newGroupName : newMachineName}
+                                        onChange={e => isAddGroupModalOpen ? setNewGroupName(e.target.value) : setNewMachineName(e.target.value)}
+                                        placeholder={isAddGroupModalOpen ? "e.g. 320T" : "e.g. 320T-A"}
+                                        className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2.5 text-sm text-gray-900 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all font-medium"
                                     />
                                 </div>
                                 <div className="flex gap-3">
-                                    <button 
-                                        type="button" 
-                                        onClick={() => { setIsAddGroupModalOpen(false); setIsAddMachineModalOpen(false); }} 
+                                    <button
+                                        type="button"
+                                        onClick={() => { setIsAddGroupModalOpen(false); setIsAddMachineModalOpen(false); }}
                                         className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-bold transition-colors"
                                     >
                                         Cancel
                                     </button>
-                                    <button 
-                                        type="submit" 
+                                    <button
+                                        type="submit"
                                         className="flex-[2] py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm"
                                     >
                                         Confirm

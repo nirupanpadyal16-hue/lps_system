@@ -1,678 +1,860 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import {
-    Search,
-    Filter,
-    ChevronRight,
-    Box,
-    
-    Loader2,
-    Database,
-   
-    FileText,
-
-    CheckCircle2,
-    X,
-    Plus,
-    Factory,
-    Edit3,
-    Save
+  Search,
+  Filter,
+  ChevronRight,
+  Box,
+  Loader2,
+  Database,
+  FileText,
+  CheckCircle2,
+  X,
+  Plus,
+  Factory,
+  Edit3,
+  Save,
+  Package
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getToken } from '../../../lib/storage';
 import { API_BASE as API } from '../../../lib/apiConfig';
+import { ppcApi } from '../../../api/newRolesApi';
 import { cn } from '../../../lib/utils';
+import toast from 'react-hot-toast';
 
 interface PartDetail {
-    common: {
-        id: number;
-        model: string;
-        part_number: string;
-        sap_part_number: string;
-        description: string;
-        saleable_no: string;
-        assembly_number: string;
-        is_ad_hoc: boolean;
-    };
-    production_data: Record<string, any>;
-    material_data: Record<string, any>;
+  common: {
+    part_no: string;
+    sr_no: any;
+    id: number;
+    model: string;
+    part_number: string;
+    sap_part_number: string;
+    description: string;
+    saleable_no: string;
+    assembly_number: string;
+    is_ad_hoc: boolean;
+    demand_quantity?: number;
+    shortage_quantity?: number;
+  };
+  production_data: Record<string, any>;
+  material_data: Record<string, any>;
+  inventory_context?: {
+    id: number;
+    demand_formatted_id: string;
+    rm_status: string;
+  } | null;
 }
 
 interface VehicleModel {
-    id: string | number;
-    name: string;
+  id: string | number;
+  name: string;
 }
 
 const authHeaders = () => ({
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${getToken()}`,
+  'Content-Type': 'application/json',
+  Authorization: `Bearer ${getToken()}`,
 });
 
+// Memoized Table Row Component
+const TableRow = memo(({ part, idx, inventoryItems, onEdit, onRMCheck, getMaterialValue }: any) => {
+  const inv = useMemo(() =>
+    inventoryItems.find((i: any) => i.sap_part_number?.trim().toLowerCase() === part.common.sap_part_number?.trim().toLowerCase()),
+    [inventoryItems, part.common.sap_part_number]
+  );
+
+  const status = inv?.rm_status || 'PENDING';
+  const isDisabled = status === 'RM_SUBMITTED' || status === 'RM_ACCEPTED';
+
+  const statusConfig: Record<string, { label: string; bg: string; text: string; dot: string }> = {
+    'RM_SUBMITTED': { label: 'WAITING FOR REVIEW', bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-400' },
+    'RM_ACCEPTED': { label: 'COMPLETED', bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-400' },
+    'RM_REJECTED': { label: 'REJECTED', bg: 'bg-rose-50', text: 'text-rose-700', dot: 'bg-rose-400' },
+    'PENDING': { label: 'REVIEW RM DATA', bg: 'bg-slate-50', text: 'text-slate-500', dot: 'bg-slate-300' },
+  };
+
+  const srNo = useMemo(() => {
+    const val = part.common.sr_no || part.production_data?.['SR.NO'] || part.production_data?.['SN NO'];
+    return (!val || val === 'nan') ? '—' : val;
+  }, [part.common.sr_no, part.production_data]);
+
+  const partNumber = useMemo(() => {
+    const val = part.common.part_number || part.common.part_no || part.production_data?.['PART NUMBER'] || part.production_data?.['PART NO'];
+    return (!val || val === 'nan') ? '—' : val;
+  }, [part.common.part_number, part.common.part_no, part.production_data]);
+
+  const handleRMCheck = useCallback(() => {
+    onRMCheck(part);
+  }, [part, onRMCheck]);
+
+  const handleEdit = useCallback(() => {
+    onEdit(part);
+  }, [part, onEdit]);
+
+  return (
+    <motion.tr
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: Math.min(idx * 0.01, 0.3) }}
+      className="hover:bg-slate-50/50 transition-colors group"
+    >
+      <td className="px-6 py-4 text-[11px] font-black text-slate-600 whitespace-nowrap">{srNo}</td>
+      <td className="px-6 py-4 text-[11px] font-black text-slate-800 uppercase whitespace-nowrap">{part.common.model}</td>
+      <td className="px-6 py-4 whitespace-nowrap">
+        <div className="flex items-center">
+          <div className="px-2 py-0.5 bg-orange-50 text-orange-600 rounded-md text-[10px] font-black border border-orange-100 shadow-sm">
+            {part.common.shortage_quantity ?? part.common.demand_quantity ?? 0}
+          </div>
+        </div>
+      </td>
+      <td className="px-6 py-4 text-[11px] font-black text-orange-500 whitespace-nowrap">{part.common.sap_part_number}</td>
+      <td className="px-6 py-4 text-[11px] font-bold text-slate-600 whitespace-nowrap">{partNumber}</td>
+      <td className="px-6 py-4 text-[11px] font-medium text-slate-500 truncate max-w-[250px]" title={part.common.description}>
+        {(!part.common.description || part.common.description === 'nan') ? '—' : part.common.description}
+      </td>
+      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+        {getMaterialValue(part, ['RM Thk mm', 'RM Thk Mm', 'RM Thickness'])}
+      </td>
+      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+        {getMaterialValue(part, ['Sheet Width', 'SHEET WIDTH'])}
+      </td>
+      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+        {getMaterialValue(part, ['Sheet Length', 'SHEET LENGTH'])}
+      </td>
+      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+        {getMaterialValue(part, ['No of comp per sheet', 'No Of Comp Per Sheet', 'NO OF COMP PER SHEET'])}
+      </td>
+      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+        {getMaterialValue(part, ['RM SIZE', 'RM Size'])}
+      </td>
+      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+        {getMaterialValue(part, ['RM Grade', 'RM GRADE'])}
+      </td>
+      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+        {getMaterialValue(part, ['Act RM Sizes', 'ACT RM SIZES'])}
+      </td>
+      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+        {getMaterialValue(part, ['Revised', 'REVISED'])}
+      </td>
+      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+        {getMaterialValue(part, ['VALIDITY', 'Validity'])}
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap">
+        <div className={cn("inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-black tracking-wider uppercase", statusConfig[status]?.bg || statusConfig['PENDING'].bg, statusConfig[status]?.text || statusConfig['PENDING'].text)}>
+          <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", statusConfig[status]?.dot || statusConfig['PENDING'].dot)} />
+          {statusConfig[status]?.label || statusConfig['PENDING'].label}
+        </div>
+      </td>
+      <td className="px-6 py-4">
+        <div className="flex items-center justify-center gap-2">
+          <button
+            disabled={isDisabled}
+            onClick={handleRMCheck}
+            className={cn(
+              "p-1.5 rounded-lg transition-all",
+              isDisabled
+                ? "bg-slate-100 text-slate-300 cursor-not-allowed"
+                : "bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white"
+            )}
+            title={
+              status === 'RM_SUBMITTED' ? "Waiting for Store Keeper review" :
+                status === 'RM_ACCEPTED' ? "RM already accepted" : "Check RM"
+            }
+          >
+            <CheckCircle2 size={14} />
+          </button>
+          <button
+            onClick={handleEdit}
+            className="p-1.5 bg-orange-50 text-orange-600 hover:bg-orange-500 hover:text-white rounded-lg transition-all"
+            title="Edit Details"
+          >
+            <Edit3 size={14} />
+          </button>
+        </div>
+      </td>
+    </motion.tr>
+  );
+});
+
+TableRow.displayName = 'TableRow';
+
 export default function PartLookupPage() {
-    const [parts, setParts] = useState<PartDetail[]>([]);
-    const [models, setModels] = useState<VehicleModel[]>([]);
-    const [machines, setMachines] = useState<any[]>([]);
-    const [showMachineDropdown, setShowMachineDropdown] = useState(false);
-    const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [searchQuery, setSearchQuery] = useState('');
-    const [selectedModel, setSelectedModel] = useState<string>('ALL');
-    const [selectedPart, setSelectedPart] = useState<PartDetail | null>(null);
-    const [activeShortages, setActiveShortages] = useState<any[]>([]);
+  const [parts, setParts] = useState<PartDetail[]>([]);
+  const [models, setModels] = useState<VehicleModel[]>([]);
+  const [machines, setMachines] = useState<any[]>([]);
+  const [showMachineDropdown, setShowMachineDropdown] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [demands, setDemands] = useState<any[]>([]);
+  const [selectedDemand, setSelectedDemand] = useState<string>('');
+  const [selectedPart, setSelectedPart] = useState<PartDetail | null>(null);
+  const [inventoryItems, setInventoryItems] = useState<any[]>([]);
 
-    // Modals
-    const [showAddModal, setShowAddModal] = useState(false);
-    const [showEditModal, setShowEditModal] = useState(false);
-    const [submitting, setSubmitting] = useState(false);
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
-    // Form state for new/edit part
-    const [formData, setFormData] = useState({
-        sr_no: '',
-        model: '',
-        part_number: '',
-        sap_part_number: '',
-        description: '',
-        assembly_number: '',
-        // Material Data
-        rm_thk_mm: '',
-        sheet_width: '',
-        sheet_length: '',
-        no_of_comp_per_sheet: '',
-        rm_size: '',
-        rm_grade: '',
-        act_rm_sizes: '',
-        revised: '',
-        validity: '',
-        // Industrial Metrics
-        machine: '',
-        no_of_machines: '',
-        strokes_per_part: '',
-        part_weight: ''
+  // Modals
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showRMModal, setShowRMModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Form state for new/edit part
+  const [formData, setFormData] = useState({
+    sr_no: '',
+    model: '',
+    part_number: '',
+    sap_part_number: '',
+    description: '',
+    assembly_number: '',
+    rm_thk_mm: '',
+    sheet_width: '',
+    sheet_length: '',
+    no_of_comp_per_sheet: '',
+    rm_size: '',
+    rm_grade: '',
+    act_rm_sizes: '',
+    revised: '',
+    validity: '',
+    machine: '',
+    no_of_machines: '',
+    strokes_per_part: '',
+    part_weight: ''
+  });
+
+  // RM Form state
+  const [rmForm, setRMForm] = useState({
+    rm_thk_mm: '', sheet_width: '', sheet_length: '',
+    no_of_comp_per_sheet: '', rm_size: '', rm_grade: '',
+    act_rm_sizes: '', ppc_notes: ''
+  });
+
+  // Memoized filtered parts
+  const filteredParts = useMemo(() => {
+    if (!searchQuery) return parts;
+    return parts.filter(part => {
+      const matchesSearch =
+        part.common.sap_part_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        part.common.description?.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesSearch;
     });
+  }, [parts, searchQuery]);
 
-    // Auto-calculate RM SIZE
-    useEffect(() => {
-        if (formData.rm_thk_mm || formData.sheet_width || formData.sheet_length) {
-            const calculatedSize = `${formData.rm_thk_mm || ''}${formData.rm_thk_mm && formData.sheet_width ? 'X' : ''}${formData.sheet_width || ''}${(formData.sheet_width || formData.rm_thk_mm) && formData.sheet_length ? 'X' : ''}${formData.sheet_length || ''}`;
-            setFormData(prev => ({ ...prev, rm_size: calculatedSize }));
-        }
-    }, [formData.rm_thk_mm, formData.sheet_width, formData.sheet_length]);
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredParts.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedParts = useMemo(() =>
+    filteredParts.slice(startIndex, startIndex + itemsPerPage),
+    [filteredParts, startIndex, itemsPerPage]
+  );
+  const endItem = Math.min(startIndex + itemsPerPage, filteredParts.length);
 
-    // Auto-calculate SR.NO when model is selected (Only for new parts)
-    useEffect(() => {
-        if (showAddModal && formData.model) {
-            const modelParts = parts.filter(p => p.common.model === formData.model);
-            const nextSrNo = modelParts.length + 1;
-            setFormData(prev => ({ ...prev, sr_no: String(nextSrNo) }));
-        }
-    }, [formData.model, showAddModal, parts]);
+  // Auto-calculate RM SIZE
+  useEffect(() => {
+    if (formData.rm_thk_mm || formData.sheet_width || formData.sheet_length) {
+      const calculatedSize = `${formData.rm_thk_mm || ''}${formData.rm_thk_mm && formData.sheet_width ? 'X' : ''}${formData.sheet_width || ''}${(formData.sheet_width || formData.rm_thk_mm) && formData.sheet_length ? 'X' : ''}${formData.sheet_length || ''}`;
+      setFormData(prev => ({ ...prev, rm_size: calculatedSize }));
+    }
+  }, [formData.rm_thk_mm, formData.sheet_width, formData.sheet_length]);
 
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-            const [partsRes, modelsRes, linesRes, shortagesRes] = await Promise.all([
-                fetch(`${API}/manager/master-data`, { headers: authHeaders() }),
-                fetch(`${API}/manager/vehicle-models`, { headers: authHeaders() }),
-                fetch(`${API}/admin/lines`, { headers: authHeaders() }),
-                fetch(`${API}/admin/shortage-requests?status=PENDING,DEO_FILLED`, { headers: authHeaders() })
-            ]);
+  useEffect(() => {
+    if (showAddModal && formData.model) {
+      const modelParts = parts.filter(p => p.common.model === formData.model);
+      const nextSrNo = modelParts.length + 1;
+      setFormData(prev => ({ ...prev, sr_no: String(nextSrNo) }));
+    }
+  }, [formData.model, showAddModal, parts]);
 
-            const partsData = await partsRes.json();
-            const modelsData = await modelsRes.json();
-            const linesData = await linesRes.json();
-            const shortagesData = await shortagesRes.json();
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedDemand]);
 
-            if (shortagesData.success) {
-                setActiveShortages(shortagesData.data);
-            }
+  // Memoized fetch function
+  const fetchData = useCallback(async (demandId?: number) => {
+    setLoading(true);
+    try {
+      // 1. Fetch demands and models first (shared across all views)
+      const [demandsRes, modelsRes, linesRes] = await Promise.all([
+        ppcApi.getDemands(),
+        fetch(`${API}/manager/vehicle-models`, { headers: authHeaders() }),
+        fetch(`${API}/admin/lines`, { headers: authHeaders() })
+      ]);
 
-            if (Array.isArray(partsData)) {
-                setParts(partsData);
-            } else if (partsData.success) {
-                setParts(partsData.data);
-            }
+      const demandsData = await demandsRes.data;
+      if (demandsData.success) setDemands(demandsData.data);
+      const modelsData = await modelsRes.json();
+      if (modelsData.success) setModels(modelsData.data);
 
-            if (modelsData.success) {
-                setModels(modelsData.data);
-            }
-
-            if (linesData.success) {
-                // Flatten and filter for Machines (Level 1)
-                const allLines = linesData.data;
-                console.log("Fetched Lines Data:", allLines);
-                const machineList: any[] = [];
-
-                // Robust flattening logic: handle both hierarchical and flat data
-                allLines.forEach((item: any) => {
-                    if (item.children && item.children.length > 0) {
-                        // Hierarchical: children are machines
-                        item.children.forEach((child: any) => {
-                            machineList.push({
-                                id: child.id,
-                                name: child.name.toUpperCase(),
-                                areaName: item.name.toUpperCase()
-                            });
-                        });
-                    } else if (item.parent_id) {
-                        // Flat but has parent_id: likely a machine
-                        machineList.push({
-                            id: item.id,
-                            name: item.name.toUpperCase(),
-                            areaName: "GENERAL"
-                        });
-                    }
-                });
-
-                console.log("Processed Machines List:", machineList);
-                setMachines(machineList);
-            }
-        } catch (error) {
-            console.error("Error fetching part lookup data:", error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchData();
-    }, []);
-
-    const openEditModal = (part: PartDetail) => {
-        setFormData({
-            sr_no: part.production_data?.['SN NO'] || part.production_data?.['SR NO'] || part.production_data?.['SR.NO'] || '',
-            model: part.common.model || '',
-            part_number: part.common.part_number || '',
-            sap_part_number: part.common.sap_part_number || '',
-            description: part.common.description || '',
-            assembly_number: part.common.assembly_number || '',
-            // Material
-            rm_thk_mm: part.material_data?.['RM Thk mm'] || part.material_data?.['RM_THK_MM'] || part.material_data?.['rm_thk_mm'] || '',
-            sheet_width: part.material_data?.['Sheet Width'] || part.material_data?.['sheet_width'] || '',
-            sheet_length: part.material_data?.['Sheet Length'] || part.material_data?.['sheet_length'] || '',
-            no_of_comp_per_sheet: part.material_data?.['No of comp per sheet'] || part.material_data?.['no_of_comp_per_sheet'] || '',
-            rm_size: part.material_data?.['RM SIZE'] || part.material_data?.['rm_size'] || '',
-            rm_grade: part.material_data?.['RM Grade'] || part.material_data?.['rm_grade'] || '',
-            act_rm_sizes: part.material_data?.['Act RM Sizes'] || part.material_data?.['act_rm_sizes'] || '',
-            revised: part.material_data?.['Revised'] || part.material_data?.['revised'] || '',
-            validity: part.material_data?.['VALIDITY'] || part.material_data?.['validity'] || '',
-            // Industrial Metrics
-            machine: part.production_data?.['Machine'] || '',
-            no_of_machines: part.production_data?.['No. of Machines'] || '',
-            strokes_per_part: part.production_data?.['Strokes / Part'] || '',
-            part_weight: part.production_data?.['Part Weight (kg)'] || ''
-        });
-        setShowEditModal(true);
-    };
-
-    const handleFormSubmit = async (e: React.FormEvent, isEdit: boolean = false) => {
-        e.preventDefault();
-        if (!formData.model || !formData.sap_part_number || !formData.part_number) {
-            alert("Model, SAP #, and Part # are required");
-            return;
-        }
-
-        setSubmitting(true);
-        try {
-            const payload = {
-                model: formData.model,
-                part_number: formData.part_number,
-                sap_part_number: formData.sap_part_number,
-                description: formData.description,
-                assembly_number: formData.assembly_number,
-                material_data: {
-                    "RM Thk mm": formData.rm_thk_mm,
-                    "Sheet Width": formData.sheet_width,
-                    "Sheet Length": formData.sheet_length,
-                    "No of comp per sheet": formData.no_of_comp_per_sheet,
-                    "RM SIZE": formData.rm_size,
-                    "RM Grade": formData.rm_grade,
-                    "Act RM Sizes": formData.act_rm_sizes,
-                    "Revised": formData.revised,
-                    "VALIDITY": formData.validity
-                },
-                production_data: {
-                    "RM SIZE": formData.rm_size,
-                    "SR.NO": formData.sr_no,
-                    "Machine": formData.machine,
-                    "No. of Machines": formData.no_of_machines,
-                    "Strokes / Part": formData.strokes_per_part,
-                    "Part Weight (kg)": formData.part_weight
-                }
-            };
-
-            const url = isEdit
-                ? `${API}/manager/master-data/${selectedPart?.common.id}`
-                : `${API}/manager/master-data/quick-add`;
-
-            const response = await fetch(url, {
-                method: isEdit ? 'PUT' : 'POST',
-                headers: authHeaders(),
-                body: JSON.stringify(payload)
+      // Handle machine list
+      const linesBody = await linesRes.json();
+      if (linesBody.success) {
+        const machineList: any[] = [];
+        linesBody.data.forEach((item: any) => {
+          if (item.children) {
+            item.children.forEach((child: any) => {
+              machineList.push({ id: child.id, name: child.name.toUpperCase(), areaName: item.name.toUpperCase() });
             });
+          }
+        });
+        setMachines(machineList);
+      }
 
-            const data = await response.json();
-            if (data.success) {
-                alert(isEdit ? "Part updated successfully" : "Part added successfully");
-                setShowAddModal(false);
-                setShowEditModal(false);
-                if (isEdit && data.data) setSelectedPart(data.data);
-                fetchData();
-            } else {
-                alert(data.message || "Operation failed");
-            }
-        } catch (error) {
-            alert("Network error. Please try again.");
-        } finally {
-            setSubmitting(false);
-        }
-    };
+      // 2. Identify the active demand ID
+      const activeDemandId = demandId || (selectedDemand ? demandsData.data.find((d: any) => d.formatted_id === selectedDemand)?.id : null);
 
-    const filteredParts = parts.filter(part => {
-        const matchesSearch =
-            part.common.sap_part_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            part.common.part_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            part.common.description?.toLowerCase().includes(searchQuery.toLowerCase());
+      if (!activeDemandId) {
+        setParts([]);
+        setLoading(false);
+        return;
+      }
 
-        const matchesModel = selectedModel === 'ALL' || part.common.model === selectedModel;
+      // 3. Fetch registry data ONLY for the active demand
+      const invRes = await ppcApi.getMachineRegistry(activeDemandId);
 
-        return matchesSearch && matchesModel;
+      if (invRes.data.success) {
+        const mapped: PartDetail[] = invRes.data.data.map((item: any) => ({
+          common: {
+            id: item.id || 0,
+            model: item.vehicle_name || item.model || '',
+            part_number: item.part_number || item.part_no || item.inventory_item?.part_number || item.inventory_item?.part_no || '',
+            sap_part_number: item.sap_part_number || item.inventory_item?.sap_part_number || '',
+            description: item.part_description || item.inventory_item?.description || '',
+            saleable_no: '',
+            assembly_number: item.assembly_number || item.inventory_item?.assembly_number || '',
+            sr_no: item.serial_number || item.sn_no || item.sr_no || item.inventory_item?.sr_no || item.inventory_item?.serial_number || '',
+            is_ad_hoc: false,
+            demand_quantity: item.demand_quantity,
+            shortage_quantity: item.shortage_quantity,
+          },
+          production_data: {
+            'SR.NO': item.serial_number || item.sn_no || item.sr_no || item.inventory_item?.sr_no || item.inventory_item?.serial_number || '',
+            'Machine': item.machine_group || item.machine || '',
+            'SN NO': item.serial_number || item.sn_no || item.sr_no || item.inventory_item?.sr_no || item.inventory_item?.serial_number || ''
+          },
+          material_data: item.master_material_data || {}
+        }));
+        setParts(mapped);
+        setInventoryItems(invRes.data.data);
+      }
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedDemand]);
+
+  // Memoized getMaterialValue function
+  const getMaterialValue = useCallback((part: PartDetail, possibleKeys: string[]) => {
+    if (!part.material_data) return '—';
+    for (const key of possibleKeys) {
+      const val = part.material_data[key];
+      if (val && val !== 'nan' && String(val).trim() !== '') return val;
+    }
+    // Also check lowercase and underscored variants if needed
+    for (const key of possibleKeys) {
+      const lowerKey = key.toLowerCase();
+      const underscoredKey = key.toLowerCase().replace(/ /g, '_');
+      const val = part.material_data[lowerKey] || part.material_data[underscoredKey];
+      if (val && val !== 'nan' && String(val).trim() !== '') return val;
+    }
+    return '—';
+  }, []);
+
+  const openEditModal = useCallback((part: PartDetail) => {
+    setFormData({
+      sr_no: part.production_data?.['SN NO'] || part.production_data?.['SR NO'] || part.production_data?.['SR.NO'] || '',
+      model: part.common.model || '',
+      part_number: part.common.part_number || '',
+      sap_part_number: part.common.sap_part_number || '',
+      description: part.common.description || '',
+      assembly_number: part.common.assembly_number || '',
+      // Material
+      rm_thk_mm: part.material_data?.['RM Thk mm'] || part.material_data?.['RM_THK_MM'] || part.material_data?.['rm_thk_mm'] || '',
+      sheet_width: part.material_data?.['Sheet Width'] || part.material_data?.['sheet_width'] || '',
+      sheet_length: part.material_data?.['Sheet Length'] || part.material_data?.['sheet_length'] || '',
+      no_of_comp_per_sheet: part.material_data?.['No of comp per sheet'] || part.material_data?.['no_of_comp_per_sheet'] || '',
+      rm_size: part.material_data?.['RM SIZE'] || part.material_data?.['rm_size'] || '',
+      rm_grade: part.material_data?.['RM Grade'] || part.material_data?.['rm_grade'] || '',
+      act_rm_sizes: part.material_data?.['Act RM Sizes'] || part.material_data?.['act_rm_sizes'] || '',
+      revised: part.material_data?.['Revised'] || part.material_data?.['revised'] || '',
+      validity: part.material_data?.['VALIDITY'] || part.material_data?.['validity'] || '',
+      // Industrial Metrics
+      machine: part.production_data?.['Machine'] || '',
+      no_of_machines: part.production_data?.['No. of Machines'] || '',
+      strokes_per_part: part.production_data?.['Strokes / Part'] || '',
+      part_weight: part.production_data?.['Part Weight (kg)'] || ''
     });
+    setShowEditModal(true);
+  }, []);
 
-    const handlePartSelect = (part: PartDetail) => {
-        setSelectedPart(part);
-    };
-
-    const renderDetailItem = (label: string, value: any, compact = false) => {
-        let displayValue = (value === undefined || value === null || value === '' || value === 'nan' || value === 'None') ? '—' : String(value);
-
-        // Clean up machine display by removing (AREA) or (PARENT) info
-        if (label.toLowerCase() === 'machine' && displayValue !== '—') {
-            displayValue = displayValue.replace(/\s*\([^)]*\)/g, '');
+  const handleFormSubmit = useCallback(async (e: React.FormEvent, isEdit: boolean = false) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const payload = {
+        model: formData.model,
+        part_number: formData.part_number,
+        sap_part_number: formData.sap_part_number,
+        description: formData.description,
+        assembly_number: formData.assembly_number,
+        material_data: {
+          "RM Thk mm": formData.rm_thk_mm, "Sheet Width": formData.sheet_width,
+          "Sheet Length": formData.sheet_length, "No of comp per sheet": formData.no_of_comp_per_sheet,
+          "RM SIZE": formData.rm_size, "RM Grade": formData.rm_grade,
+          "Act RM Sizes": formData.act_rm_sizes, "Revised": formData.revised, "VALIDITY": formData.validity
+        },
+        production_data: {
+          "RM SIZE": formData.rm_size, "SR.NO": formData.sr_no,
+          "Machine": formData.machine, "No. of Machines": formData.no_of_machines,
+          "Strokes / Part": formData.strokes_per_part, "Part Weight (kg)": formData.part_weight
         }
+      };
 
-        if (compact) {
-            return (
-                <div className="flex flex-col gap-1 min-w-0">
-                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">{label}</span>
-                    <span className="text-[13px] font-black text-slate-800 break-all leading-tight">{displayValue}</span>
-                </div>
-            );
-        }
+      const url = isEdit ? `${API}/manager/master-data/${selectedPart?.common.id}` : `${API}/manager/master-data/quick-add`;
+      const response = await fetch(url, {
+        method: isEdit ? 'PUT' : 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify(payload)
+      });
 
-        return (
-            <div className="space-y-1.5 flex flex-col h-full">
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
-                    {label.replace(/_/g, ' ')}
-                </span>
-                <div className="w-full min-h-[2.5rem] px-4 py-2 bg-slate-50/50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 flex items-center transition-all">
-                    <span className={cn(
-                        "break-words leading-tight tracking-tight",
-                        displayValue === '—' ? "text-slate-300" : "text-slate-800 font-black"
-                    )}>
-                        {displayValue}
-                    </span>
-                </div>
+      const data = await response.json();
+      if (data.success) {
+        toast.success(isEdit ? "Part updated" : "Part added");
+        setShowAddModal(false); setShowEditModal(false);
+        fetchData();
+      } else toast.error(data.message);
+    } catch (error) { toast.error("Error saving part"); }
+    finally { setSubmitting(false); }
+  }, [formData, selectedPart, fetchData]);
+
+  const openRMForm = useCallback(() => {
+    const inv = inventoryItems.find(i => i.sap_part_number === selectedPart?.common.sap_part_number);
+    if (!inv) return;
+    const md = selectedPart?.material_data || {};
+    setRMForm({
+      rm_thk_mm: md['RM Thk mm'] || '',
+      sheet_width: md['Sheet Width'] || '',
+      sheet_length: md['Sheet Length'] || '',
+      no_of_comp_per_sheet: md['No of comp per sheet'] || '',
+      rm_size: md['RM SIZE'] || '',
+      rm_grade: md['RM Grade'] || '',
+      act_rm_sizes: md['Act RM Sizes'] || '',
+      ppc_notes: ''
+    });
+    setShowRMModal(true);
+  }, [inventoryItems, selectedPart]);
+
+  const handleRMSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPart) return;
+
+    // Improved matching logic (trimmed and case-insensitive)
+    const inv = inventoryItems.find(i =>
+      i.sap_part_number.trim().toLowerCase() === selectedPart.common.sap_part_number.trim().toLowerCase()
+    );
+
+    const demand = demands.find(d => d.formatted_id === selectedDemand);
+
+    setSubmitting(true);
+    try {
+      const payload = {
+        ...rmForm,
+        demand_id: demand?.id,
+        sap_part_number: selectedPart.common.sap_part_number
+      };
+
+      // If no inventory item found, we pass 0 as the ID and the backend will create it
+      const itemId = inv ? inv.id : 0;
+      await ppcApi.submitRM(itemId, payload);
+
+      toast.success("RM data submitted successfully");
+      setShowRMModal(false);
+      fetchData(demand?.id);
+    } catch (err) {
+      toast.error("Submission failed. Ensure the demand is active.");
+      console.error(err);
+    } finally {
+      setSubmitting(false);
+    }
+  }, [selectedPart, inventoryItems, demands, selectedDemand, rmForm, fetchData]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Memoized handlers for child components
+  const handleEditPart = useCallback((part: PartDetail) => {
+    openEditModal(part);
+  }, [openEditModal]);
+
+  const handleRMCheck = useCallback((part: PartDetail) => {
+    setSelectedPart(part);
+    const md = part.material_data || {};
+    setRMForm({
+      rm_thk_mm: md['RM Thk mm'] || '',
+      sheet_width: md['Sheet Width'] || '',
+      sheet_length: md['Sheet Length'] || '',
+      no_of_comp_per_sheet: md['No of comp per sheet'] || '',
+      rm_size: md['RM SIZE'] || '',
+      rm_grade: md['RM Grade'] || '',
+      act_rm_sizes: md['Act RM Sizes'] || '',
+      ppc_notes: ''
+    });
+    setShowRMModal(true);
+  }, []);
+
+  const handleCreateNewPart = useCallback(() => {
+    const currentDemand = demands.find(d => d.formatted_id === selectedDemand);
+    setFormData({
+      sr_no: '',
+      model: currentDemand?.model_name || '',
+      part_number: '', sap_part_number: '', description: '', assembly_number: '',
+      rm_thk_mm: '', sheet_width: '', sheet_length: '', no_of_comp_per_sheet: '', rm_size: '',
+      rm_grade: '', act_rm_sizes: '', revised: '', validity: '',
+      machine: '', no_of_machines: '', strokes_per_part: '', part_weight: ''
+    });
+    setShowAddModal(true);
+  }, [demands, selectedDemand]);
+
+  const handleDemandChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    setSelectedDemand(val);
+    const demand = demands.find(d => d.formatted_id === val);
+    fetchData(demand?.id);
+  }, [demands, fetchData]);
+
+  return (
+    <div className="bg-ind-bg flex flex-col h-[calc(100vh-64px)] overflow-hidden">
+      <div className="flex xl:flex-row xl:items-center justify-between gap-3 bg-white border-b border-slate-100 py-2 ml-2 mb-1">
+        <h1 className="text-2xl font-black text-slate-800 tracking-tight leading-none px-4">Machine Registry</h1>
+      </div>
+
+      <div className="px-1 py-2 flex items-center gap-1 flex-shrink-0">
+        <div className="relative group min-w-[180px]">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-lg bg-orange-50 flex items-center justify-center">
+            <Filter size={12} strokeWidth={2.5} className="text-orange-500" />
+          </div>
+          <select
+            value={selectedDemand}
+            onChange={handleDemandChange}
+            className="w-full h-10 pl-10 pr-7 bg-white border border-slate-100 rounded-xl text-[11px] font-bold text-slate-700 outline-none appearance-none shadow-sm cursor-pointer focus:border-orange-300"
+          >
+            <option value="">Select Model</option>
+            {demands.map(d => <option key={d.id} value={d.formatted_id}>{d.model_name} — {d.formatted_id}</option>)}
+          </select>
+          <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 rotate-90" size={12} strokeWidth={2.5} />
+        </div>
+
+        {selectedDemand && (
+          <>
+            <div className="relative group flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={14} />
+              <input
+                type="text"
+                placeholder="Search by SAP Number, Description..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full h-10 pl-10 pr-4 bg-white border border-slate-100 rounded-xl text-xs font-medium text-slate-700 outline-none shadow-sm focus:border-orange-300 transition-all"
+              />
             </div>
-        );
-    };
 
-    // Helper to safely get material data with fallback
-    const getMaterialData = (part: PartDetail): Record<string, any> => {
-        if (part.material_data && Object.keys(part.material_data).length > 0) {
-            return part.material_data;
-        }
-        return {};
-    };
+            <button
+              onClick={handleCreateNewPart}
+              className="flex items-center gap-1 px-4 h-10 bg-ind-primary hover:bg-ind-g2 text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-all shadow-md"
+            >
+              <Plus size={16} strokeWidth={3} />
+              Create New Part
+            </button>
+          </>
+        )}
+      </div>
+      {/* Main Content - Table View */}
+      <div className="flex-1 mx-1 mb-2 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+        <div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar">
+          <table className="w-full border-collapse min-w-[1500px]">
+            <thead className="sticky top-0 z-10">
+              <tr className="border-b-2 border-[#f37021] bg-white">
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">Sn.no</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">VEHICLE MODEL</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">DEMAND QTY</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">SAP PART NUMBER</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">PART NUMBER</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">PART DESCRIPTION</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">RM Thk Mm</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">Sheet Width</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">Sheet Length</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">No Of Comp Per Sheet</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">RM SIZE</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">RM Grade</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">Act RM Sizes</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">Revised</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">VALIDITY</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">Status</th>
+                <th className="px-6 py-3 text-center text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50 bg-white">
+              {loading ? (
+                <tr>
+                  <td colSpan={17} className="py-20 text-center">
+                    <Loader2 className="animate-spin text-orange-400 mx-auto mb-3" size={32} strokeWidth={2} />
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Loading Registry...</span>
+                  </td>
+                </tr>
+              ) : paginatedParts.length > 0 ? (
+                paginatedParts.map((part, idx) => (
+                  <TableRow
+                    key={part.common.id}
+                    part={part}
+                    idx={idx}
+                    inventoryItems={inventoryItems}
+                    onEdit={handleEditPart}
+                    onRMCheck={handleRMCheck}
+                    getMaterialValue={getMaterialValue}
+                  />
+                ))
+              ) : selectedDemand ? (
+                <tr>
+                  <td colSpan={17} className="py-32 text-center text-slate-300">
+                    <Search size={48} strokeWidth={1} className="mx-auto mb-4 opacity-20" />
+                    <p className="text-xs font-black uppercase tracking-widest text-slate-400">No Registry Data Found</p>
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
 
-    const materialEntries = selectedPart ? Object.entries(getMaterialData(selectedPart)) : [];
-
-    return (
-        <div className="bg-ind-bg flex flex-col h-[calc(100vh-64px)] overflow-hidden">
-            {/* Header Section */}
-            <div className="flex  xl:flex-row xl:items-center justify-between gap-3 bg-white border-b border-slate-100 py-1 ml-2 mb-1">
-                <div className="flex items-center">
-                    <div>
-                    <h1 className="text-3xl md:text-3xl xl:text-2xl font-black text-slate-800 tracking-tight leading-none">
-  Part Lookup
-</h1>
-                    </div>
-                </div>
-
-                {/* <div className="flex items-center bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
-                    <div className="px-4 py-2 border-r border-slate-50 text-center">
-                        <span className="block text-[7px] font-black text-slate-400 uppercase tracking-widest mb-0.5">TOTAL REGISTRY</span>
-                        <span className="text-base font-black text-slate-800 leading-none">{parts.length}</span>
-                    </div>
-                </div> */}
+        {/* Pagination Footer */}
+        {filteredParts.length > 0 && (
+          <div className="sticky bottom-0 flex items-center justify-between px-6 py-4 bg-white border-t z-10">
+            <div className="text-[11px] font-black text-slate-500 uppercase tracking-wider">
+              Showing{" "}
+              <span className="text-orange-500">
+                {filteredParts.length === 0 ? 0 : startIndex + 1}
+              </span>
+              {" "}to{" "}
+              <span className="text-orange-500">
+                {endItem}
+              </span>
+              {" "}of{" "}
+              <span className="text-orange-500">
+                {filteredParts.length}
+              </span>
+              {" "}entries
             </div>
 
-            {/* Filter Bar */}
-            <div className="px-1 py-2 flex items-center gap-1 flex-shrink-0 bg-transparent">
-                <div className="relative group min-w-[180px]">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-lg bg-orange-50 flex items-center justify-center">
-                        <Filter size={12} strokeWidth={2.5} className="text-orange-500" />
-                    </div>
-                    <select
-                        value={selectedModel}
-                        onChange={(e) => setSelectedModel(e.target.value)}
-                        className="w-full h-10 pl-10 pr-7 bg-white border border-slate-100 rounded-xl text-[11px] font-bold text-slate-700 outline-none appearance-none shadow-sm cursor-pointer focus:border-orange-300 transition-all"
-                    >
-                        <option value="ALL">All Models</option>
-                        {models.map(m => (
-                            <option key={m.id} value={m.name}>{m.name.toUpperCase()}</option>
-                        ))}
-                    </select>
-                    <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 rotate-90" size={12} strokeWidth={2.5} />
-                </div>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-3">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  className="px-4 py-2 bg-slate-50 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-orange-500 hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                >
+                  Prev
+                </button>
 
-                <div className="relative group flex-1">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={14} />
-                    <input
-                        type="text"
-                        placeholder="Search by SAP Number, Part Number or Keyword..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full h-10 pl-10 pr-4 bg-white border border-slate-100 rounded-xl text-xs font-medium text-slate-700 outline-none shadow-sm placeholder:text-slate-300 focus:border-orange-300 transition-all"
-                    />
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black text-slate-400">PAGE</span>
+                  <span className="text-[11px] font-black text-orange-500 bg-orange-50 px-2 py-1 rounded-md min-w-[24px] text-center">
+                    {currentPage}
+                  </span>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">OF {totalPages}</span>
                 </div>
 
                 <button
-                    onClick={() => {
-                        setFormData({
-                            sr_no: '', model: '', part_number: '', sap_part_number: '', description: '',
-                            assembly_number: '', rm_thk_mm: '',
-                            sheet_width: '', sheet_length: '', no_of_comp_per_sheet: '',
-                            rm_size: '', rm_grade: '', act_rm_sizes: '', revised: '', validity: '',
-                            machine: '', no_of_machines: '', strokes_per_part: '', part_weight: ''
-                        });
-                        setShowAddModal(true);
-                    }}
-                    className="flex items-center gap-1 px-4 h-10 bg-ind-primary hover:bg-ind-g2 text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-all shadow-md shadow-orange-100"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  className="px-4 py-2 bg-slate-50 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-orange-500 hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                 >
-                    <Plus size={16} strokeWidth={3} />
-                    Create New Part
+                  Next
                 </button>
-            </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
-            {/* Main Content */}
-            <div className="flex-1 mx-1 mb-2 gap-2 flex overflow-hidden">
-                {/* Left Panel - Part List */}
-                <div className="w-[280px] flex-shrink-0 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
-                    <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
-                        {loading ? (
-                            <div className="flex flex-col items-center justify-center h-full gap-3 py-16">
-                                <Loader2 className="animate-spin text-orange-400" size={32} strokeWidth={2} />
-                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Loading...</span>
-                            </div>
-                        ) : filteredParts.length > 0 ? (
-                            filteredParts.map((part, idx) => {
-                                const isSelected = selectedPart?.common.id === part.common.id;
-                                return (
-                                    <motion.button
-                                        key={part.common.id}
-                                        initial={{ opacity: 0, y: 4 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ delay: Math.min(idx * 0.01, 0.3) }}
-                                        onClick={() => handlePartSelect(part)}
-                                        className={cn(
-                                            "w-full px-4 py-2.5 rounded-xl transition-all duration-200 text-left relative overflow-hidden group",
-                                            isSelected
-                                                ? "bg-orange-500 text-white shadow-md shadow-orange-200"
-                                                : "bg-white text-slate-700 hover:bg-slate-50 border border-transparent"
-                                        )}
-                                    >
-                                        <span className={cn(
-                                            "text-xs font-black tracking-tight",
-                                            isSelected ? "text-white" : "text-slate-800"
-                                        )}>
-                                            {part.common.sap_part_number}
-                                        </span>
-                                    </motion.button>
-                                );
-                            })
-                        ) : (
-                            <div className="flex flex-col items-center justify-center h-full gap-3 py-16 text-center">
-                                <Search size={20} className="text-slate-200" />
-                                <p className="text-[10px] font-bold text-slate-400">No results</p>
-                            </div>
-                        )}
+      <AnimatePresence>
+        {(showAddModal || showEditModal) && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="w-full max-w-5xl bg-white rounded-[32px] shadow-2xl border border-slate-100 overflow-hidden my-auto">
+              <div className="bg-white px-8 py-6 border-b border-slate-50 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-xl", showEditModal ? "bg-orange-500" : "bg-emerald-500")}>
+                    {showEditModal ? <FileText size={22} /> : <Plus size={24} strokeWidth={3} />}
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-slate-800 tracking-tight uppercase">{showEditModal ? 'Edit Component Row' : 'Register New Part'}</h3>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{showEditModal ? `PART #${formData.sap_part_number}` : 'Industrial Specification Entry'}</p>
+                  </div>
+                </div>
+                <button onClick={() => { setShowAddModal(false); setShowEditModal(false); }} className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-300 hover:text-slate-500 hover:bg-slate-50"><X size={20} /></button>
+              </div>
+              <form onSubmit={(e) => handleFormSubmit(e, showEditModal)} className="p-8 space-y-10 max-h-[75vh] overflow-y-auto custom-scrollbar bg-white">
+                {/* Identification Section */}
+                <div className="space-y-6">
+                  <h4 className="text-[11px] font-black text-orange-500 uppercase tracking-[0.2em] flex items-center gap-2">Identification</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">VEHICLE MODEL / DEMAND *</label>
+                      <div className="relative group">
+                        <select
+                          required
+                          value={formData.model}
+                          onChange={(e) => setFormData({ ...formData, model: e.target.value })}
+                          className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none appearance-none cursor-pointer focus:border-orange-500 shadow-sm pr-10"
+                        >
+                          <option value="">Select a vehicle model</option>
+                          {demands.map(d => (
+                            <option key={d.id} value={d.model_name}>
+                              {d.formatted_id} — {d.model_name}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 rotate-90 pointer-events-none" size={14} strokeWidth={2.5} />
+                      </div>
                     </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">SR.NO</label>
+                      <input type="text" readOnly value={formData.sr_no} className="w-full h-12 px-4 bg-slate-100/50 border border-slate-100 rounded-xl text-xs font-black text-slate-400 outline-none shadow-inner cursor-not-allowed" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">SAP PART NUMBER *</label>
+                      <input type="text" required value={formData.sap_part_number} onChange={(e) => setFormData({ ...formData, sap_part_number: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">PART NUMBER *</label>
+                      <input type="text" required value={formData.part_number} onChange={(e) => setFormData({ ...formData, part_number: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">PART DESCRIPTION</label>
+                      <input type="text" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">ASSEMBLY NUMBER</label>
+                      <input type="text" value={formData.assembly_number} onChange={(e) => setFormData({ ...formData, assembly_number: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500" />
+                    </div>
+                  </div>
                 </div>
 
-                {/* Right Panel - Part Details */}
-                <div className="flex-1 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col relative">
-                    {selectedPart ? (
-                        <div className="flex-1 flex flex-col overflow-y-auto custom-scrollbar">
-                            {/* Unified Action Header Area */}
-                            <div className="px-8 py-4 flex items-center justify-between gap-4 border-b border-slate-50">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 bg-orange-50 rounded-xl flex items-center justify-center text-orange-500 border border-orange-100 shadow-sm">
-                                        <Box size={16} strokeWidth={2.5} />
-                                    </div>
-                                    <h1 className="text-lg font-black text-slate-800 tracking-tight uppercase">
-                                        {selectedPart.common.model}
-                                    </h1>
-                                </div>
+                {/* Material Data Section */}
+                <div className="space-y-6">
+                  <h4 className="text-[11px] font-black text-orange-500 uppercase tracking-[0.2em] flex items-center gap-2">MATERIAL DATA</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">RM Thk Mm</label>
+                      <input type="text" value={formData.rm_thk_mm} onChange={(e) => setFormData({ ...formData, rm_thk_mm: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Sheet Width</label>
+                      <input type="text" value={formData.sheet_width} onChange={(e) => setFormData({ ...formData, sheet_width: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Sheet Length</label>
+                      <input type="text" value={formData.sheet_length} onChange={(e) => setFormData({ ...formData, sheet_length: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">No Of Comp Per Sheet</label>
+                      <input type="text" value={formData.no_of_comp_per_sheet} onChange={(e) => setFormData({ ...formData, no_of_comp_per_sheet: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">RM SIZE</label>
+                      <input type="text" readOnly value={formData.rm_size} className="w-full h-12 px-4 bg-slate-100/50 border border-slate-100 rounded-xl text-xs font-black text-slate-400 outline-none cursor-not-allowed shadow-inner" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">RM Grade</label>
+                      <input type="text" value={formData.rm_grade} onChange={(e) => setFormData({ ...formData, rm_grade: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Act RM Sizes</label>
+                      <input type="text" value={formData.act_rm_sizes} onChange={(e) => setFormData({ ...formData, act_rm_sizes: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Revised</label>
+                      <input type="text" value={formData.revised} onChange={(e) => setFormData({ ...formData, revised: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">VALIDITY</label>
+                      <input type="text" value={formData.validity} onChange={(e) => setFormData({ ...formData, validity: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500" />
+                    </div>
+                  </div>
+                </div>
 
-                                <button
-                                    onClick={() => openEditModal(selectedPart)}
-                                    className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border border-slate-200 group shadow-sm"
-                                >
-                                    <Edit3 size={13} className="text-orange-500 group-hover:scale-110 transition-transform" />
-                                    Edit Details
-                                </button>
-                            </div>
+                <div className="flex items-center justify-end gap-4 pt-10 border-t border-slate-50">
+                  <button type="button" onClick={() => { setShowAddModal(false); setShowEditModal(false); }} className="px-10 h-14 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all shadow-sm">Cancel</button>
+                  <button type="submit" disabled={submitting} className={cn("px-12 h-14 text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] transition-all shadow-2xl flex items-center justify-center gap-3", showEditModal ? "bg-orange-500" : "bg-emerald-500", submitting && "opacity-50")}>
+                    {submitting ? <Loader2 className="animate-spin" size={18} /> : (showEditModal ? <Save size={18} /> : <CheckCircle2 size={18} />)}
+                    {submitting ? 'Saving...' : (showEditModal ? 'Save Changes' : 'Register Component')}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
 
-                            {/* High-Density Data Row */}
-                            <div className="px-8 py-5 border-b border-slate-50 bg-slate-50/10">
-                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-                                    <div className="lg:col-span-3">
-                                        {renderDetailItem("SAP PART NUMBER", selectedPart.common.sap_part_number, true)}
-                                    </div>
-                                    <div className="lg:col-span-3">
-                                        {renderDetailItem("PART NUMBER", selectedPart.common.part_number, true)}
-                                    </div>
-                                    <div className="lg:col-span-6">
-                                        <div className="flex flex-col gap-1 min-w-0">
-                                            <span className="text-[9px] font-black text-orange-500 uppercase tracking-widest leading-none text-nowrap">PART DESCRIPTION:</span>
-                                            <span className="text-[12px] font-black text-slate-800 uppercase leading-tight truncate" title={selectedPart.common.description}>
-                                                {selectedPart.common.description}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+        {showRMModal && selectedPart && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-4xl bg-white rounded-[32px] shadow-2xl border border-slate-100 overflow-hidden">
+              <div className="bg-white px-8 py-6 border-b border-slate-50 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-8 h-8 rounded-xl bg-orange-500 flex items-center justify-center text-white shadow-lg shadow-orange-100 flex-shrink-0">
+                    <Factory size={16} />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-lg font-black text-slate-800 tracking-tight uppercase whitespace-nowrap">RM Data Check</h3>
+                    <div className="w-px h-4 bg-slate-200" />
+                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{selectedPart.common.sap_part_number}</p>
 
-
-
-                            {/* MATERIAL DATA */}
-                            <div className="flex-1 px-8 py-6 bg-white">
-                                <div className="max-w-6xl">
-                                    <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest mb-4">Material Data</h4>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                                        {renderDetailItem("RM Thk Mm", selectedPart.material_data?.['RM Thk mm'])}
-                                        {renderDetailItem("Sheet Width", selectedPart.material_data?.['Sheet Width'])}
-                                        {renderDetailItem("Sheet Length", selectedPart.material_data?.['Sheet Length'])}
-                                        {renderDetailItem("No of Comp Per Sheet", selectedPart.material_data?.['No of comp per sheet'])}
-
-                                        {renderDetailItem("RM Size", selectedPart.material_data?.['RM SIZE'])}
-                                        {renderDetailItem("RM Grade", selectedPart.material_data?.['RM Grade'])}
-                                        {renderDetailItem("Act RM Sizes", selectedPart.material_data?.['Act RM Sizes'])}
-                                        {renderDetailItem("Revised", selectedPart.material_data?.['Revised'])}
-
-                                        {renderDetailItem("Validity", selectedPart.material_data?.['VALIDITY'])}
-                                    </div>
-
-                                    {!materialEntries.length && (
-                                        <div className="text-center py-12 bg-slate-50/50 rounded-2xl border border-slate-100">
-                                            <Database size={24} className="text-slate-200 mx-auto mb-4" />
-                                            <p className="text-xs font-bold text-slate-400">No Material Data Available</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center bg-slate-50/30">
-                            <Database size={48} strokeWidth={1} className="text-slate-200 mb-6" />
-                            <h3 className="text-sm font-black text-slate-300 uppercase tracking-[0.3em]">Select a Registry Entry</h3>
-                        </div>
+                    {selectedPart.common.shortage_quantity !== undefined && (
+                      <div className="flex items-center gap-2 px-3 py-1 rounded-full border border-orange-100 bg-white shadow-sm ml-1 flex-shrink-0">
+                        <span className="text-[9px] font-black text-orange-500 uppercase tracking-tighter">Demand Qty</span>
+                        <span className="text-[11px] font-black text-slate-800 leading-none">{selectedPart.common.shortage_quantity}</span>
+                      </div>
                     )}
+                  </div>
                 </div>
-            </div>
-
-            {/* Comprehensive Form Modal (Add/Edit) */}
-            <AnimatePresence>
-                {
-                    (showAddModal || showEditModal) && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-                            <motion.div
-                                initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-                                className="w-full max-w-5xl bg-white rounded-[32px] shadow-2xl border border-slate-100 overflow-hidden my-auto"
-                            >
-                                {/* Modal Header */}
-                                <div className="bg-white px-8 py-6 border-b border-slate-50 flex items-center justify-between">
-                                    <div className="flex items-center gap-4">
-                                        <div className={cn(
-                                            "w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-xl",
-                                            showEditModal ? "bg-orange-500 shadow-orange-100" : "bg-emerald-500 shadow-emerald-100"
-                                        )}>
-                                            {showEditModal ? <FileText size={22} /> : <Plus size={24} strokeWidth={3} />}
-                                        </div>
-                                        <div>
-                                            <h3 className="text-xl font-black text-slate-800 tracking-tight uppercase">
-                                                {showEditModal ? 'Edit Component Row' : 'Register New Part'}
-                                            </h3>
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                                                {showEditModal ? `PART #${formData.sap_part_number} · MASTER DATA ENTRY` : 'Industrial Specification Entry'}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <button onClick={() => { setShowAddModal(false); setShowEditModal(false); }} className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-300 hover:text-slate-500 hover:bg-slate-50 transition-all"><X size={20} /></button>
-                                </div>
-
-                                <form onSubmit={(e) => handleFormSubmit(e, showEditModal)} className="p-8 space-y-10 max-h-[75vh] overflow-y-auto custom-scrollbar bg-white">
-                                    {/* Identification Section */}
-                                    <div className="space-y-6">
-                                        <h4 className="text-[11px] font-black text-orange-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                                            Identification
-                                        </h4>
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                            <div className="space-y-1.5">
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">VEHICLE MODEL *</label>
-                                                <select
-                                                    required
-                                                    value={formData.model}
-                                                    onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                                                    className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500 focus:bg-white transition-all shadow-sm shadow-slate-100 appearance-none cursor-pointer"
-                                                >
-                                                    <option value="">Select Model</option>
-                                                    {models.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-                                                </select>
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">SR.NO</label>
-                                                <input type="text" readOnly value={formData.sr_no} className="w-full h-12 px-4 bg-slate-100/50 border border-slate-100 rounded-xl text-xs font-black text-slate-400 outline-none cursor-not-allowed shadow-inner" />
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">SAP PART NUMBER *</label>
-                                                <input type="text" required value={formData.sap_part_number} onChange={(e) => setFormData({ ...formData, sap_part_number: e.target.value })} className={cn("w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500 focus:bg-white transition-all shadow-sm shadow-slate-100", !formData.sap_part_number && "border-orange-200")} />
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                            <div className="space-y-1.5">
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">PART NUMBER *</label>
-                                                <input type="text" required value={formData.part_number} onChange={(e) => setFormData({ ...formData, part_number: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500 focus:bg-white transition-all shadow-sm shadow-slate-100" />
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">PART DESCRIPTION</label>
-                                                <input type="text" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500 focus:bg-white transition-all shadow-sm shadow-slate-100" />
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">ASSEMBLY NUMBER</label>
-                                                <input type="text" value={formData.assembly_number} onChange={(e) => setFormData({ ...formData, assembly_number: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500 focus:bg-white transition-all shadow-sm shadow-slate-100" />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Material Data Section */}
-                                    <div className="space-y-6 pb-4">
-                                        <h4 className="text-[11px] font-black text-orange-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                                            MATERIAL DATA
-                                        </h4>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                            <div className="space-y-1.5">
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">RM Thk Mm</label>
-                                                <input type="text" value={formData.rm_thk_mm} onChange={(e) => setFormData({ ...formData, rm_thk_mm: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500 focus:bg-white transition-all shadow-sm shadow-slate-100" />
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Sheet Width</label>
-                                                <input type="text" value={formData.sheet_width} onChange={(e) => setFormData({ ...formData, sheet_width: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500 focus:bg-white transition-all shadow-sm shadow-slate-100" />
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Sheet Length</label>
-                                                <input type="text" value={formData.sheet_length} onChange={(e) => setFormData({ ...formData, sheet_length: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500 focus:bg-white transition-all shadow-sm shadow-slate-100" />
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">No Of Comp Per Sheet</label>
-                                                <input type="text" value={formData.no_of_comp_per_sheet} onChange={(e) => setFormData({ ...formData, no_of_comp_per_sheet: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500 focus:bg-white transition-all shadow-sm shadow-slate-100" />
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                            <div className="space-y-1.5">
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">RM SIZE</label>
-                                                <input type="text" readOnly value={formData.rm_size} className="w-full h-12 px-4 bg-slate-100/50 border border-slate-100 rounded-xl text-xs font-black text-slate-400 outline-none cursor-not-allowed shadow-inner" />
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">RM Grade</label>
-                                                <input type="text" value={formData.rm_grade} onChange={(e) => setFormData({ ...formData, rm_grade: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500 focus:bg-white transition-all shadow-sm shadow-slate-100" />
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Act RM Sizes</label>
-                                                <input type="text" placeholder="Enter Act Rm Sizes..." value={formData.act_rm_sizes} onChange={(e) => setFormData({ ...formData, act_rm_sizes: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500 focus:bg-white transition-all shadow-sm shadow-slate-100" />
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Revised</label>
-                                                <input type="text" placeholder="Enter Revised..." value={formData.revised} onChange={(e) => setFormData({ ...formData, revised: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500 focus:bg-white transition-all shadow-sm shadow-slate-100" />
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                                            <div className="space-y-1.5">
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">VALIDITY</label>
-                                                <input type="text" placeholder="Enter Validity..." value={formData.validity} onChange={(e) => setFormData({ ...formData, validity: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-orange-500 focus:bg-white transition-all shadow-sm shadow-slate-100" />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Form Actions */}
-                                    <div className="flex items-center justify-end gap-4 pt-10 border-t border-slate-50">
-                                        <button
-                                            type="button"
-                                            onClick={() => { setShowAddModal(false); setShowEditModal(false); }}
-                                            className="px-10 h-14 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all shadow-sm"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button
-                                            type="submit"
-                                            disabled={submitting}
-                                            className={cn(
-                                                "px-12 h-14 text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] transition-all shadow-2xl flex items-center justify-center gap-3",
-                                                showEditModal ? "bg-orange-500 hover:bg-orange-600 shadow-orange-100" : "bg-emerald-500 hover:bg-emerald-600 shadow-emerald-100",
-                                                submitting && "opacity-50 cursor-not-allowed"
-                                            )}
-                                        >
-                                            {submitting ? <Loader2 className="animate-spin" size={18} /> : (showEditModal ? <Save size={18} /> : <CheckCircle2 size={18} />)}
-                                            {submitting ? (showEditModal ? 'Saving...' : 'Registering...') : (showEditModal ? 'Save Changes' : 'Register Component')}
-                                        </button>
-                                    </div>
-                                </form>
-                            </motion.div>
-                        </div >
-                    )
-                }
-            </AnimatePresence >
-        </div >
-    );
+                <button onClick={() => setShowRMModal(false)} className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-300 hover:text-slate-500 hover:bg-slate-50 transition-all"><X size={20} /></button>
+              </div>
+              <form onSubmit={handleRMSubmit} className="p-8 space-y-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {[
+                    { key: 'rm_thk_mm', label: 'RM Thickness (mm)' },
+                    { key: 'rm_grade', label: 'RM Grade' },
+                    { key: 'rm_size', label: 'RM Size' },
+                    { key: 'act_rm_sizes', label: 'Actual RM Sizes' },
+                    { key: 'sheet_width', label: 'Sheet Width' },
+                    { key: 'sheet_length', label: 'Sheet Length' },
+                    { key: 'no_of_comp_per_sheet', label: 'Components / Sheet' },
+                  ].map(({ key, label }) => (
+                    <div key={key} className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-1">{label}</label>
+                      <input type="text" value={rmForm[key as keyof typeof rmForm]} onChange={e => setRMForm({ ...rmForm, [key]: e.target.value })} className="w-full h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-black text-slate-800 outline-none focus:border-orange-500 shadow-sm" />
+                    </div>
+                  ))}
+                  <div className="md:col-span-2 lg:col-span-3 space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-1">PPC Notes</label>
+                    <textarea rows={3} value={rmForm.ppc_notes} onChange={e => setRMForm({ ...rmForm, ppc_notes: e.target.value })} className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-black text-slate-800 outline-none focus:border-orange-500 shadow-sm" />
+                  </div>
+                </div>
+                <div className="flex items-center justify-end gap-4 pt-6 border-t border-slate-50">
+                  <button type="button" onClick={() => setShowRMModal(false)} className="px-10 h-14 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all">Cancel</button>
+                  <button type="submit" disabled={submitting} className="px-12 h-14 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] transition-all shadow-2xl flex items-center justify-center gap-3 disabled:opacity-50">
+                    {submitting ? <Loader2 className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
+                    Submit to Store Keeper
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
 }

@@ -3,7 +3,7 @@ import { skApi } from '../../api/newRolesApi';
 import toast from 'react-hot-toast';
 import {
   Boxes, CheckCircle2, AlertTriangle, Clock, CheckCircle,
-  Search, Filter, ChevronDown, Download, RefreshCw, X, Loader2, Package, LayoutGrid, Eye, CheckSquare
+  Search, ChevronDown, RefreshCw, X, Loader2, LayoutGrid, CheckSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -31,9 +31,9 @@ const SKRMQueuePage: React.FC = () => {
       .then(r => setRequests(r.data?.data || []))
       .catch(() => toast.error('Failed to load RM queue'))
       .finally(() => setLoading(false));
-    
+
     // Also fetch dispatch count for the summary pill
-    skApi.getDispatchQueue().then(r => setDispatchReady(r.data?.data?.length || 0)).catch(() => {});
+    skApi.getDispatchQueue().then(r => setDispatchReady(r.data?.data?.length || 0)).catch(() => { });
   };
 
   useEffect(() => { fetchQueue(); }, [filter]);
@@ -48,22 +48,22 @@ const SKRMQueuePage: React.FC = () => {
   const submittedReqs = requests.filter(r => r.status === 'SUBMITTED').length;
   const acceptedReqs = requests.filter(r => r.status === 'ACCEPTED').length;
   const rejectedReqs = requests.filter(r => r.status === 'REJECTED').length;
-  
+
   // Filtering logic
   const filteredRequests = requests.filter(req => {
     const q = search.toLowerCase();
-    const matchSearch = !q || 
+    const matchSearch = !q ||
       req.formatted_id?.toLowerCase().includes(q) ||
       req.inventory_item?.sap_part_number?.toLowerCase().includes(q) ||
       req.inventory_item?.part_description?.toLowerCase().includes(q);
-    
+
     const matchDate = !dateFilter || (req.submitted_at && req.submitted_at.startsWith(dateFilter));
-    
+
     return matchSearch && matchDate;
   });
 
   // Pagination calculations
-  const sortedRequests = [...filteredRequests].sort((a, b) => 
+  const sortedRequests = [...filteredRequests].sort((a, b) =>
     new Date(b.submitted_at || 0).getTime() - new Date(a.submitted_at || 0).getTime()
   );
 
@@ -174,8 +174,8 @@ const SKRMQueuePage: React.FC = () => {
         </div>
 
         {/* Action / Refresh */}
-        <button 
-          onClick={fetchQueue} 
+        <button
+          onClick={fetchQueue}
           disabled={loading}
           className="px-8 h-[42px] bg-gradient-to-r from-[#f37021] to-orange-600 text-white rounded-full text-[11px] font-black uppercase tracking-widest shadow-lg hover:shadow-orange-200 hover:scale-[1.02] transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50"
         >
@@ -259,7 +259,7 @@ const SKRMQueuePage: React.FC = () => {
                         <span className={`px-3 py-1 rounded-full text-[9px] font-black border tracking-widest
                           ${req.status === 'SUBMITTED' ? 'bg-amber-50 text-amber-600 border-amber-100' :
                             req.status === 'ACCEPTED' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                            'bg-rose-50 text-rose-600 border-rose-100'
+                              'bg-rose-50 text-rose-600 border-rose-100'
                           }`}>
                           {req.status === 'ACCEPTED' ? 'COMPLETED' : req.status}
                         </span>
@@ -332,11 +332,10 @@ const SKRMQueuePage: React.FC = () => {
                       <button
                         key={page}
                         onClick={() => setCurrentPage(page)}
-                        className={`w-7 h-7 rounded-lg text-[10px] font-black transition-all ${
-                          currentPage === page 
-                            ? 'bg-orange-50 text-[#f37021] border border-orange-200' 
-                            : 'text-slate-400 hover:bg-slate-50'
-                        }`}
+                        className={`w-7 h-7 rounded-lg text-[10px] font-black transition-all ${currentPage === page
+                          ? 'bg-orange-50 text-[#f37021] border border-orange-200'
+                          : 'text-slate-400 hover:bg-slate-50'
+                          }`}
                       >
                         {page}
                       </button>
@@ -361,14 +360,14 @@ const SKRMQueuePage: React.FC = () => {
       <AnimatePresence>
         {actionItem && actionType && (
           <>
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm"
               onClick={() => setActionItem(null)}
             />
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -390,7 +389,7 @@ const SKRMQueuePage: React.FC = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="p-6 space-y-4">
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
@@ -405,7 +404,7 @@ const SKRMQueuePage: React.FC = () => {
                       placeholder={actionType === 'accept' ? 'Any quality or quantity notes...' : 'Reason for rejection...'}
                     />
                   </div>
-                  
+
                   {actionType === 'accept' && (
                     <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 flex gap-3">
                       <div className="text-blue-500 shrink-0"><Clock size={16} /></div>

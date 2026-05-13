@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     Package, RefreshCw, Plus, Search, Filter, Download,
     CheckCircle2, AlertTriangle, Clock, ArrowRight, ChevronDown,
-    X, Loader2, Boxes, AlertCircle, CheckCircle
+    X, Loader2, Boxes, AlertCircle, CheckCircle, Upload, Trash2
 } from 'lucide-react';
 import { getToken } from '../../../lib/storage';
 import { API_BASE as API } from '../../../lib/apiConfig';
+import toast from 'react-hot-toast';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -20,7 +21,6 @@ interface InventoryItem {
     current_stock: number;
     demand_quantity: number;
     shortage_quantity: number;
-    // status: 'SUFFICIENT' | 'SHORTAGE' | 'PENDING_DEO' | 'IN_PRODUCTION';
     status: 'SUFFICIENT' | 'SHORTAGE' | 'PENDING_DEO' | 'IN_PRODUCTION' | 'COMPLETED';
     action: 'STOCK_OK' | 'NEW_DEMAND' | 'PENDING_DEO' | 'GO_TO_PRODUCTION' | 'COMPLETED';
     machine_group?: string;
@@ -240,14 +240,13 @@ function ShortageRequestModal({ shortageItems, deos, supervisors, lines, onClose
     const [supervisorId, setSupervisorId] = useState('');
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
-    // Full lists: show all DEOs/Supervisors
     const filteredDeos = deos;
     const filteredSupervisors = supervisors;
     const loadingStaff = false;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!deadline) { setError('Please set a deadline (timeline).'); return; }
+        if (!deadline) { setError('Please set a deadline.'); return; }
         if (!supervisorId) { setError('Please assign a Supervisor.'); return; }
         setSaving(true);
         setError('');
@@ -264,22 +263,9 @@ function ShortageRequestModal({ shortageItems, deos, supervisors, lines, onClose
             });
             const data = await res.json();
             if (!data.success) throw new Error(data.message);
-
-            // Format success message with machine assignments
-            if (data.data && data.data.length > 0) {
-                const assigned = data.data.filter((r: any) => r.machine_name);
-                if (assigned.length > 0) {
-                    const msg = assigned.map((r: any) => `${r.inventory_item?.sap_part_number || r.formatted_id}: Assigned to ${r.machine_name}`).join('\n');
-                    alert(`Demand Created Successfully!\n\nAutomated Machine Assignments:\n${msg}`);
-                } else {
-                    alert(`Demand Created Successfully!\nNo available machines were found for auto-assignment.`);
-                }
-            } else {
-                alert("Demand Created Successfully!");
-            }
-
             onSuccess();
             onClose();
+            toast.success('Demand created successfully');
         } catch (err: any) {
             setError(err.message);
         } finally {
@@ -295,16 +281,11 @@ function ShortageRequestModal({ shortageItems, deos, supervisors, lines, onClose
                         <h2 className="text-lg font-black text-gray-900 flex items-center gap-2">
                             <AlertTriangle size={18} className="text-red-500" /> Create Part Demand
                         </h2>
-                        <p className="text-xs text-gray-400 mt-0.5">Only shortage parts listed — parts with sufficient stock are excluded</p>
+                        <p className="text-xs text-gray-400 mt-0.5">Only shortage parts listed</p>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
                 </div>
-
-                {/* Shortage parts list */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-3">
-                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
-                        {shortageItems.length} Part(s) with Shortage
-                    </p>
                     {shortageItems.map(item => (
                         <div key={item.id} className="flex items-center justify-between p-3 bg-red-50 rounded-xl border border-red-100">
                             <div>
@@ -312,66 +293,43 @@ function ShortageRequestModal({ shortageItems, deos, supervisors, lines, onClose
                                 <p className="text-xs text-gray-500">{item.part_description}</p>
                             </div>
                             <div className="text-right">
-                                <p className="text-xs text-gray-400">Stock / Demand</p>
                                 <p className="text-sm font-black text-red-600">
                                     {item.current_stock} / {item.demand_quantity}
-                                    <span className="ml-1 text-xs font-semibold text-red-400">(Need {item.shortage_quantity} more)</span>
+                                    <span className="ml-1 text-xs font-semibold text-red-400">(Need {item.shortage_quantity})</span>
                                 </p>
-                                {item.machine_group ? (
-                                    <p className="text-[10px] font-bold text-orange-500 mt-1 uppercase bg-orange-100 px-2 py-1 rounded inline-block">
-                                        <CheckCircle size={10} className="inline mr-1 mb-0.5" />
-                                        Auto-Assigned Machine: {item.machine_group}
-                                    </p>
-                                ) : (
-                                    <p className="text-[10px] font-bold text-red-500 mt-1 uppercase bg-red-100 px-2 py-1 rounded inline-block">
-                                        No Machine Mapped! Check Master Data.
-                                    </p>
-                                )}
                             </div>
                         </div>
                     ))}
                 </div>
-
-                <form onSubmit={handleSubmit} className="p-6 border-t border-gray-100 space-y-4 flex-shrink-0">
+                <form onSubmit={handleSubmit} className="p-6 border-t border-gray-100 space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
-                                Deadline / Timeline <span className="text-red-400">*</span>
-                            </label>
+                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Deadline</label>
                             <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)}
-                                min={new Date().toISOString().split('T')[0]}
                                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
                         </div>
                         <div className="col-span-2">
-                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
-                                Assign DEO <span className="text-red-400">*</span>
-                            </label>
+                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Assign DEO</label>
                             <select value={deoId} onChange={e => setDeoId(e.target.value)}
-                                disabled={loadingStaff}
-                                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-50">
-                                <option value="">{loadingStaff ? 'Loading...' : 'Select DEO...'}</option>
+                                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
+                                <option value="">Select DEO...</option>
                                 {filteredDeos.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                             </select>
                         </div>
                         <div className="col-span-2">
-                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
-                                Assign Supervisor <span className="text-red-400">*</span>
-                            </label>
+                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Assign Supervisor</label>
                             <select value={supervisorId} onChange={e => setSupervisorId(e.target.value)}
-                                disabled={loadingStaff}
-                                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-50">
-                                <option value="">{loadingStaff ? 'Loading...' : filteredSupervisors.length === 0 && lineId ? 'No Supervisor on this line' : 'Select Supervisor...'}</option>
+                                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
+                                <option value="">Select Supervisor...</option>
                                 {filteredSupervisors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                             </select>
                         </div>
-
                     </div>
-                    {error && <p className="text-red-500 text-sm bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+                    {error && <p className="text-red-500 text-sm">{error}</p>}
                     <div className="flex gap-3">
                         <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold hover:bg-gray-50">Cancel</button>
-                        <button type="submit" disabled={saving}
-                            className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold disabled:opacity-60">
-                            {saving ? 'Creating...' : `Create Demand for ${shortageItems.length} Part(s)`}
+                        <button type="submit" disabled={saving} className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold disabled:opacity-60">
+                            {saving ? 'Creating...' : 'Create Demand'}
                         </button>
                     </div>
                 </form>
@@ -380,7 +338,7 @@ function ShortageRequestModal({ shortageItems, deos, supervisors, lines, onClose
     );
 }
 
-// ─── Seed from Demand Modal ──────────────────────────────────────────────────
+// ─── Seed Modal ───────────────────────────────────────────────────────────────
 
 function SeedModal({ demands, onClose, onSuccess }: {
     demands: Demand[];
@@ -389,7 +347,6 @@ function SeedModal({ demands, onClose, onSuccess }: {
 }) {
     const [demandId, setDemandId] = useState('');
     const [loading, setLoading] = useState(false);
-    const [result, setResult] = useState<any>(null);
     const [error, setError] = useState('');
 
     const handleSeed = async () => {
@@ -402,7 +359,9 @@ function SeedModal({ demands, onClose, onSuccess }: {
             });
             const data = await res.json();
             if (!data.success) throw new Error(data.message);
-            setResult(data);
+            toast.success('Imported successfully');
+            onSuccess();
+            onClose();
         } catch (err: any) {
             setError(err.message);
         } finally {
@@ -412,48 +371,21 @@ function SeedModal({ demands, onClose, onSuccess }: {
 
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-                <div className="flex items-center justify-between p-6 border-b border-gray-100">
-                    <h2 className="text-lg font-black text-gray-900 flex items-center gap-2">
-                        <Boxes size={18} className="text-orange-500" /> Import from Demand
-                    </h2>
-                    <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
-                </div>
-                <div className="p-6 space-y-4">
-                    <p className="text-sm text-gray-500">Auto-populates inventory from MasterData parts linked to the selected demand. Current stock is pulled from the latest DEO entries.</p>
-                    <select value={demandId} onChange={e => setDemandId(e.target.value)}
-                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
-                        <option value="">Select demand...</option>
-                        {demands.map(d => (
-                            <option key={d.id} value={d.id}>{d.formatted_id} — {d.model_name} (Qty: {d.quantity})</option>
-                        ))}
-                    </select>
-                    {error && <p className="text-red-500 text-sm bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
-                    {result && (
-                        <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200">
-                            <p className="text-emerald-700 font-bold text-sm flex items-center gap-2">
-                                <CheckCircle2 size={16} /> Import successful!
-                            </p>
-                            <p className="text-xs text-emerald-600 mt-1">Created: {result.created} | Updated: {result.updated} | Model: {result.model} | Order Qty: {result.order_quantity}</p>
-                        </div>
-                    )}
-                    <div className="flex gap-3">
-                        <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold hover:bg-gray-50">
-                            {result ? 'Close' : 'Cancel'}
-                        </button>
-                        {!result && (
-                            <button onClick={handleSeed} disabled={loading}
-                                className="flex-1 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold disabled:opacity-60 flex items-center justify-center gap-2">
-                                {loading ? <><Loader2 size={14} className="animate-spin" /> Importing...</> : 'Import Parts'}
-                            </button>
-                        )}
-                        {result && (
-                            <button onClick={() => { onSuccess(); onClose(); }}
-                                className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold">
-                                View Inventory
-                            </button>
-                        )}
-                    </div>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-md p-6">
+                <h2 className="text-lg font-black text-gray-900 mb-4">Import from Demand</h2>
+                <select value={demandId} onChange={e => setDemandId(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 mb-4">
+                    <option value="">Select demand...</option>
+                    {demands.map(d => (
+                        <option key={d.id} value={d.id}>{d.formatted_id} — {d.model_name}</option>
+                    ))}
+                </select>
+                {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+                <div className="flex gap-3">
+                    <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold">Cancel</button>
+                    <button onClick={handleSeed} disabled={loading} className="flex-1 py-2.5 rounded-xl bg-orange-500 text-white font-bold">
+                        {loading ? 'Importing...' : 'Import Parts'}
+                    </button>
                 </div>
             </div>
         </div>
@@ -477,13 +409,22 @@ export default function InventoryPage() {
     const [currentPage, setCurrentPage] = useState(1);
     const pageSize = 10;
 
+    const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
     const [showAddModal, setShowAddModal] = useState(false);
     const [showSeedModal, setShowSeedModal] = useState(false);
     const [shortageModalItems, setShortageModalItems] = useState<InventoryItem[] | null>(null);
+    const [itemToDelete, setItemToDelete] = useState<InventoryItem | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // Inline edit state
     const [editingStockId, setEditingStockId] = useState<number | null>(null);
     const [editStockValue, setEditStockValue] = useState<string>('');
+
+    // Upload logic
+    const [uploading, setUploading] = useState(false);
+    const [uploadResult, setUploadResult] = useState<{ updated: number; not_found: string[] } | null>(null);
+    const fileRef = useRef<HTMLInputElement>(null);
 
     const fetchAll = useCallback(async () => {
         setLoading(true);
@@ -512,6 +453,35 @@ export default function InventoryPage() {
 
     useEffect(() => { fetchAll(); }, [fetchAll]);
 
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setUploading(true);
+        setUploadResult(null);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await fetch(`${API}/ppc/inventory/upload-stock`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${getToken()}` },
+                body: formData
+            });
+            const data = await res.json();
+            if (data.success) {
+                setUploadResult({ updated: data.updated || 0, not_found: data.not_found || [] });
+                toast.success(`Updated ${data.updated} items`);
+                fetchAll();
+            } else {
+                toast.error(data.message || 'Upload failed');
+            }
+        } catch (err) {
+            toast.error('Upload failed');
+        } finally {
+            setUploading(false);
+            if (fileRef.current) fileRef.current.value = '';
+        }
+    };
+
     // ── Derived stats ─────────────────────────────────────────────────────
     const totalParts = items.length;
     const sufficient = items.filter(i => i.action === 'STOCK_OK').length;
@@ -521,7 +491,6 @@ export default function InventoryPage() {
 
     const demandIdMap = Object.fromEntries(demands.map(d => [d.id, d.formatted_id]));
 
-    // Unique options for the car model dropdown (Model + Demand ID)
     const modelOptions = Array.from(
         new Map(
             items.map(i => {
@@ -533,49 +502,27 @@ export default function InventoryPage() {
         ).values()
     ).sort((a, b) => a.vehicleName.localeCompare(b.vehicleName));
 
-    // ── Filtering ─────────────────────────────────────────────────────────
-    const filtered = items.filter(item => {
-        if (!filterVehicle) return false; // PERFORMANCE: Show no data until model is selected
+    const seededDemandIds = new Set(items.map(i => i.demand_id).filter(id => id !== null));
+    const availableDemands = demands.filter(d => !seededDemandIds.has(d.id));
 
+    const filtered = items.filter(item => {
+        if (!filterVehicle) return false;
         const q = search.toLowerCase();
         const matchSearch = !q || item.sap_part_number?.toLowerCase().includes(q)
             || item.part_description?.toLowerCase().includes(q)
             || item.vehicle_name?.toLowerCase().includes(q);
-
         const [vName, vDemandId] = filterVehicle.split('|');
         const matchVehicle = item.vehicle_name === vName && String(item.demand_id || '') === vDemandId;
-
-        const matchStatus = filterStatus === 'ALL' ||
-            (filterStatus === 'IN_PRODUCTION' ? (item.status === 'IN_PRODUCTION' || item.status === 'COMPLETED') : item.status === filterStatus);
+        const matchStatus = filterStatus === 'ALL' || item.status === filterStatus;
         const matchAction = filterAction === 'ALL' || item.action === filterAction;
-
         return matchSearch && matchVehicle && matchStatus && matchAction;
     });
 
-    // Pagination Logic
     const totalPages = Math.ceil(filtered.length / pageSize);
     const paginatedItems = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-    useEffect(() => {
-        setCurrentPage(1); // Reset to first page when filters change
-    }, [filterVehicle, filterStatus, filterAction, search]);
+    useEffect(() => { setCurrentPage(1); }, [filterVehicle, filterStatus, filterAction, search]);
 
-    // ── Filter Available Demands ──────────────────────────────────────────
-    // Get unique demand IDs already present in inventory
-    const importedDemandIds = new Set(items.map(i => i.demand_id).filter(id => id !== null));
-    // Filter demands list to exclude those already imported
-    const availableDemands = demands.filter(d => !importedDemandIds.has(d.id));
-
-    // ── Filter Active Lines ──────────────────────────────────────────────
-    const activeLines = lines.filter(l => l.isActive !== false);
-
-    // ── Batch shortage handler ─────────────────────────────────────────────
-    const handleBatchNewDemand = () => {
-        const allShortage = filtered.filter(i => i.action === 'NEW_DEMAND');
-        if (allShortage.length > 0) setShortageModalItems(allShortage);
-    };
-
-    // ── Export to CSV ─────────────────────────────────────────────────────
     const handleExport = () => {
         const header = 'SN,Vehicle,SAP Part No.,Description,Current Stock,Demand Qty,Shortage,Status,Action\n';
         const rows = filtered.map(i =>
@@ -589,42 +536,88 @@ export default function InventoryPage() {
         a.click();
     };
 
-
-
     const handleSaveStock = async (id: number) => {
         try {
             const val = Number(editStockValue);
-            if (isNaN(val) || val < 0) {
-                setEditingStockId(null);
-                return;
-            }
-
+            if (isNaN(val) || val < 0) { setEditingStockId(null); return; }
             const res = await fetch(`${API}/admin/inventory/${id}`, {
                 method: 'PATCH',
                 headers: authHeaders(),
                 body: JSON.stringify({ current_stock: val })
             });
-
-            if (res.ok) {
-                fetchAll();
-            }
-        } catch (e) {
-            console.error(e);
+            if (res.ok) fetchAll();
         } finally {
             setEditingStockId(null);
         }
     };
 
+    const toggleSelectAll = () => {
+        if (selectedIds.size === filtered.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(filtered.map(i => i.id)));
+        }
+    };
+
+    const toggleSelect = (id: number) => {
+        const next = new Set(selectedIds);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        setSelectedIds(next);
+    };
+
+    const handleBatchShortage = () => {
+        const selectedItems = items.filter(i => selectedIds.has(i.id) && i.action === 'NEW_DEMAND');
+        if (selectedItems.length === 0) {
+            toast.error('No shortage items selected');
+            return;
+        }
+        setShortageModalItems(selectedItems);
+    };
+
+    const handleDeleteItem = async () => {
+        if (!itemToDelete) return;
+        setIsDeleting(true);
+        try {
+            const res = await fetch(`${API}/admin/inventory/${itemToDelete.id}`, {
+                method: 'DELETE',
+                headers: authHeaders()
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast.success('Item deleted successfully');
+                setItemToDelete(null);
+                fetchAll();
+            } else {
+                toast.error(data.message || 'Delete failed');
+            }
+        } catch (err) {
+            toast.error('Delete failed');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     return (
-        <div className=" bg-gray-50/50">
+        <div className=" bg-gray-50/50 min-h-screen">
             {/* Header */}
-            <div className="mb-2 bg-white p-2">
+            <div className="mb-2 bg-white p-4 shadow-sm">
                 <div className="flex items-center justify-between px-2">
-                    <h1 className="text-2xl font-black text-gray-900">Inventory</h1>
-                    <button onClick={fetchAll} disabled={loading}
-                        className="flex items-center gap-2 px-4 py-2 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition-all">
-                        <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-                    </button>
+                    <div>
+                        <h1 className="text-2xl font-black text-gray-900">Inventory</h1>
+
+                    </div>
+                    <div className="flex items-center justify-between px-2 gap-3">
+                        <button onClick={fetchAll} disabled={loading}
+                            className="flex items-center gap-2 px-4 py-2 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition-all">
+                            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+                        </button>
+                        <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleFileUpload} className="hidden" id="stock-upload" />
+                        <label htmlFor="stock-upload" className={`cursor-pointer flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition-all shadow-sm ${uploading ? 'bg-gray-100 text-gray-400' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+                            {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                            {uploading ? 'Uploading...' : '📤 Upload Stock Excel'}
+                        </label>
+                    </div>
                 </div>
             </div>
 
@@ -637,58 +630,31 @@ export default function InventoryPage() {
                     { label: 'Pending DEO', value: pendingDEO, icon: Clock, color: 'from-amber-500 to-amber-600', bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700' },
                     { label: 'Completed', value: completed, icon: CheckCircle, color: 'from-teal-500 to-teal-600', bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700' },
                 ].map(card => (
-                    <div key={card.label} className={`${card.bg} border ${card.border} rounded-2xl p-2.5 flex items-center gap-3`}>
-                        <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${card.color} flex items-center justify-center shadow-sm`}>
-                            <card.icon size={15} className="text-white" />
-                        </div>
-                        <div>
-                            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tight">{card.label}</p>
-                            <p className={`text-xl font-black ${card.text}`}>{card.value}</p>
-                        </div>
+                    <div key={card.label} className={`${card.bg} border ${card.border} rounded-2xl p-3 flex items-center gap-4`}>
+                        <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${card.color} flex items-center justify-center shadow-sm`}><card.icon size={18} className="text-white" /></div>
+                        <div><p className="text-[11px] text-gray-500 font-bold uppercase tracking-wider">{card.label}</p><p className={`text-2xl font-black ${card.text}`}>{card.value}</p></div>
                     </div>
                 ))}
             </div>
 
             {/* Toolbar */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-2 mx-2 mb-2">
-                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-                    {/* Search */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 mx-2 mb-2">
+                <div className="flex items-center gap-3 overflow-x-auto no-scrollbar">
                     <div className="relative flex-1 min-w-48 max-w-sm">
                         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <input
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                            placeholder="Search part, SAP number, vehicle..."
-                            className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-                        />
+                        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search part, SAP number, vehicle..." className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
                     </div>
-
-                    {/* Car Model Slicer */}
                     <div className="relative">
                         <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <select
-                            value={filterVehicle}
-                            onChange={e => setFilterVehicle(e.target.value)}
-                            className="pl-8 pr-8 py-2 border border-gray-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-orange-400 appearance-none bg-orange-50/50 min-w-[200px]"
-                        >
+                        <select value={filterVehicle} onChange={e => setFilterVehicle(e.target.value)} className="pl-8 pr-8 py-2.5 border border-gray-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-orange-400 appearance-none bg-orange-50/50 min-w-[220px]">
                             <option value="">Select Car Model...</option>
-                            {modelOptions.map(opt => (
-                                <option key={opt.key} value={opt.key}>
-                                    {opt.formattedDemandId} — {opt.vehicleName}
-                                </option>
-                            ))}
+                            {modelOptions.map(opt => <option key={opt.key} value={opt.key}>{opt.formattedDemandId} — {opt.vehicleName}</option>)}
                         </select>
                         <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     </div>
-
-                    {/* Status filter */}
                     <div className="relative">
                         <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <select
-                            value={filterStatus}
-                            onChange={e => setFilterStatus(e.target.value)}
-                            className="pl-8 pr-8 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 appearance-none bg-white min-w-[120px]"
-                        >
+                        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="pl-8 pr-8 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 appearance-none bg-white min-w-[140px]">
                             <option value="ALL">All Status</option>
                             <option value="SUFFICIENT">Sufficient</option>
                             <option value="SHORTAGE">Shortage</option>
@@ -697,257 +663,237 @@ export default function InventoryPage() {
                         </select>
                         <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     </div>
-
-                    <button onClick={() => setShowSeedModal(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-semibold transition-all whitespace-nowrap">
-                        <Boxes size={15} /> Import Demand
-                    </button>
-                    <button onClick={handleExport}
-                        className="group flex items-center gap-2 px-3 py-2 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition-all whitespace-nowrap">
-                        <Download size={15} />
-                        <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-300 ease-in-out">
-                            Export
-                        </span>
-                    </button>
-
+                    {selectedIds.size > 0 && (
+                        <button onClick={handleBatchShortage} className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-bold transition-all animate-in zoom-in duration-300 shadow-lg shadow-red-200">
+                            <AlertTriangle size={15} /> Process {selectedIds.size} Shortages
+                        </button>
+                    )}
+                    <button onClick={() => setShowSeedModal(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-semibold transition-all whitespace-nowrap"><Boxes size={15} /> Import Demand</button>
+                    <button onClick={handleExport} className="group flex items-center gap-2 px-4 py-2.5 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition-all whitespace-nowrap"><Download size={15} /> Export</button>
                 </div>
             </div>
 
             {/* Table */}
             <div className="bg-white rounded-2xl mx-2 shadow-sm border border-gray-100 overflow-hidden">
-                <div className="overflow-x-auto h-[calc(100vh-280px)] overflow-y-auto">
-                    <table className="w-full ">
-                        <thead className='sticky top-0 z-[50]'>
-                            <tr className="border-b-2 border-[#f37021] bg-white">
-                                {['SN', 'Vehicle', 'SAP Part No.', 'Part Description', 'Current Stock', 'Demand Qty', 'Shortage', 'Status'].map(h => (
-                                    <th key={h} className="px-4 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">{h}</th>
+                <div className="overflow-x-auto max-h-[calc(100vh-320px)] overflow-y-auto">
+                    <table className="w-full text-sm">
+                        <thead className='sticky top-0 z-10'>
+                            <tr className="border-b-2 border-[#f37021] bg-white shadow-sm">
+                                <th className="px-4 py-4 text-center">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={selectedIds.size === filtered.length && filtered.length > 0} 
+                                        onChange={toggleSelectAll}
+                                        className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+                                    />
+                                </th>
+                                {['SN', 'Vehicle', 'SAP Part No.', 'Part Description', 'Current Stock', 'Demand Qty', 'Shortage', 'Status', 'Action'].map(h => (
+                                    <th key={h} className="px-4 py-4 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">{h}</th>
                                 ))}
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-50 ">
+                        <tbody className="divide-y divide-gray-50">
                             {loading ? (
-                                <tr><td colSpan={10} className="py-16 text-center">
-                                    <Loader2 size={28} className="animate-spin text-orange-400 mx-auto mb-2" />
-                                    <p className="text-sm text-gray-400">Loading inventory...</p>
-                                </td></tr>
+                                <tr><td colSpan={9} className="py-20 text-center"><Loader2 size={32} className="animate-spin text-orange-400 mx-auto mb-4" /><p className="text-gray-400">Loading data...</p></td></tr>
                             ) : paginatedItems.length === 0 ? (
-                                <tr><td colSpan={10} className="py-16 text-center">
-                                    {!filterVehicle ? (
-                                        <>
-                                            <Filter size={36} className="text-orange-200 mx-auto mb-3" />
-                                            <p className="text-gray-500 font-black text-lg">Select a Car Model</p>
-                                            <p className="text-xs text-gray-400 mt-1">Please select a model from the dropdown to view inventory data</p>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Package size={36} className="text-gray-200 mx-auto mb-3" />
-                                            <p className="text-gray-400 font-semibold">No inventory items found for this selection</p>
-                                        </>
-                                    )}
-                                </td></tr>
+                                <tr><td colSpan={9} className="py-20 text-center">{!filterVehicle ? (<><Filter size={48} className="text-orange-100 mx-auto mb-4" /><p className="text-gray-500 font-black text-xl">Select a Car Model</p></>) : (<><Package size={48} className="text-gray-100 mx-auto mb-4" /><p className="text-gray-400">No matching items</p></>)}</td></tr>
                             ) : paginatedItems.map((item, idx) => {
                                 const isShortage = item.action === 'NEW_DEMAND';
-                                const isPending = item.action === 'PENDING_DEO';
-                                const rowBg = isShortage ? 'bg-red-50/40 hover:bg-red-50' : isPending ? 'bg-amber-50/30 hover:bg-amber-50/60' : 'hover:bg-gray-50/80';
-                                const stockPct = item.demand_quantity > 0 ? Math.min((item.current_stock / item.demand_quantity) * 100, 100) : 100;
+                                const rowBg = isShortage ? 'bg-red-50/30 hover:bg-red-50/60' : 'hover:bg-gray-50/80';
                                 const serialNum = (currentPage - 1) * pageSize + idx + 1;
-
+                                const stockPct = item.demand_quantity > 0 ? Math.min((item.current_stock / item.demand_quantity) * 100, 100) : 100;
                                 return (
-                                   <tr key={item.id} className={`transition-colors ${rowBg}`}>
-    
-    {/* SERIAL NUMBER */}
-    <td className="px-4 py-3 text-xs font-black text-gray-900 bg-gray-50/50 whitespace-nowrap">
-        {serialNum}
-    </td>
+                                    <tr key={item.id} className={`transition-colors ${rowBg}`}>
+                                        <td className="px-4 py-4 text-center">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={selectedIds.has(item.id)} 
+                                                onChange={() => toggleSelect(item.id)}
+                                                className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+                                            />
+                                        </td>
 
-    {/* VEHICLE */}
-    <td className="px-4 py-2 min-w-[160px]">
-        <div className="flex flex-col">
-            <span className="text-sm font-black text-gray-800 whitespace-nowrap">
-                {item.vehicle_name}
-            </span>
+                                        {/* SERIAL NUMBER */}
+                                        <td className="px-4 py-4 text-xs font-black text-gray-900 bg-gray-50/30 whitespace-nowrap">
+                                            {serialNum}
+                                        </td>
 
-            {item.demand_id && demandIdMap[item.demand_id] && (
-                <span className="text-[10px] font-black text-gray-400 mt-0.5 whitespace-nowrap">
-                    {demandIdMap[item.demand_id]}
-                </span>
-            )}
-        </div>
-    </td>
+                                        {/* VEHICLE */}
+                                        <td className="px-4 py-4 min-w-[160px]">
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-black text-gray-800 whitespace-nowrap">
+                                                    {item.vehicle_name}
+                                                </span>
 
-    {/* SAP PART NUMBER */}
-    <td className="px-4 py-2 max-w-[180px]">
-        <span className="block truncate whitespace-nowrap overflow-hidden font-mono text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">
-            {item.sap_part_number}
-        </span>
-    </td>
+                                                {item.demand_id && demandIdMap[item.demand_id] && (
+                                                    <span className="text-[10px] font-black text-gray-400 whitespace-nowrap">
+                                                        {demandIdMap[item.demand_id]}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
 
-    {/* PART DESCRIPTION */}
-    <td className="px-4 py-2 max-w-[250px]">
-        <div className="truncate whitespace-nowrap overflow-hidden text-xs text-gray-600">
-            {item.part_description || '—'}
-        </div>
-    </td>
+                                        {/* SAP PART NUMBER */}
+                                        <td className="px-4 py-4 max-w-[180px]">
+                                            <span className="block truncate whitespace-nowrap overflow-hidden font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">
+                                                {item.sap_part_number}
+                                            </span>
+                                        </td>
 
-    {/* CURRENT STOCK */}
-    <td className="px-4 py-2">
-        <div className="flex flex-col gap-1">
+                                        {/* PART DESCRIPTION */}
+                                        <td className="px-4 py-4 max-w-[250px]">
+                                            <div className="truncate whitespace-nowrap overflow-hidden text-xs text-gray-600">
+                                                {item.part_description || '—'}
+                                            </div>
+                                        </td>
 
-            {editingStockId === item.id ? (
-                <input
-                    type="number"
-                    value={editStockValue}
-                    onChange={e => setEditStockValue(e.target.value)}
-                    onBlur={() => handleSaveStock(item.id)}
-                    onKeyDown={e => e.key === 'Enter' && handleSaveStock(item.id)}
-                    autoFocus
-                    className="w-20 px-2 py-1 text-sm border focus:outline-none focus:ring-2 focus:ring-orange-400 rounded-lg"
-                />
-            ) : (
-                <span
-                    className={`text-sm border py-0.5 px-2 rounded font-black cursor-pointer hover:underline ${
-                        isShortage ? 'text-red-600' : 'text-emerald-600'
-                    }`}
-                    onClick={() => {
-                        setEditingStockId(item.id);
-                        setEditStockValue(item.current_stock.toString());
-                    }}
-                    title="Click to edit"
-                >
-                    {item.current_stock}
-                </span>
-            )}
+                                        {/* CURRENT STOCK */}
+                                        <td className="px-4 py-4">
+                                            <div className="flex flex-col gap-1.5 min-w-[100px]">
 
-            <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                <div
-                    className={`h-full rounded-full transition-all ${
-                        isShortage ? 'bg-red-400' : 'bg-emerald-400'
-                    }`}
-                    style={{ width: `${stockPct}%` }}
-                />
-            </div>
-        </div>
-    </td>
+                                                {editingStockId === item.id ? (
+                                                    <input
+                                                        type="number"
+                                                        value={editStockValue}
+                                                        onChange={e => setEditStockValue(e.target.value)}
+                                                        onBlur={() => handleSaveStock(item.id)}
+                                                        onKeyDown={e => e.key === 'Enter' && handleSaveStock(item.id)}
+                                                        autoFocus
+                                                        className="w-20 px-2 py-1 text-sm border focus:outline-none focus:ring-2 focus:ring-orange-400 rounded-lg"
+                                                    />
+                                                ) : (
+                                                    <span
+                                                        className={`text-sm border py-0.5 px-2 rounded font-black cursor-pointer hover:underline ${isShortage ? 'text-red-600' : 'text-emerald-600'
+                                                            }`}
+                                                        onClick={() => {
+                                                            setEditingStockId(item.id);
+                                                            setEditStockValue(item.current_stock.toString());
+                                                        }}
+                                                    >
+                                                        {item.current_stock}
+                                                    </span>
+                                                )}
 
-    {/* DEMAND QTY */}
-    <td className="px-4 py-2 text-sm font-bold text-gray-700 whitespace-nowrap">
-        {item.demand_quantity}
-    </td>
+                                                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden border border-gray-50">
+                                                    <div
+                                                        className={`h-full rounded-full transition-all duration-500 ${isShortage ? 'bg-red-500' : 'bg-emerald-500'
+                                                            }`}
+                                                        style={{ width: `${stockPct}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </td>
 
-    {/* SHORTAGE */}
-    <td className="px-4 py-2 whitespace-nowrap">
-        {item.shortage_quantity > 0 ? (
-            <span className="text-sm font-black text-red-600">
-                −{item.shortage_quantity}
-            </span>
-        ) : (
-            <span className="text-sm font-bold text-emerald-500">
-                +{Math.abs(item.current_stock - item.demand_quantity)}
-            </span>
-        )}
-    </td>
+                                        {/* DEMAND QTY */}
+                                        <td className="px-4 py-4 text-sm font-bold text-gray-700 whitespace-nowrap">
+                                            {item.demand_quantity}
+                                        </td>
 
-    {/* STATUS */}
-    <td className="px-4 py-2 whitespace-nowrap">
-        {item.status === 'SUFFICIENT' && (
-            <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full uppercase">
-                Sufficient
-            </span>
-        )}
+                                        {/* SHORTAGE */}
+                                        <td className="px-4 py-4 whitespace-nowrap">
+                                            {item.shortage_quantity > 0 ? (
+                                                <span className="text-sm font-black text-red-600 bg-red-50 px-2 py-1 rounded-lg">
+                                                    −{item.shortage_quantity}
+                                                </span>
+                                            ) : (
+                                                <span className="text-sm font-bold text-emerald-600">
+                                                    ✓ OK
+                                                </span>
+                                            )}
+                                        </td>
 
-        {item.status === 'SHORTAGE' && (
-            <span className="text-[11px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded-full uppercase">
-                Shortage
-            </span>
-        )}
+                                        {/* STATUS */}
+                                        <td className="px-4 py-4 whitespace-nowrap">
+                                            <span
+                                                className={`text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest border ${item.status === 'SUFFICIENT'
+                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                        : item.status === 'SHORTAGE'
+                                                            ? 'bg-red-50 text-red-700 border-red-200'
+                                                            : 'bg-blue-50 text-blue-700 border-blue-200'
+                                                    }`}
+                                            >
+                                                {item.status}
+                                            </span>
+                                        </td>
 
-        {item.status === 'PENDING_DEO' && (
-            <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full uppercase">
-                Pending
-            </span>
-        )}
-
-        {(item.status === 'COMPLETED' || item.status === 'IN_PRODUCTION') && (
-            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full uppercase">
-                Completed
-            </span>
-        )}
-    </td>
-</tr>
+                                        {/* ACTION */}
+                                        <td className="px-4 py-4 whitespace-nowrap">
+                                            <div className="flex items-center gap-2">
+                                                <ActionBadge 
+                                                    action={item.action} 
+                                                    onNewDemand={() => setShortageModalItems([item])} 
+                                                />
+                                                <button
+                                                    onClick={() => setItemToDelete(item)}
+                                                    className="p-2 hover:bg-rose-50 text-gray-400 hover:text-rose-500 rounded-lg transition-colors"
+                                                    title="Delete Item"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
                                 );
                             })}
                         </tbody>
                     </table>
                 </div>
+
+                {/* Pagination */}
                 {filtered.length > 0 && (
-                    <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-white sticky bottom-0">
-                        <div className="flex items-center gap-4">
-                            <p className="text-xs text-gray-400">
-                                Showing <span className="font-bold text-gray-600">{(currentPage - 1) * pageSize + 1}</span> to <span className="font-bold text-gray-600">{Math.min(currentPage * pageSize, filtered.length)}</span> of <span className="font-bold text-gray-600">{filtered.length}</span> parts
-                            </p>
-                        </div>
-
-                        {/* Pagination Controls */}
-                        <div className="flex items-center gap-1">
-                            <button
-                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                disabled={currentPage === 1}
-                                className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-bold hover:bg-gray-50 disabled:opacity-50 transition-all"
-                            >
-                                Previous
-                            </button>
-
+                    <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-white shadow-inner">
+                        <p className="text-xs text-gray-400 font-medium">Showing <span className="font-bold text-gray-700">{(currentPage - 1) * pageSize + 1}</span> to <span className="font-bold text-gray-700">{Math.min(currentPage * pageSize, filtered.length)}</span> of <span className="font-bold text-gray-700">{filtered.length}</span> results</p>
+                        <div className="flex items-center gap-1.5">
+                            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-1.5 border border-gray-200 rounded-xl text-xs font-bold hover:bg-gray-50 disabled:opacity-40 transition-all">Previous</button>
                             <div className="flex items-center gap-1 mx-2">
                                 {[...Array(totalPages)].map((_, i) => {
                                     const page = i + 1;
-                                    // Show first, last, and pages around current
                                     if (page === 1 || page === totalPages || (page >= currentPage - 1 && page <= currentPage + 1)) {
-                                        return (
-                                            <button
-                                                key={page}
-                                                onClick={() => setCurrentPage(page)}
-                                                className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === page ? 'bg-orange-500 text-white shadow-md' : 'hover:bg-gray-100 text-gray-600'}`}
-                                            >
-                                                {page}
-                                            </button>
-                                        );
+                                        return <button key={page} onClick={() => setCurrentPage(page)} className={`w-9 h-9 rounded-xl text-xs font-bold transition-all ${currentPage === page ? 'bg-orange-500 text-white shadow-lg' : 'hover:bg-gray-100 text-gray-600'}`}>{page}</button>;
                                     }
-                                    if (page === currentPage - 2 || page === currentPage + 2) {
-                                        return <span key={page} className="text-gray-300 text-xs px-1">...</span>;
-                                    }
+                                    if (page === currentPage - 2 || page === currentPage + 2) return <span key={page} className="text-gray-300">...</span>;
                                     return null;
                                 })}
                             </div>
-
-                            <button
-                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                disabled={currentPage === totalPages}
-                                className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-bold hover:bg-gray-50 disabled:opacity-50 transition-all"
-                            >
-                                Next
-                            </button>
+                            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-1.5 border border-gray-200 rounded-xl text-xs font-bold hover:bg-gray-50 disabled:opacity-40 transition-all">Next</button>
                         </div>
                     </div>
                 )}
             </div>
 
             {/* Modals */}
-            {showAddModal && (
-                <AddPartModal demands={availableDemands} onClose={() => setShowAddModal(false)} onSuccess={fetchAll} />
-            )}
-            {showSeedModal && (
-                <SeedModal demands={availableDemands} onClose={() => setShowSeedModal(false)} onSuccess={fetchAll} />
-            )}
-            {shortageModalItems && (
-                <ShortageRequestModal
-                    shortageItems={shortageModalItems}
-                    deos={deos}
-                    supervisors={supervisors}
-                    lines={activeLines}
-                    onClose={() => setShortageModalItems(null)}
-                    onSuccess={fetchAll}
-                />
-            )}
+            {showSeedModal && <SeedModal demands={availableDemands} onClose={() => setShowSeedModal(false)} onSuccess={fetchAll} />}
+            {shortageModalItems && <ShortageRequestModal shortageItems={shortageModalItems} deos={deos} supervisors={supervisors} lines={lines} onClose={() => setShortageModalItems(null)} onSuccess={fetchAll} />}
+
+            {/* Delete Confirmation Modal */}
+            <div className={`fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity ${itemToDelete ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+                <div className={`bg-white rounded-[32px] shadow-2xl w-full max-w-md p-8 text-center transition-transform duration-300 ${itemToDelete ? 'scale-100' : 'scale-95'}`}>
+                    <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center text-rose-500 mx-auto mb-6">
+                        <AlertTriangle size={36} />
+                    </div>
+                    <h3 className="text-xl font-black text-gray-900 uppercase mb-2">Confirm Deletion</h3>
+                    <p className="text-gray-500 text-sm font-bold px-4 mb-8">
+                        Are you sure you want to delete <span className="text-rose-600 font-black">{itemToDelete?.sap_part_number}</span>? This will also remove all associated production and shortage records.
+                    </p>
+                    <div className="grid grid-cols-2 gap-4">
+                        <button 
+                            onClick={() => setItemToDelete(null)}
+                            disabled={isDeleting}
+                            className="py-4 bg-gray-50 text-gray-500 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-gray-100 hover:bg-gray-100 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            onClick={handleDeleteItem}
+                            disabled={isDeleting}
+                            className="py-4 bg-rose-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-rose-100 hover:bg-rose-700 transition-all flex items-center justify-center gap-2"
+                        >
+                            {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                            {isDeleting ? 'Deleting...' : 'Yes, Delete'}
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }
