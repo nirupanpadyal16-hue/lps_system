@@ -345,17 +345,47 @@ def verify_shortage_entry(entry_id):
         if item:
             # We add what they made today to the global inventory
             produced = float(entry.todays_stock or 0.0)
-            item.current_stock += produced
+            
+            # Increment produced_qty & sync using unified stock tracking
+            item.produced_qty = (item.produced_qty or 0.0) + produced
+            if hasattr(item, 'sync_current_stock'):
+                item.sync_current_stock()
+            else:
+                item.current_stock = (item.initial_stock or 0.0) + item.produced_qty
             
             # Decrease the remaining shortage tracking amount directly
             psr.shortage_quantity = max(float(psr.shortage_quantity or 0.0) - produced, 0.0)
             
             # Recalculate status
-            if item.current_stock >= item.demand_quantity:
-                item.status = 'IN_PRODUCTION' # Action status GO_TO_PRODUCTION
+            if item.effective_stock >= item.demand_quantity:
+                item.status = 'PRODUCTION_DONE'
                 psr.status = 'COMPLETED'
+                
+                # Capture machines before committing to trigger the HOLD queue promotion
+                vacated_machines = list(psr.assigned_machines)
+                
+                # Notify Store Keeper for automated dispatch routing
+                from app.models import Notification
+                store_keepers = User.query.filter_by(role='Store_Keeper', is_active=True).all()
+                for sk in store_keepers:
+                    notif = Notification(
+                        user_id=sk.id,
+                        title="Part Manufacturing Complete",
+                        message=(
+                            f"Part {item.sap_part_number} for demand "
+                            f"{item.demand.formatted_id if item.demand else 'N/A'} "
+                            f"is fully manufactured. Ready for dispatch."
+                        ),
+                        notification_type='INFO'
+                    )
+                    db.session.add(notif)
+                
+                # ─── TRIGGER HOLD QUEUE PROMOTION ───
+                # Promote next-in-line shortage waiting for these now-vacated sub-machines
+                PartShortageRequest.process_hold_queue_for_machines(vacated_machines)
             else:
                 psr.status = 'IN_PROGRESS' # Still more to go
+                item.status = 'IN_PRODUCTION'
                 
             db.session.add(item)
             

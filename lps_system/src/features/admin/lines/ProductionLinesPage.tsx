@@ -149,36 +149,11 @@ const ProductionLinesPage = ({ canAddGroup = true }: ProductionLinesPageProps) =
     };
 
     // ─── Sub-Machine Detail View ──────────────────────────────────────────────
+    // ─── Sub-Machine Detail View ──────────────────────────────────────────────
     if (selectedLine) {
-        // Detailed view logic similar to ShortageDashboard
-        const shortagesForLine = requests.filter(req => {
-            const rawLine = req.master_machine || req.line_name || 'UNASSIGNED';
-            const individualLines = rawLine.split(',').map(s => s.trim());
-            return individualLines.includes(selectedLine.name);
-        }).filter(r => {
-            let matches = true;
-            if (filterStatus === 'pending') matches = r.status === 'PENDING';
-            else if (filterStatus === 'in-progress') matches = r.status === 'IN_PROGRESS' || r.status === 'REJECTED' || r.status === 'DEO_FILLED' || r.status === 'VERIFIED';
-            else if (filterStatus === 'rejected') matches = r.status === 'REJECTED';
-            else if (filterStatus === 'completed') matches = r.status === 'COMPLETED' || r.status === 'VERIFIED';
-            if (!matches) return false;
-
-            const query = searchQuery.toLowerCase();
-            const partMatch = r.inventory_item?.sap_part_number?.toLowerCase().includes(query) ||
-                            r.inventory_item?.part_description?.toLowerCase().includes(query);
-            if (searchQuery && !partMatch) return false;
-
-            if (selectedDate && r.created_at?.split('T')[0] !== selectedDate) return false;
-            return true;
-        });
-
-        const totalShortages = shortagesForLine.length;
-        const pendingShortages = shortagesForLine.filter(r => r.status === 'PENDING').length;
-        const verifiedShortages = shortagesForLine.filter(r => r.status === 'VERIFIED' || r.status === 'COMPLETED').length;
-
         return (
             <div className="min-h-screen bg-gray-50/30">
-                {/* Header with KPIs */}
+                {/* Header */}
                 <div className="p-6 bg-white border-b border-gray-200 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <button
@@ -192,26 +167,12 @@ const ProductionLinesPage = ({ canAddGroup = true }: ProductionLinesPageProps) =
                                 <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
                                     <Factory size={16} className="text-orange-600" />
                                 </div>
-                                <h1 className="text-2xl font-black text-gray-900">Shortages: {selectedLine.name}</h1>
+                                <h1 className="text-2xl font-black text-gray-900">Machines: {selectedLine.name}</h1>
                             </div>
                         </div>
                     </div>
 
                     <div className="flex items-center gap-4">
-                        <div className="flex items-center bg-gray-50 rounded-2xl border border-gray-200 p-1">
-                            <div className="px-4 py-1 text-center border-r border-gray-200 min-w-[80px]">
-                                <span className="block text-[8px] font-bold text-gray-400 uppercase tracking-wider">TOTAL</span>
-                                <span className="block text-lg font-black text-gray-800 leading-none">{totalShortages}</span>
-                            </div>
-                            <div className="px-4 py-1 text-center border-r border-gray-200 text-amber-500 min-w-[80px]">
-                                <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">PENDING</span>
-                                <span className="block text-lg font-black leading-none">{pendingShortages}</span>
-                            </div>
-                            <div className="px-4 py-1 text-center text-emerald-500 min-w-[80px]">
-                                <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">VERIFIED</span>
-                                <span className="block text-lg font-black leading-none">{verifiedShortages}</span>
-                            </div>
-                        </div>
                         <button
                             onClick={() => setIsAddMachineModalOpen(true)}
                             className="h-[42px] px-6 bg-orange-600 hover:bg-orange-700 text-white rounded-full text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-orange-600/20"
@@ -221,143 +182,51 @@ const ProductionLinesPage = ({ canAddGroup = true }: ProductionLinesPageProps) =
                     </div>
                 </div>
 
-                {/* Filters Row */}
-                <div className="flex flex-wrap items-center gap-3 px-6 py-4">
-                    <div className="relative group w-48">
-                        <div className="absolute left-4 top-1/2 -translate-y-1/2 p-1 bg-orange-50 rounded text-orange-500 pointer-events-none">
-                            <LayoutGrid size={11} />
-                        </div>
-                        <select
-                            value={filterStatus}
-                            onChange={(e) => setFilterStatus(e.target.value)}
-                            className="w-full bg-white border border-gray-200 rounded-full h-[40px] pl-12 pr-10 text-gray-700 font-bold text-[11px] tracking-wide outline-none transition-all appearance-none uppercase"
-                        >
-                            <option value="all">All Status</option>
-                            <option value="pending">Pending</option>
-                            <option value="in-progress">In progress</option>
-                            <option value="rejected">Rejected</option>
-                            <option value="completed">Completed</option>
-                        </select>
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                            <ChevronDown size={14} />
-                        </div>
-                    </div>
-
-                    <div className="relative group w-72">
-                        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
-                        <input
-                            type="text"
-                            placeholder="Search shortages..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full bg-white border border-gray-200 rounded-full h-[40px] pl-14 pr-6 text-gray-700 font-bold text-[11px] tracking-wide outline-none transition-all uppercase"
-                        />
-                    </div>
-
-                    <div className="relative group flex-shrink-0">
-                        <div className="absolute left-4 top-1/2 -translate-y-1/2 p-1 bg-indigo-50/50 rounded text-indigo-400 pointer-events-none">
-                            <Calendar size={12} />
-                        </div>
-                        <input
-                            type="date"
-                            value={selectedDate}
-                            onChange={(e) => setSelectedDate(e.target.value)}
-                            className="bg-white border border-gray-200 rounded-full h-[40px] pl-12 pr-5 text-gray-700 font-bold text-[11px] tracking-wide outline-none transition-all w-[180px] uppercase cursor-pointer"
-                        />
-                    </div>
-                </div>
-
-                {/* Sub-machines table with shortage columns */}
-                <div className="px-6 pb-6">
+                {/* Registered Machines Section */}
+                <div className="p-6">
                     <div className="bg-white border border-gray-200 rounded-3xl overflow-hidden shadow-sm">
+                        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+                            <h3 className="text-xs font-black text-gray-600 uppercase tracking-widest flex items-center gap-2">
+                                <Factory size={14} className="text-indigo-500" /> Registered Physical Machines
+                            </h3>
+                            <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                                {selectedLine.sub_machines.length} Registered
+                            </span>
+                        </div>
                         <table className="w-full text-sm text-left border-collapse">
-                            <thead className="bg-white text-gray-900 border-b-2 border-orange-500 uppercase text-[11px] font-black tracking-widest">
+                            <thead className="bg-white text-gray-900 border-b-2 border-indigo-500 uppercase text-[11px] font-black tracking-widest">
                                 <tr>
                                     <th className="px-6 py-4 whitespace-nowrap">Sr.NO</th>
-                                    <th className="px-6 py-4 whitespace-nowrap">Sub Machine</th>
-                                    <th className="px-6 py-4 whitespace-nowrap">Part Number</th>
-                                    <th className="px-6 py-4 text-center whitespace-nowrap">Demand Date</th>
-                                    <th className="px-6 py-4 text-center whitespace-nowrap">Coverage Day</th>
-                                    <th className="px-6 py-4 text-center whitespace-nowrap">SAP Stock</th>
-                                    <th className="px-6 py-3 text-center whitespace-nowrap">Opening</th>
-                                    <th className="px-6 py-3 text-center whitespace-nowrap">Today's</th>
-                                    <th className="px-6 py-3 text-center whitespace-nowrap">Target</th>
-                                    <th className="px-6 py-3 text-center whitespace-nowrap">Status</th>
+                                    <th className="px-6 py-4 whitespace-nowrap">Machine Name</th>
+                                    <th className="px-6 py-4 text-center whitespace-nowrap">Status</th>
                                     <th className="px-6 py-3 text-right whitespace-nowrap">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                                {selectedLine.sub_machines.map((sub, idx) => {
-                                    // Only show a machine as OCCUPIED if it has an ACTIVE (non-completed) shortage
-                                    const req = shortagesForLine.find(r =>
-                                        (r.line_name?.trim().toUpperCase() === sub.name.trim().toUpperCase()) &&
-                                        !['COMPLETED', 'REJECTED'].includes(r.status)
-                                    );
-                                    // For display purposes, also find the last completed req for history
-                                    const completedReq = !req && shortagesForLine.find(r =>
-                                        r.line_name?.trim().toUpperCase() === sub.name.trim().toUpperCase() &&
-                                        r.status === 'COMPLETED'
-                                    );
-                                    const isVacant = !req;
-                                    const coverage = req?.todays_stock && req.per_day ? (req.todays_stock / req.per_day).toFixed(1) : "—";
-                                    
-                                    return (
-                                        <tr key={sub.id} className={`hover:bg-gray-50 transition-colors group ${isVacant ? 'bg-emerald-50/30' : ''}`}>
+                                {selectedLine.sub_machines.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={4} className="py-12 text-center text-gray-400 font-bold text-xs uppercase tracking-wider bg-gray-50/20">
+                                            No physical machines have been registered under this group
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    selectedLine.sub_machines.map((sub, idx) => (
+                                        <tr key={sub.id} className="hover:bg-gray-50 transition-colors">
                                             <td className="px-6 py-4">
                                                 <span className="text-[11px] font-black text-gray-400">{(idx + 1).toString().padStart(2, '0')}</span>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-3">
-                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${
-                                                        isVacant
-                                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
-                                                            : 'bg-orange-50 text-orange-600 border-orange-100'
-                                                    }`}>
-                                                        <Activity size={14} />
+                                                    <div className="w-8 h-8 rounded-lg flex items-center justify-center border bg-indigo-50 text-indigo-600 border-indigo-100">
+                                                        <Factory size={14} />
                                                     </div>
                                                     <span className="text-[12px] font-black text-gray-900 tracking-tight">{sub.name}</span>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4">
-                                                {isVacant ? (
-                                                    <span className="text-[11px] font-black text-emerald-600 bg-emerald-50 px-3 py-0.5 rounded-full border border-emerald-200 uppercase tracking-tight">
-                                                        VACANT
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-[11px] font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 uppercase tracking-tight">
-                                                        {req?.inventory_item?.sap_part_number || '—'}
-                                                    </span>
-                                                )}
-                                            </td>
                                             <td className="px-6 py-4 text-center">
-                                                <span className="text-[10px] font-black text-gray-500 uppercase tracking-wider">
-                                                    {req?.created_at ? new Date(req.created_at).toLocaleDateString() : '—'}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 text-center">
-                                                <span className={`text-[10px] font-black tabular-nums px-2 py-1 rounded border ${
-                                                    isVacant ? 'text-gray-300 border-transparent' :
-                                                    coverage === "—" ? "text-gray-300 border-transparent" :
-                                                    Number(coverage) >= 5 ? "text-emerald-600 bg-emerald-50 border-emerald-100" : "text-rose-600 bg-rose-50 border-rose-100"
-                                                }`}>
-                                                    {isVacant ? '—' : `${coverage} ${coverage !== "—" ? "Days" : ""}`}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 text-center text-[11px] font-black text-gray-900 tabular-nums">{req?.sap_stock ?? '—'}</td>
-                                            <td className="px-6 py-3 text-center text-[11px] font-black text-gray-900 tabular-nums">{req?.opening_stock ?? '—'}</td>
-                                            <td className="px-6 py-3 text-center text-[11px] font-black text-orange-600 tabular-nums">{req?.todays_stock ?? '—'}</td>
-                                            <td className="px-6 py-3 text-center text-[11px] font-black text-blue-600 tabular-nums">{req?.target_quantity || req?.inventory_item?.demand_quantity || '—'}</td>
-                                            <td className="px-6 py-3 text-center">
-                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border ${
-                                                    isVacant
-                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                                        : req?.status === 'COMPLETED' || req?.status === 'VERIFIED'
-                                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                                            : req?.status === 'PENDING'
-                                                                ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                                                : 'bg-gray-100 text-gray-400 border-gray-200'
-                                                }`}>
-                                                    {isVacant ? 'VACANT' : (req?.status || 'IDLE')}
+                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase border bg-emerald-50 text-emerald-700 border-emerald-200">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                                    Active
                                                 </span>
                                             </td>
                                             <td className="px-6 py-3 text-right">
@@ -369,8 +238,8 @@ const ProductionLinesPage = ({ canAddGroup = true }: ProductionLinesPageProps) =
                                                 </button>
                                             </td>
                                         </tr>
-                                    );
-                                })}
+                                    ))
+                                )}
                             </tbody>
                         </table>
                     </div>

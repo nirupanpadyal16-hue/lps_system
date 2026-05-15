@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
     CheckCircle2, AlertTriangle, X, Database, LayoutGrid, Search, ChevronDown, Info, Car,
-    Loader2, Package, Calendar, Timer, Clock, Zap, User, MapPin, Eye, Factory, ArrowLeft, Plus
+    Loader2, Package, Calendar, Timer, Clock, Zap, User, MapPin, Eye, Factory, ArrowLeft, Plus, Activity
 } from 'lucide-react';
 import { API_BASE } from '../../lib/apiConfig';
 import { getToken } from '../../lib/storage';
@@ -29,7 +29,7 @@ interface ShortageRequest {
     deadline: string | null;
     days_remaining: number | null;
     is_overdue: boolean;
-    status: 'PENDING' | 'IN_PROGRESS' | 'DEO_FILLED' | 'COMPLETED' | 'REJECTED' | 'VERIFIED';
+    status: 'PENDING' | 'IN_PROGRESS' | 'DEO_FILLED' | 'COMPLETED' | 'REJECTED' | 'VERIFIED' | 'HOLD';
     sap_stock: number | null;
     opening_stock: number | null;
     todays_stock: number | null;
@@ -856,6 +856,7 @@ export default function DEOShortageRequests({ onlyShowHistory = false }: DEOShor
         return relevantRequests.filter(r => {
             let matches = true;
             if (filterStatus === 'pending') matches = r.status === 'PENDING';
+            else if (filterStatus === 'hold') matches = r.status === 'HOLD';
             else if (filterStatus === 'in-progress') matches = r.status === 'IN_PROGRESS' || r.status === 'REJECTED' || r.status === 'DEO_FILLED' || r.status === 'VERIFIED';
             else if (filterStatus === 'rejected') matches = r.status === 'REJECTED';
             else if (filterStatus === 'completed') matches = r.status === 'COMPLETED' || r.status === 'VERIFIED';
@@ -940,7 +941,16 @@ export default function DEOShortageRequests({ onlyShowHistory = false }: DEOShor
         // in req.sub_machines[] AND belongs to the activeViewMachine group.
         const subMachineToReq = new Map<string, ShortageRequest>();
 
-        shortagesForActiveGroup.forEach(req => {
+        // Sort: Primary occupying requests (Active/Pending) first, HOLD requests last.
+        // Secondarily, sort by creation age (FIFO oldest-to-newest first).
+        const sortedShortages = [...shortagesForActiveGroup].sort((a, b) => {
+            const scoreA = a.status === 'HOLD' ? 2 : 1;
+            const scoreB = b.status === 'HOLD' ? 2 : 1;
+            if (scoreA !== scoreB) return scoreA - scoreB;
+            return a.id - b.id;
+        });
+
+        sortedShortages.forEach(req => {
             // req.sub_machines comes from the API, already filtered to this group's machines
             const reqSubs: Array<{ id: number; name: string }> = (req as any).sub_machines || [];
             reqSubs.forEach(sub => {
@@ -966,7 +976,11 @@ export default function DEOShortageRequests({ onlyShowHistory = false }: DEOShor
             .filter(req => !matchedIds.has(req.id))
             .forEach(req => {
                 const reqSubs: Array<{ id: number; name: string }> = (req as any).sub_machines || [];
-                const label = reqSubs.length > 0 ? reqSubs[0].name : (req.line_name || 'Generic');
+                // Find the sub-machine assigned to this request that ACTUALLY belongs to our active group view!
+                const relevantSub = reqSubs.find(sub => 
+                    groupSubMachines.some(gs => gs.id === sub.id || gs.name === sub.name)
+                );
+                const label = relevantSub ? relevantSub.name : (req.line_name || activeViewMachine || '—');
                 result.push({ machineName: label, shortage: req });
             });
 
@@ -1075,6 +1089,7 @@ export default function DEOShortageRequests({ onlyShowHistory = false }: DEOShor
                                 <>
                                     <option value="all">Active Status</option>
                                     <option value="pending">Pending</option>
+                                    <option value="hold">On Hold</option>
                                     <option value="in-progress">In progress</option>
                                     <option value="rejected">Rejected</option>
                                 </>
@@ -1188,19 +1203,19 @@ export default function DEOShortageRequests({ onlyShowHistory = false }: DEOShor
                                 exit={{ opacity: 0, x: -20 }}
                                 className="w-full text-sm text-left border-collapse"
                             >
-                                <thead className="bg-white text-slate-900 border-b-2 border-orange-500 uppercase text-[11px] font-black tracking-widest sticky top-0 z-[50]">
+                                <thead className="bg-white text-slate-900 border-b-2 border-orange-500 uppercase text-[10px] font-black tracking-wider sticky top-0 z-[50]">
                                     <tr>
-                                        <th className="px-6 py-4 text-left whitespace-nowrap">Sr.NO</th>
-                                        <th className="px-6 py-4 text-left whitespace-nowrap">Sub Machine</th>
-                                        <th className="px-6 py-4 text-left whitespace-nowrap">Part Number</th>
-                                        <th className="px-6 py-4 text-center whitespace-nowrap">Demand Date</th>
-                                        <th className="px-6 py-4 text-center whitespace-nowrap">Coverage Day</th>
-                                        <th className="px-6 py-4 text-center whitespace-nowrap">SAP Stock</th>
-                                        <th className="px-6 py-3 text-center whitespace-nowrap">Opening</th>
-                                        <th className="px-6 py-3 text-center whitespace-nowrap">Today's</th>
-                                        <th className="px-6 py-3 text-center whitespace-nowrap">Target</th>
-                                        <th className="px-6 py-3 text-center whitespace-nowrap">Status</th>
-                                        <th className="px-6 py-3 text-right whitespace-nowrap">Actions</th>
+                                        <th className="px-3 py-4 text-left whitespace-nowrap">Sr.NO</th>
+                                        <th className="px-3 py-4 text-left whitespace-nowrap">Sub Machine</th>
+                                        <th className="px-3 py-4 text-left whitespace-nowrap">Part Number</th>
+                                        <th className="px-3 py-4 text-center whitespace-nowrap">Demand Date</th>
+                                        <th className="px-3 py-4 text-center whitespace-nowrap">Coverage</th>
+                                        <th className="px-3 py-4 text-center whitespace-nowrap">SAP Stock</th>
+                                        <th className="px-3 py-3 text-center whitespace-nowrap">Opening</th>
+                                        <th className="px-3 py-3 text-center whitespace-nowrap">Today's</th>
+                                        <th className="px-3 py-3 text-center whitespace-nowrap">Target</th>
+                                        <th className="px-3 py-3 text-center whitespace-nowrap">Status</th>
+                                        <th className="px-3 py-3 text-right whitespace-nowrap">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
@@ -1208,6 +1223,7 @@ export default function DEOShortageRequests({ onlyShowHistory = false }: DEOShor
                                         const req = item.shortage;
                                         const machineName = item.machineName;
                                         const isRejected = req?.status === 'REJECTED';
+                                        const isHold = req?.status === 'HOLD';
                                         const isDeoFilled = req?.status === 'DEO_FILLED';
                                         const isCompleted = req?.status === 'COMPLETED' || req?.status === 'VERIFIED';
                                         const shortageQty = req ? (req.shortage_quantity > 0 ? req.shortage_quantity : (req.inventory_item?.demand_quantity || 0)) : 0;
@@ -1224,26 +1240,31 @@ export default function DEOShortageRequests({ onlyShowHistory = false }: DEOShor
                                                 "hover:bg-slate-50 transition-colors group",
                                                 isRejected && "bg-rose-50/30"
                                             )}>
-                                                <td className="px-6 py-4">
+                                                <td className="px-3 py-4">
                                                     <span className="text-[11px] font-black text-slate-900">{serialNum}</span>
                                                 </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="flex items-center gap-2 px-3 py-1 bg-orange-50/50 rounded-full border border-orange-100/50 w-fit">
-                                                        <Zap size={10} className="text-orange-500" />
-                                                        <span className="text-[10px] font-black text-slate-900 uppercase tracking-tight">{machineName}</span>
+                                                <td className="px-3 py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={cn(
+                                                            "w-8 h-8 rounded-lg flex items-center justify-center border",
+                                                            !req ? "bg-slate-50 text-slate-600 border-slate-100" : "bg-orange-50 text-orange-600 border-orange-100"
+                                                        )}>
+                                                            <Activity size={14} />
+                                                        </div>
+                                                        <span className="text-[11px] font-black text-slate-900 tracking-tight">{machineName}</span>
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4">
+                                                <td className="px-3 py-4">
                                                     <span className="text-[11px] font-black text-slate-900 uppercase tracking-tight">
                                                         {req?.inventory_item?.sap_part_number || '—'}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 text-center">
+                                                <td className="px-3 py-4 text-center">
                                                     <span className="text-[10px] font-black text-slate-900 uppercase tracking-wider">
                                                         {req?.created_at ? new Date(req.created_at).toLocaleDateString() : '—'}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 text-center">
+                                                <td className="px-3 py-4 text-center">
                                                     <span className={cn(
                                                         "text-[10px] font-black tabular-nums px-2 py-1 rounded border",
                                                         coverage === "—" ? "text-slate-300 border-transparent" :
@@ -1252,38 +1273,39 @@ export default function DEOShortageRequests({ onlyShowHistory = false }: DEOShor
                                                         {coverage} {coverage !== "—" && "Days"}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 text-center">
+                                                <td className="px-3 py-4 text-center">
                                                     <span className="text-[11px] font-black text-slate-900 tabular-nums">
                                                         {req?.sap_stock ?? '—'}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 text-center">
+                                                <td className="px-3 py-4 text-center">
                                                     <span className="text-[11px] font-black text-slate-900 tabular-nums">
                                                         {req?.opening_stock ?? '—'}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 text-center">
+                                                <td className="px-3 py-4 text-center">
                                                     <span className="text-[11px] font-black text-orange-600 tabular-nums">
                                                         {req?.todays_stock ?? '—'}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 text-center">
+                                                <td className="px-3 py-4 text-center">
                                                     <span className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-[10px] font-black border border-indigo-100">
                                                         {shortageQty > 0 ? shortageQty.toLocaleString() : '—'}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 text-center">
+                                                <td className="px-3 py-4 text-center">
                                                     <span className={cn(
                                                         "px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border",
                                                         !req ? "bg-slate-50 text-slate-400 border-slate-200" :
                                                             isRejected ? "bg-rose-50 text-rose-600 border-rose-100 animate-pulse" :
-                                                                isCompleted ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-                                                                    "bg-indigo-50 text-indigo-600 border-indigo-100"
+                                                                isHold ? "bg-amber-50 text-amber-600 border-amber-200" :
+                                                                    isCompleted ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                                                                        "bg-indigo-50 text-indigo-600 border-indigo-100"
                                                     )}>
                                                         {req ? (isDeoFilled ? 'SUBMITTED' : req.status.replace('_', ' ')) : 'IDLE'}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 text-right">
+                                                <td className="px-3 py-4 text-right">
                                                     {req ? (
                                                         <div className="flex items-center justify-end gap-2">
                                                             <button
@@ -1298,11 +1320,11 @@ export default function DEOShortageRequests({ onlyShowHistory = false }: DEOShor
                                                             </button>
                                                             <button
                                                                 onClick={() => setFillRequest(req)}
-                                                                disabled={isCompleted || (isDeoFilled && !isRejected)}
+                                                                disabled={isCompleted || isHold || (isDeoFilled && !isRejected)}
                                                                 className={cn(
                                                                     "w-8 h-8 rounded-lg flex items-center justify-center text-white transition-all shadow-md",
                                                                     isRejected ? "bg-rose-500 hover:bg-rose-600" :
-                                                                        (isCompleted || isDeoFilled) ? "bg-emerald-400 opacity-30 cursor-not-allowed" :
+                                                                        (isCompleted || isDeoFilled || isHold) ? "bg-emerald-400 opacity-30 cursor-not-allowed" :
                                                                             "bg-emerald-500 hover:bg-emerald-600"
                                                                 )}
                                                             >

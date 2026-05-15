@@ -105,13 +105,14 @@ def accept_rm_request(rm_id):
             inventory_item_id=item.id,
             shortage_quantity=item.shortage_quantity,
             deadline=rm.demand.end_date if rm.demand else None, # Fallback to demand end date
-            status='PENDING',
+            status='PENDING', # Initial default, may transition to HOLD
             deo_id=model.assigned_deo_id if model else None,
             supervisor_id=model.supervisor_id if model else None,
             line_id=model.production_line_id if model else None,
         )
         
         # ─── DYNAMIC SUB-MACHINE LOAD BALANCING ───
+        has_busy_machine = False
         mapping = PartMachineMapping.query.filter_by(sap_part_number=item.sap_part_number).first()
         if mapping and mapping.machine:
             master_names = [name.strip() for name in mapping.machine.split(',') if name.strip()]
@@ -122,6 +123,13 @@ def accept_rm_request(rm_id):
                     if not sub_machines:
                         # No sub-machines, just use the master line
                         psr.assigned_machines.append(master_line)
+                        # Check if master line itself is occupied
+                        load = PartShortageRequest.query.filter(
+                            PartShortageRequest.assigned_machines.any(id=master_line.id),
+                            PartShortageRequest.status.in_(['PENDING', 'IN_PROGRESS', 'DEO_FILLED'])
+                        ).count()
+                        if load > 0:
+                            has_busy_machine = True
                     else:
                         # Find the least loaded sub-machine
                         least_loaded = None
@@ -137,10 +145,25 @@ def accept_rm_request(rm_id):
                         
                         if least_loaded:
                             psr.assigned_machines.append(least_loaded)
+                            # If the target machine ALREADY has at least 1 job assigned, then it is busy!
+                            if min_load > 0:
+                                has_busy_machine = True
             
             # Set the primary machine_id to the first routed sub-machine for legacy compatibility
             if psr.assigned_machines:
                 psr.machine_id = psr.assigned_machines[0].id
+
+        # ─── ENFORCE QUEUE SYSTEM ───
+        if has_busy_machine:
+            psr.status = 'HOLD'
+            notif_title = "Shortage Queued (ON HOLD)"
+            notif_msg_sup = f"Shortage for {item.sap_part_number} placed on HOLD queue. Will activate when machine is vacant."
+            notif_msg_deo = f"Shortage for {item.sap_part_number} queued on HOLD. Wait for machine to become vacant."
+        else:
+            psr.status = 'PENDING'
+            notif_title = "New Shortage Material Ready"
+            notif_msg_sup = f"RM for part {item.sap_part_number} (Demand: {demand.formatted_id if demand else 'N/A'}) has been accepted. Shortage: {psr.shortage_quantity}."
+            notif_msg_deo = f"RM for part {item.sap_part_number} has been accepted. Please fill stock data for shortage of {psr.shortage_quantity}."
 
         db.session.add(psr)
         
@@ -161,8 +184,8 @@ def accept_rm_request(rm_id):
         for sup_id in target_supervisors:
             Notification.send(
                 user_id=sup_id,
-                title="New Shortage Material Ready",
-                message=f"RM for part {item.sap_part_number} (Demand: {demand.formatted_id if demand else 'N/A'}) has been accepted. Shortage: {psr.shortage_quantity}.",
+                title=notif_title,
+                message=notif_msg_sup,
                 notification_type='SHORTAGE_ASSIGNED',
                 demand_id=rm.demand_id,
                 shortage_request_id=psr.id
@@ -179,8 +202,8 @@ def accept_rm_request(rm_id):
         for deo_id in target_deos:
             Notification.send(
                 user_id=deo_id,
-                title="New Shortage Material Ready",
-                message=f"RM for part {item.sap_part_number} has been accepted. Please fill stock data for shortage of {psr.shortage_quantity}.",
+                title=notif_title,
+                message=notif_msg_deo,
                 notification_type='SHORTAGE_ASSIGNED',
                 demand_id=rm.demand_id,
                 shortage_request_id=psr.id
@@ -320,6 +343,7 @@ def create_dispatch():
         driver_contact=data.get('driver_contact', ''),
         transporter_name=data.get('transporter_name', ''),
         status='DISPATCHED',
+        extra_details=data,  # Capture all rich UI inputs for PDF generation
     )
     db.session.add(dispatch)
 

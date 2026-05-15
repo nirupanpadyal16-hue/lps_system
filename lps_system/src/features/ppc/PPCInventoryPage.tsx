@@ -78,19 +78,19 @@ function ActionBadge({ action, onSendToRegistry, sending }: { action: string; on
             </span>
         );
     }
-    if (action === 'COMPLETED') {
+    if (action === 'COMPLETED' || action === 'READY_FOR_DISPATCH') {
         return (
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold">
                 <CheckCircle2 size={13} />
-                Completed
+                {action === 'READY_FOR_DISPATCH' ? 'Ready for Dispatch' : 'Completed'}
             </span>
         );
     }
-    if (action === 'PENDING_DEO' || action === 'WAITING_RM_APPROVAL') {
+    if (action === 'PENDING_DEO' || action === 'WAITING_RM_APPROVAL' || action === 'IN_PRODUCTION') {
         return (
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold animate-pulse">
                 <Clock size={13} />
-                In Machine Registry
+                {action === 'IN_PRODUCTION' ? 'In Production' : 'In Machine Registry'}
             </span>
         );
     }

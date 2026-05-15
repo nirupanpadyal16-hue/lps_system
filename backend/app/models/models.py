@@ -869,6 +869,47 @@ class PartShortageRequest(db.Model):
         r = self.days_remaining
         return r is not None and r < 0
 
+    @staticmethod
+    def process_hold_queue_for_machines(machines):
+        """
+        Scans recently vacated machines and promotes the oldest pending HOLD shortage to PENDING.
+        """
+        if not machines:
+            return
+        from app.models import Notification
+        for machine in machines:
+            # Check if currently occupied by any ACTIVE request
+            occupied = PartShortageRequest.query.filter(
+                PartShortageRequest.assigned_machines.any(id=machine.id),
+                PartShortageRequest.status.in_(['PENDING', 'IN_PROGRESS', 'DEO_FILLED'])
+            ).count() > 0
+            
+            if not occupied:
+                # Find oldest queued request on HOLD for this specific machine
+                next_req = PartShortageRequest.query.filter(
+                    PartShortageRequest.assigned_machines.any(id=machine.id),
+                    PartShortageRequest.status == 'HOLD'
+                ).order_by(PartShortageRequest.created_at.asc()).first()
+                
+                if next_req:
+                    next_req.status = 'PENDING'
+                    if next_req.deo_id:
+                        Notification.send(
+                            user_id=next_req.deo_id,
+                            title="Machine Vacant: Queue Promoted",
+                            message=f"Machine {machine.name} is now free. PSR {next_req.formatted_id} is now ACTIVE.",
+                            notification_type='INFO',
+                            shortage_request_id=next_req.id
+                        )
+                    if next_req.supervisor_id:
+                        Notification.send(
+                            user_id=next_req.supervisor_id,
+                            title="Queue Activated",
+                            message=f"PSR {next_req.formatted_id} is now active on machine {machine.name}.",
+                            notification_type='INFO',
+                            shortage_request_id=next_req.id
+                        )
+
     def __repr__(self):
         return f'<PartShortageRequest {self.formatted_id} status={self.status}>'
 
@@ -1075,6 +1116,7 @@ class DispatchRecord(db.Model):
     verified_at = db.Column(db.DateTime, nullable=True)
 
     created_at = db.Column(db.DateTime, default=db.func.now())
+    extra_details = db.Column(db.JSON, nullable=True)  # Rich dynamic form data for PDF/slip
 
     # Relationships
     demand = db.relationship('Demand', backref='dispatch_records')
@@ -1085,7 +1127,7 @@ class DispatchRecord(db.Model):
         return f'<DispatchRecord {self.formatted_id} qty={self.quantity_dispatched}>'
 
     def to_dict(self):
-        return {
+        res = {
             "id": self.id,
             "formatted_id": self.formatted_id,
             "demand_id": self.demand_id,
@@ -1108,6 +1150,13 @@ class DispatchRecord(db.Model):
             "verified_at": self.verified_at.isoformat() if self.verified_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+        # Merge all extra details dynamically for PDF generation
+        if self.extra_details and isinstance(self.extra_details, dict):
+            for k, v in self.extra_details.items():
+                # Don't overwrite critical properties if already populated natively
+                if k not in res or not res[k]:
+                    res[k] = v
+        return res
 
 
 # ----------------------------- MachineProductionEntry -----------------------------
