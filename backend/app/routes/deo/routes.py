@@ -1,7 +1,8 @@
 # backend/app/routes/deo/routes.py
 from datetime import datetime, date
 from flask import Blueprint, request, jsonify
-from app.models import db, User, CarModel, Demand, DailyProductionLog, DailyWorkStatus, ProductionLine, PartShortageRequest, PartMachineMapping
+from app.models import db, User, CarModel, Demand, DailyProductionLog, DailyWorkStatus, ProductionLine, PartShortageRequest, PartMachineMapping, InventoryItem, ShortageDailyEntry
+
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.middleware.auth_middleware import role_required
 from app.utils.audit_logger import log_audit
@@ -414,11 +415,136 @@ def deo_get_shortage_requests():
             
     return jsonify({"success": True, "data": [r.to_dict() for r in reqs]})
 
+@deo_bp.route('/shortage-parts-by-machine', methods=['GET'])
+@jwt_required()
+@role_required(['DEO', 'Supervisor', 'Admin'])
+def deo_get_shortage_parts_by_machine():
+    """
+    Returns shortage parts grouped by their assigned machine GROUP.
+
+    FIXED LOGIC: A PSR with machines [320T-C, 200T-A, 110T-A] now appears
+    in THREE groups — 320T, 200T, and 110T — each showing only the specific
+    sub-machine assigned to that group's step.
+
+    This means 320T DEO sees 320T-C, 200T DEO sees 200T-A, 110T DEO sees 110T-A.
+    No more cross-contamination of sub-machines between groups.
+    """
+    from app.models import PartShortageRequest, ProductionLine, InventoryItem, Demand
+    import datetime
+
+    reqs = PartShortageRequest.query.filter(
+        PartShortageRequest.status.notin_(['COMPLETED', 'REJECTED', 'WAITING_RM_APPROVAL'])
+    ).order_by(PartShortageRequest.id.desc()).all()
+
+    # Build a fast lookup of all production lines
+    all_lines = ProductionLine.query.all()
+    line_by_id = {l.id: l for l in all_lines}
+
+    machine_map = {}
+
+    for req in reqs:
+        item = req.inventory_item
+        if not item:
+            continue
+
+        # Resolve assigned machines list
+        machines = list(req.assigned_machines)
+        if not machines and req.machine_id:
+            m = line_by_id.get(req.machine_id)
+            if m:
+                machines = [m]
+
+        # Deadline info from demand
+        demand = Demand.query.get(item.demand_id) if item.demand_id else None
+        days_remaining = None
+        total_days = None
+        if demand and demand.end_date:
+            try:
+                end = datetime.date.fromisoformat(str(demand.end_date))
+                start = datetime.date.fromisoformat(str(demand.start_date)) if demand.start_date else datetime.date.today()
+                days_remaining = (end - datetime.date.today()).days
+                total_days = (end - start).days
+            except Exception:
+                pass
+
+        base_entry = {
+            **req.to_dict(),
+            "sap_part_number": item.sap_part_number,
+            "part_description": item.part_description,
+            "days_remaining": days_remaining,
+            "total_days": total_days,
+            "demand_start_date": demand.start_date if demand else None,
+            "demand_end_date": demand.end_date if demand else None,
+            "demand_formatted_id": demand.formatted_id if demand else None,
+        }
+
+        if not machines:
+            # No machine assigned — put in UNASSIGNED bucket with all PSR data
+            label = 'UNASSIGNED'
+            if label not in machine_map:
+                machine_map[label] = {"machine_name": label, "machine_id": None, "sub_machines": [], "parts": []}
+            machine_map[label]["parts"].append({**base_entry, "machine_label": label, "sub_machines": []})
+        else:
+            # KEY FIX: group sub-machines by their parent group.
+            # A PSR with [320T-C, 200T-A, 110T-A] creates 3 separate group entries.
+            # Each group only sees its own sub-machine(s).
+            groups_seen = {}  # group_label -> {id, subs:[]}
+
+            for sub in machines:
+                parent = line_by_id.get(sub.parent_id) if sub.parent_id else sub
+                group_label = parent.name.upper()
+                group_id = parent.id
+                if group_label not in groups_seen:
+                    groups_seen[group_label] = {"id": group_id, "subs": []}
+                groups_seen[group_label]["subs"].append({"id": sub.id, "name": sub.name})
+
+            for group_label, ginfo in groups_seen.items():
+                # Ensure group bucket exists
+                if group_label not in machine_map:
+                    machine_map[group_label] = {
+                        "machine_name": group_label,
+                        "machine_id": ginfo["id"],
+                        "sub_machines": [],
+                        "parts": []
+                    }
+
+                # Add this PSR to the group with ONLY its sub-machines for this group
+                entry = {
+                    **base_entry,
+                    "machine_label": group_label,
+                    "sub_machines": ginfo["subs"],
+                }
+                machine_map[group_label]["parts"].append(entry)
+
+                # Collect unique sub-machine entries for the group header
+                for sub_entry in ginfo["subs"]:
+                    if sub_entry not in machine_map[group_label]["sub_machines"]:
+                        machine_map[group_label]["sub_machines"].append(sub_entry)
+
+    return jsonify({"success": True, "data": list(machine_map.values())})
+
+
+
+
+@deo_bp.route('/inventory', methods=['GET'])
+@jwt_required()
+@role_required(['DEO', 'Supervisor', 'Admin', 'Manager'])
+def get_deo_inventory():
+    """Return inventory items for selection."""
+    demand_id = request.args.get('demand_id', type=int)
+    query = InventoryItem.query
+    if demand_id:
+        query = query.filter_by(demand_id=demand_id)
+    items = query.all()
+    return jsonify({"success": True, "data": [i.to_dict() for i in items]})
 
 @deo_bp.route('/production-lines', methods=['GET'])
+@deo_bp.route('/machines', methods=['GET'])
+
 @jwt_required()
 @role_required(['DEO', 'Supervisor', 'Admin', 'Manager'])
 def get_production_lines():
+
     """Return all active production lines/machines for dropdowns."""
     lines = ProductionLine.query.filter_by(is_active=True).all()
     # Also get unique machines from PartMachineMapping to ensure full list
@@ -581,14 +707,24 @@ def create_machine_entry():
 
     adhoc_part_id = None
     if not inventory_item_id and sap_part_number:
-        # Handle Ad-Hoc Part
-        from app.models import DeoAdHocPart
-        adhoc_part = DeoAdHocPart.query.filter_by(sap_part_number=sap_part_number).first()
-        if not adhoc_part:
-            adhoc_part = DeoAdHocPart(sap_part_number=sap_part_number)
-            db.session.add(adhoc_part)
-            db.session.flush()
-        adhoc_part_id = adhoc_part.id
+        # Step 1: Try to find a real InventoryItem by SAP part number
+        from app.models import InventoryItem
+        item = InventoryItem.query.filter(
+            db.func.upper(db.func.trim(InventoryItem.sap_part_number)) == sap_part_number
+        ).first()
+        if item:
+            inventory_item_id = item.id
+            if not demand_id:
+                demand_id = item.demand_id  # Auto-link demand too
+        else:
+            # Step 2: Truly unknown part — create adhoc record
+            from app.models import DeoAdHocPart
+            adhoc_part = DeoAdHocPart.query.filter_by(sap_part_number=sap_part_number).first()
+            if not adhoc_part:
+                adhoc_part = DeoAdHocPart(sap_part_number=sap_part_number)
+                db.session.add(adhoc_part)
+                db.session.flush()
+            adhoc_part_id = adhoc_part.id
 
     if parts_produced < 0:
         return jsonify({"success": False, "message": "parts_produced cannot be negative"}), 400
@@ -618,26 +754,7 @@ def create_machine_entry():
         status='PENDING',
     )
     db.session.add(entry)
-    db.session.flush()  # Get entry.id before apply_to_inventory
-
-    # Auto-update InventoryItem.produced_qty (no double-counting — this adds to cumulative)
-    entry.apply_to_inventory()
-
     db.session.commit()
-
-    # Check if part is now PRODUCTION_DONE → notify SK
-    item = InventoryItem.query.get(inventory_item_id)
-    if item and item.status == 'PRODUCTION_DONE':
-        store_keepers = User.query.filter_by(role='Store_Keeper', is_active=True).all()
-        for sk in store_keepers:
-            Notification.send(
-                user_id=sk.id,
-                title="Part Manufacturing Complete",
-                message=f"Part {item.sap_part_number} for demand {item.demand.formatted_id if item.demand else 'N/A'} is fully manufactured. Ready for dispatch.",
-                notification_type='PRODUCTION_DONE',
-                demand_id=item.demand_id,
-            )
-        db.session.commit()
 
     log_audit("DEO_MACHINE_ENTRY_CREATED")
     return jsonify({"success": True, "data": entry.to_dict()}), 201
@@ -748,4 +865,64 @@ def deo_mark_notification_read(notif_id):
     notif.read_at = datetime.now()
     db.session.commit()
     return jsonify({"success": True})
+
+
+@deo_bp.route('/shortage-history-aggregate', methods=['GET'])
+@jwt_required()
+@role_required(['DEO', 'Supervisor', 'Admin', 'Manager'])
+def get_shortage_history_aggregate():
+    from app.models import PartShortageRequest, MachineProductionEntry, ProductionLine
+    from sqlalchemy import func
+
+    comp_reqs = PartShortageRequest.query.filter(
+        PartShortageRequest.status.in_(['COMPLETED', 'VERIFIED'])
+    ).order_by(PartShortageRequest.id.desc()).all()
+
+    results = []
+    for req in comp_reqs:
+        item = req.inventory_item
+        if not item:
+            continue
+
+        # Resolve machine name
+        last_entry = MachineProductionEntry.query.filter_by(inventory_item_id=item.id, status='VERIFIED').order_by(MachineProductionEntry.id.desc()).first()
+        
+        machine_name = '—'
+        if last_entry and last_entry.machine:
+            machine_name = last_entry.machine.name
+        elif req.machine:
+            machine_name = req.machine.name
+        elif req.line_name:
+            machine_name = req.line_name
+
+        # Sum production metrics from verified logs
+        stats = db.session.query(
+            func.sum(MachineProductionEntry.parts_produced).label('total_qty'),
+            func.sum(MachineProductionEntry.machine_runtime_mins).label('total_runtime'),
+            func.min(MachineProductionEntry.created_at).label('first_entry'),
+            func.max(MachineProductionEntry.created_at).label('last_entry')
+        ).filter_by(inventory_item_id=item.id, status='VERIFIED').first()
+
+        total_produced = stats.total_qty if stats and stats.total_qty else 0.0
+        total_runtime = stats.total_runtime if stats and stats.total_runtime else 0.0
+        
+        start_date = stats.first_entry if stats and stats.first_entry else req.created_at
+        end_date = stats.last_entry if stats and stats.last_entry else (req.deo_filled_at or req.admin_approved_at)
+
+        # Precaution: if end_date is None but we have a start date, use verified_at or datetime.now
+        if not end_date and req.status == 'COMPLETED':
+             end_date = req.admin_approved_at or datetime.now()
+
+        results.append({
+            "formatted_id": req.formatted_id,
+            "sap_part_number": item.sap_part_number,
+            "part_description": item.part_description,
+            "machine_name": machine_name,
+            "produced_qty": float(total_produced),
+            "runtime_mins": float(total_runtime),
+            "start_date": start_date.strftime('%Y-%m-%d') if start_date else '—',
+            "end_date": end_date.strftime('%Y-%m-%d') if end_date else '—'
+        })
+
+    return jsonify({"success": True, "data": results})
 

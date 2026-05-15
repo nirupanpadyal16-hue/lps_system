@@ -23,12 +23,14 @@ import { getToken } from '../../../../lib/storage';
 import {
     SUPERVISOR_VERIFY,
     SUPERVISOR_SHORTAGE,
+    SUPERVISOR_SHORTAGE_HISTORY,
     SUPERVISOR_REPORTS,
     SUPERVISOR_MONITORING,
     SUPERVISOR_ALERTS
 } from '../../../../config/routePaths';
 import { CustomModal } from '../../../deo/components/DEOModals';
 import SupervisorShortageVerify from '../SupervisorShortageVerify';
+import DEOShortageHistoryPage from '../../../deo/DEOShortageHistoryPage';
 import { SupervisorCalendar } from '../components/SupervisorCalendar';
 import { supervisorMachineApi } from '../../../../api/newRolesApi';
 
@@ -179,7 +181,7 @@ const SupervisorDashboardPage = () => {
                 fetch(`${API_BASE}/supervisor/shortage-entries`, {
                     headers: { Authorization: `Bearer ${token}` },
                 }),
-                supervisorMachineApi.getMachineEntries({ date: selectedDate })
+                supervisorMachineApi.getMachineEntries()
             ]);
 
             if (modelsRes.ok) {
@@ -551,6 +553,7 @@ const SupervisorDashboardPage = () => {
                 }} />
         ),
         [SUPERVISOR_SHORTAGE]: <SupervisorShortageVerify />,
+        [SUPERVISOR_SHORTAGE_HISTORY]: <DEOShortageHistoryPage />,
         [SUPERVISOR_REPORTS]: <SupervisorReports />,
         [SUPERVISOR_MONITORING]: <SupervisorMonitoring assignedModels={assignedModels} />,
         [SUPERVISOR_ALERTS]: <SupervisorAlerts />

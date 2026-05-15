@@ -39,7 +39,7 @@ def require_ppc(fn):
 @jwt_required()
 @require_ppc
 def get_demands():
-    demands = Demand.query.order_by(Demand.created_at.desc()).all()
+    demands = Demand.query.filter_by(is_deleted=False).order_by(Demand.created_at.desc()).all()
     return jsonify({"success": True, "data": [d.to_dict() for d in demands]})
 
 
@@ -101,45 +101,56 @@ def update_demand(demand_id):
 @require_ppc
 def delete_demand(demand_id):
     """
-    PPC Planner deletes a demand. Perform thorough cleanup of all associated data.
+    PPC Planner soft-deletes a demand. Data is preserved in DB as backup.
+    Only the is_deleted flag is set — no data is permanently removed.
     """
     demand = Demand.query.get(demand_id)
     if not demand:
         return jsonify({"success": False, "message": "Demand not found"}), 404
-    
-    model_id = demand.model_id
-    from app.models import (
-        InventoryItem, MachineProductionEntry, RMCheckRequest, 
-        PartShortageRequest, ShortageDailyEntry, DispatchRecord, DailyProductionLog, DailyWorkStatus
-    )
-    
-    # 1. Cleanup Production & Dispatch Logs
-    MachineProductionEntry.query.filter_by(demand_id=demand_id).delete()
-    DailyProductionLog.query.filter_by(demand_id=demand_id).delete()
-    DispatchRecord.query.filter_by(demand_id=demand_id).delete()
-    
-    # 2. Cleanup RM & Shortage Requests
-    items = InventoryItem.query.filter_by(demand_id=demand_id).all()
-    item_ids = [it.id for it in items]
-    if item_ids:
-        RMCheckRequest.query.filter(RMCheckRequest.inventory_item_id.in_(item_ids)).delete(synchronize_session=False)
-        psrs = PartShortageRequest.query.filter(PartShortageRequest.inventory_item_id.in_(item_ids)).all()
-        psr_ids = [p.id for p in psrs]
-        if psr_ids:
-            ShortageDailyEntry.query.filter(ShortageDailyEntry.shortage_request_id.in_(psr_ids)).delete(synchronize_session=False)
-            PartShortageRequest.query.filter(PartShortageRequest.id.in_(psr_ids)).delete(synchronize_session=False)
-            
-    # 3. Cleanup Inventory Items
-    InventoryItem.query.filter_by(demand_id=demand_id).delete()
-    
-    # 4. Cleanup Unique Model Clone
-    if model_id:
-        DailyWorkStatus.query.filter_by(car_model_id=model_id).delete()
-        InventoryItem.query.filter_by(car_model_id=model_id).delete()
-        
-    db.session.delete(demand)
+
+    demand.is_deleted = True
+    demand.deleted_at = datetime.utcnow()
     db.session.commit()
-    return jsonify({"success": True, "message": "Demand and all associated data deleted successfully"})
+    return jsonify({"success": True, "message": "Demand removed from view. Data has been backed up in the database."})
+
+
+@ppc_bp.route('/demands/<int:demand_id>/send-to-dispatch', methods=['POST'])
+@jwt_required()
+@require_ppc
+def send_demand_to_dispatch(demand_id):
+    """
+    PPC Planner / Admin authorizes a completed demand for Store Keeper dispatch.
+    Demand must be in PRODUCTION_DONE status.
+    Sets demand status → AWAITING_STORE_DISPATCH and notifies all Store Keepers.
+    """
+    user = get_ppc_user()
+    demand = Demand.query.get(demand_id)
+    if not demand:
+        return jsonify({"success": False, "message": "Demand not found"}), 404
+
+    if demand.status not in ('PRODUCTION_DONE',):
+        return jsonify({
+            "success": False,
+            "message": f"Demand must be in PRODUCTION_DONE status to send to dispatch. Current status: {demand.status}"
+        }), 400
+
+    demand.status = 'AWAITING_STORE_DISPATCH'
+    db.session.flush()
+
+    # Notify all Store Keepers
+    store_keepers = User.query.filter_by(role='Store_Keeper', is_active=True).all()
+    for sk in store_keepers:
+        Notification.send(
+            user_id=sk.id,
+            title="Model Ready for Dispatch",
+            message=f"{user.name} authorized dispatch for {demand.model_name} ({demand.formatted_id}). Please process delivery.",
+            notification_type='DISPATCH_AUTHORIZED',
+            demand_id=demand.id
+        )
+
+    db.session.commit()
+    return jsonify({"success": True, "data": demand.to_dict()})
+
 
 
 # ─────────────────────────────────────────────────────────
@@ -278,6 +289,8 @@ def upload_stock_excel():
 @jwt_required()
 @require_ppc
 def get_machine_registry():
+
+
     """
     Returns InventoryItem rows for active demands, enriched with:
     - Machine info from PartMachineMapping
@@ -295,9 +308,9 @@ def get_machine_registry():
             if d_obj: demand_id = d_obj.id
 
 
-    # Primary filter: Only show shortage items (Stock < Demand)
+    # Primary filter: Only show items that have an active shortage request workflow
     query = InventoryItem.query.filter(
-        (InventoryItem.initial_stock + InventoryItem.produced_qty) < InventoryItem.demand_quantity
+        InventoryItem.status.in_(['WAITING_RM_APPROVAL', 'PENDING_DEO', 'IN_PRODUCTION'])
     )
 
     if demand_id:
@@ -326,29 +339,41 @@ def get_machine_registry():
     if demand_id and not any_exists:
         demand = Demand.query.get(demand_id)
         if demand:
-            master_parts = MasterData.query.filter(MasterData.model.ilike(f"%{demand.model_name}%")).all()
-            result = []
-            for idx, part in enumerate(master_parts, start=1):
-                mapping = PartMachineMapping.query.filter_by(sap_part_number=part.sap_part_number).first()
-                result.append({
-                    "id": 0, # Virtual ID
-                    "demand_id": demand.id,
-                    "demand_formatted_id": demand.formatted_id,
-                    "serial_number": idx,
-                    "vehicle_name": demand.model_name,
-                    "sap_part_number": part.sap_part_number,
-                    "part_number": part.part_number,
-                    "assembly_number": part.assembly_number,
-                    "part_description": part.description,
-                    "current_stock": 0,
-                    "demand_quantity": demand.quantity,
-                    "shortage_quantity": demand.quantity,
-                    "machine_group": mapping.machine.replace(', ', ' → ') if mapping and mapping.machine else None,
-                    "rm_status": "NOT_SEEDED",
-                    "master_material_data": part.material_rel.to_dict() if part.material_rel else {},
-                    "rm_request": None
-                })
-            return jsonify({"success": True, "data": result})
+            # Use model_name from demand, or fallback to the name of the associated CarModel
+            search_name = demand.model_name
+            if not search_name and demand.model:
+                search_name = demand.model.name
+            
+            if search_name:
+                # Robust matching: Try exact match first, then ilike
+                master_parts = MasterData.query.filter(
+                    (db.func.lower(MasterData.model) == search_name.lower()) |
+                    (MasterData.model.ilike(f"%{search_name}%"))
+                ).all()
+                
+                result = []
+                for idx, part in enumerate(master_parts, start=1):
+                    mapping = PartMachineMapping.query.filter_by(sap_part_number=part.sap_part_number).first()
+                    result.append({
+                        "id": 0, # Virtual ID for frontend to recognize as new/unseeded
+                        "demand_id": demand.id,
+                        "demand_formatted_id": demand.formatted_id,
+                        "serial_number": idx,
+                        "vehicle_name": search_name,
+                        "sap_part_number": part.sap_part_number,
+                        "part_number": part.part_number,
+                        "assembly_number": part.assembly_number,
+                        "part_description": part.description,
+                        "current_stock": 0,
+                        "demand_quantity": demand.quantity,
+                        "shortage_quantity": demand.quantity,
+                        "machine_group": mapping.machine.replace(', ', ' → ') if mapping and mapping.machine else "UNASSIGNED",
+                        "rm_status": "NOT_SEEDED",
+                        "master_material_data": part.material_rel.to_dict() if part.material_rel else {},
+                        "rm_request": None
+                    })
+                return jsonify({"success": True, "data": result})
+
 
     result = []
     for item in items:

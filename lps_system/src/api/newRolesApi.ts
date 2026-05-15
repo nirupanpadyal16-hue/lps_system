@@ -14,6 +14,7 @@ export const ppcApi = {
   getDemands: () => axios.get(`${BASE_URL}/ppc/demands`, authHeaders()),
   createDemand: (data: any) => axios.post(`${BASE_URL}/ppc/demands`, data, authHeaders()),
   updateDemand: (id: number, data: any) => axios.put(`${BASE_URL}/ppc/demands/${id}`, data, authHeaders()),
+  sendToDispatch: (id: number) => axios.post(`${BASE_URL}/ppc/demands/${id}/send-to-dispatch`, {}, authHeaders()),
 
   // Inventory
   getInventory: (demandId?: number) =>
@@ -74,6 +75,7 @@ export const deoMachineApi = {
   createEntry: (data: any) => axios.post(`${BASE_URL}/deo/machine-entries`, data, authHeaders()),
   updateMachineEntry: (id: number, data: any) => axios.put(`${BASE_URL}/deo/machine-entries/${id}`, data, authHeaders()),
   getShortageRequests: () => axios.get(`${BASE_URL}/deo/shortage-requests`, authHeaders()),
+  getShortagePartsByMachine: () => axios.get(`${BASE_URL}/deo/shortage-parts-by-machine`, authHeaders()),
   getMachines: () => axios.get(`${BASE_URL}/deo/machines`, authHeaders()),
   getInventory: () => axios.get(`${BASE_URL}/deo/inventory`, authHeaders()),
   getNotifications: () => axios.get(`${BASE_URL}/deo/notifications`, authHeaders()),

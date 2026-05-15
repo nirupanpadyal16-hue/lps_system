@@ -215,6 +215,7 @@ const SKRMQueuePage: React.FC = () => {
                   <th className="px-4 py-2 text-left font-black whitespace-nowrap">Comp/Sheet</th>
                   <th className="px-4 py-2 text-left font-black whitespace-nowrap">RM Size</th>
                   <th className="px-4 py-2 text-left font-black whitespace-nowrap">RM Grade</th>
+                  <th className="px-4 py-2 text-left font-black whitespace-nowrap">PPC Notes</th>
                   <th className="px-4 py-2 text-left font-black whitespace-nowrap">Submitted</th>
                   <th className="px-4 py-2 text-left font-black whitespace-nowrap">Status</th>
                   <th className="px-4 py-2 text-center font-black whitespace-nowrap">Actions</th>
@@ -252,6 +253,7 @@ const SKRMQueuePage: React.FC = () => {
                       <td className="px-4 py-2 text-xs font-black text-slate-800 tabular-nums">{req.no_of_comp_per_sheet || '—'}</td>
                       <td className="px-4 py-2 text-xs font-black text-slate-800 whitespace-nowrap">{req.rm_size || '—'}</td>
                       <td className="px-4 py-2 text-xs font-black text-slate-800">{req.rm_grade || '—'}</td>
+                      <td className="px-4 py-2 text-xs font-bold text-slate-500 max-w-[150px] truncate" title={req.ppc_notes}>{req.ppc_notes || '—'}</td>
                       <td className="px-4 py-2 text-[9px] font-black text-slate-400 uppercase tracking-tighter tabular-nums">
                         {req.submitted_at ? new Date(req.submitted_at).toLocaleDateString() : '—'}
                       </td>

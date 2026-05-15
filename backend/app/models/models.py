@@ -422,12 +422,15 @@ class Demand(db.Model):
     quantity = db.Column(db.Integer)
     start_date = db.Column(db.String(20))  # Storing as string YYYY-MM-DD
     end_date = db.Column(db.String(20))
-    status = db.Column(db.String(20), default=Status.PENDING)  # Use constant
+    status = db.Column(db.String(50), default=Status.PENDING)  # Use constant
     line = db.Column(db.String(50))
     manager = db.Column(db.String(100))
     customer = db.Column(db.String(100))
     company = db.Column(db.String(100))
     created_at = db.Column(db.DateTime, default=db.func.now(), index=True)
+    # Soft delete fields — demand is hidden from UI but preserved in DB as backup
+    is_deleted = db.Column(db.Boolean, default=False, index=True)
+    deleted_at = db.Column(db.DateTime, nullable=True)
 
     # Relationship
     model = db.relationship('CarModel', backref='demands_list')
@@ -758,9 +761,11 @@ class InventoryItem(db.Model):
             return 'IN_PRODUCTION'
         if self.status == 'DISPATCHED':
             return 'DISPATCHED'
+        if self.status in ['WAITING_RM_APPROVAL', 'PENDING_DEO']:
+            return self.status
         if self.effective_stock >= self.demand_quantity:
             return 'STOCK_OK'
-        return 'SHORTAGE'
+        return 'NEW_DEMAND'
 
     def __repr__(self):
         return f'<InventoryItem {self.sap_part_number} stock={self.effective_stock} demand={self.demand_quantity}>'
@@ -903,6 +908,7 @@ class PartShortageRequest(db.Model):
             "machine_id": self.machine_id,
             "machine_name": self.machine.name if self.machine else None,
             "master_machine": next((m.machine for m in [PartMachineMapping.query.filter_by(sap_part_number=self.inventory_item.sap_part_number).first()] if m), None) if self.inventory_item else None,
+            "sub_machines": [{"id": m.id, "name": m.name, "parent_id": m.parent_id} for m in self.assigned_machines],
             "rejection_reason": next((e.rejection_reason for e in sorted(self.daily_entries, key=lambda x: x.id, reverse=True) if e.rejection_reason), None)
         }
 
@@ -1057,6 +1063,13 @@ class DispatchRecord(db.Model):
     challan_number = db.Column(db.String(100), nullable=True)   # Document/challan reference
     dispatch_notes = db.Column(db.Text, nullable=True)
 
+    # Logistics details (filled by Store Keeper)
+    vehicle_name = db.Column(db.String(100), nullable=True)
+    vehicle_number = db.Column(db.String(50), nullable=True)
+    driver_name = db.Column(db.String(100), nullable=True)
+    driver_contact = db.Column(db.String(50), nullable=True)
+    transporter_name = db.Column(db.String(150), nullable=True)
+
     # Verification
     status = db.Column(db.String(30), default='DISPATCHED')  # DISPATCHED | VERIFIED | RETURNED
     verified_at = db.Column(db.DateTime, nullable=True)
@@ -1086,6 +1099,11 @@ class DispatchRecord(db.Model):
             "client_name": self.client_name,
             "challan_number": self.challan_number,
             "dispatch_notes": self.dispatch_notes,
+            "vehicle_name": self.vehicle_name,
+            "vehicle_number": self.vehicle_number,
+            "driver_name": self.driver_name,
+            "driver_contact": self.driver_contact,
+            "transporter_name": self.transporter_name,
             "status": self.status,
             "verified_at": self.verified_at.isoformat() if self.verified_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
@@ -1179,6 +1197,14 @@ class MachineProductionEntry(db.Model):
         # Auto-update status
         if item.produced_qty >= item.demand_quantity:
             item.status = 'PRODUCTION_DONE'
+            
+            # Complete shortages and vacate occupied machines
+            psrs = PartShortageRequest.query.filter_by(inventory_item_id=item.id).all()
+            for psr in psrs:
+                if psr.status != 'COMPLETED':
+                    psr.status = 'COMPLETED'
+                    psr.assigned_machines = []  # Vacate machines
+                    
         else:
             item.status = 'IN_PRODUCTION'
         db.session.flush()

@@ -282,18 +282,17 @@ export const SupervisorVerifyLogs = ({
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 text-center">
-                                                    {['APPROVED', 'VERIFIED', 'READY', 'DONE'].includes((item.status || 'PENDING').toUpperCase()) ? (
-                                                        <span className="text-[16px] font-black text-[#f97316] leading-none tabular-nums">{item.parts_produced || item.actual_qty || '0'}</span>
-                                                    ) : (
-                                                        <span className="text-[10px] font-bold text-slate-300 uppercase italic">Review Pending</span>
-                                                    )}
+                                                    <span className="text-[16px] font-black text-[#f97316] leading-none tabular-nums">
+                                                        {item.parts_produced ?? item.actual_qty ?? '—'}
+                                                    </span>
                                                 </td>
                                                 <td className="px-6 py-4 text-center font-black text-blue-600 text-[13px]">
-                                                    {['APPROVED', 'VERIFIED', 'READY', 'DONE'].includes((item.status || 'PENDING').toUpperCase()) ? (
-                                                        `${item.machine_run_time || '0'} hrs`
-                                                    ) : (
-                                                        <span className="text-slate-300">—</span>
-                                                    )}
+                                                    {item.machine_runtime_mins
+                                                        ? `${(item.machine_runtime_mins / 60).toFixed(1)} hrs`
+                                                        : item.machine_run_time
+                                                            ? `${item.machine_run_time} hrs`
+                                                            : <span className="text-slate-300">—</span>
+                                                    }
                                                 </td>
                                                 <td className="px-6 py-4 text-center">
                                                     <span className={cn(
@@ -323,16 +322,21 @@ export const SupervisorVerifyLogs = ({
                                                                 e.stopPropagation();
                                                                 setSelectedLog(item);
                                                             }}
-                                                            disabled={['APPROVED', 'VERIFIED', 'READY', 'DONE'].includes((item.status || 'PENDING').toUpperCase())}
                                                             className={cn(
                                                                 "px-4 h-[32px] rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-sm",
                                                                 ['APPROVED', 'VERIFIED', 'READY', 'DONE'].includes((item.status || 'PENDING').toUpperCase())
-                                                                    ? "bg-slate-50 text-slate-300 border border-slate-100 cursor-not-allowed"
-                                                                    : "bg-gradient-to-r from-[#F37021] to-orange-600 text-white shadow-lg shadow-orange-500/10 hover:shadow-orange-500/20 active:scale-95"
+                                                                    ? "bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100 active:scale-95"
+                                                                    : item.status === 'REJECTED'
+                                                                        ? "bg-rose-50 text-rose-500 border border-rose-100 hover:bg-rose-100 active:scale-95"
+                                                                        : "bg-gradient-to-r from-[#F37021] to-orange-600 text-white shadow-lg shadow-orange-500/10 hover:shadow-orange-500/20 active:scale-95"
                                                             )}
                                                         >
-                                                            {['APPROVED', 'VERIFIED', 'READY', 'DONE'].includes((item.status || 'PENDING').toUpperCase()) ? 'Verified' : 'Review Log'}
-                                                            <ArrowRight size={12} className={cn(['APPROVED', 'VERIFIED', 'READY', 'DONE'].includes((item.status || 'PENDING').toUpperCase()) ? "opacity-30" : "")} />
+                                                            {['APPROVED', 'VERIFIED', 'READY', 'DONE'].includes((item.status || 'PENDING').toUpperCase())
+                                                                ? 'View / Observe'
+                                                                : item.status === 'REJECTED'
+                                                                    ? 'Review Again'
+                                                                    : 'Review Log'}
+                                                            <ArrowRight size={12} />
                                                         </button>
                                                     </div>
                                                 </td>

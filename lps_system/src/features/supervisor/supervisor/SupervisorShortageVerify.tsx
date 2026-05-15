@@ -529,46 +529,55 @@ export default function SupervisorShortageVerify() {
             name: string;
             totalShortages: number;
             pendingCount: number;
-            sub_machines: string[];
+            sub_machines: any[];
             total_machines_master?: number | null;
         }> = {};
 
+        // 1. Initialize with all master groups
+        lineGroupsMaster.forEach(lg => {
+            groups[lg.name] = {
+                name: lg.name,
+                totalShortages: 0,
+                pendingCount: 0,
+                sub_machines: lg.sub_machines || [],
+                total_machines_master: lg.total_machines
+            };
+        });
+
+        // 2. Add shortage counts from entries
         latestEntries.forEach(entry => {
+            // Exclude verified items from main grid metrics unless specifically viewing verified logs
+            if (entry.status === 'VERIFIED' && statusFilter !== 'verified') return;
+
             const req = entry.shortage_request;
             const rawLine = req?.master_machine || req?.line_name || 'Generic';
             const individualLines = rawLine.split(',').map(s => s.trim()).filter(Boolean);
 
             individualLines.forEach(lineName => {
                 if (!groups[lineName]) {
-                    const masterGroup = lineGroupsMaster.find(lg => lg.name === lineName);
                     groups[lineName] = {
                         name: lineName,
                         totalShortages: 0,
                         pendingCount: 0,
                         sub_machines: [],
-                        total_machines_master: masterGroup ? masterGroup.total_machines : null
+                        total_machines_master: null
                     };
                 }
                 groups[lineName].totalShortages++;
                 if (entry.status === 'PENDING_SUPERVISOR') {
                     groups[lineName].pendingCount++;
                 }
-                
-                const subMachineName = req?.line_name || lineName;
-                if (!groups[lineName].sub_machines.includes(subMachineName)) {
-                    groups[lineName].sub_machines.push(subMachineName);
-                }
             });
         });
 
         return Object.values(groups).sort((a, b) => b.pendingCount - a.pendingCount);
-    }, [latestEntries, lineGroupsMaster]);
+    }, [latestEntries, lineGroupsMaster, statusFilter]);
 
     const displayItems = useMemo(() => {
         if (!selectedLine) return [];
         
-        const masterGroup = lineGroupsMaster.find(lg => lg.name === selectedLine);
-        const machines = (masterGroup && Array.isArray(masterGroup.machines)) ? [...masterGroup.machines] : [selectedLine];
+        const group = lineGroups.find(lg => lg.name === selectedLine);
+        const allSubMachines = group ? group.sub_machines : [];
 
         const lineEntries = latestEntries.filter(entry => {
             const req = entry.shortage_request;
@@ -576,33 +585,44 @@ export default function SupervisorShortageVerify() {
             return rawLine.split(',').map(s => s.trim()).includes(selectedLine);
         });
 
+        if (allSubMachines.length === 0) {
+            return lineEntries.map(e => ({
+                machineName: e.shortage_request?.line_name || 'Generic',
+                entry: e
+            }));
+        }
+
         const result: { machineName: string; entry: ShortageEntry | null }[] = [];
         const assignedEntryIds = new Set<number>();
         
-        machines.forEach(mName => {
-            const machineEntries = lineEntries.filter(e => e.shortage_request?.line_name === mName);
+        allSubMachines.forEach((sub: any) => {
+            const machineEntries = lineEntries.filter(e => 
+                e.shortage_request?.line_name?.trim().toUpperCase() === sub.name?.trim().toUpperCase()
+            );
+            
             if (machineEntries.length > 0) {
+                // If multiple entries for the same machine, add all (though usually it's 1 active)
                 machineEntries.forEach(e => {
-                    result.push({ machineName: mName, entry: e });
+                    result.push({ machineName: sub.name, entry: e });
                     assignedEntryIds.add(e.id);
                 });
             } else {
-                result.push({ machineName: mName, entry: null });
+                result.push({ machineName: sub.name, entry: null });
             }
         });
 
-        // Add any entries that didn't match a specific machine in the master group
+        // Add any generic entries for this group that didn't match a specific sub-machine
         lineEntries.forEach(e => {
             if (!assignedEntryIds.has(e.id)) {
                 result.push({ 
-                    machineName: e.shortage_request?.line_name || selectedLine, 
+                    machineName: e.shortage_request?.line_name || 'Generic', 
                     entry: e 
                 });
             }
         });
 
         return result;
-    }, [selectedLine, lineGroupsMaster, latestEntries]);
+    }, [selectedLine, lineGroups, latestEntries]);
 
     const filteredEntries = useMemo(() => {
         return latestEntries.filter(entry => {
@@ -619,7 +639,10 @@ export default function SupervisorShortageVerify() {
                 entry.shortage_request?.formatted_id?.toLowerCase().includes(query);
             if (searchQuery && !partMatch) return false;
 
-            if (statusFilter !== 'all') {
+            if (statusFilter === 'all') {
+                // "Active Status" by default excludes verified logs to prevent clutter
+                if (entry.status === 'VERIFIED') return false;
+            } else {
                 if (statusFilter === 'pending' && entry.status !== 'PENDING_SUPERVISOR') return false;
                 if (statusFilter === 'verified' && entry.status !== 'VERIFIED') return false;
                 if (statusFilter === 'rejected' && entry.status !== 'REJECTED') return false;
@@ -695,7 +718,7 @@ export default function SupervisorShortageVerify() {
                             onChange={(e) => setStatusFilter(e.target.value)}
                             className="w-full bg-white border border-slate-200 focus:border-orange-500 rounded-full h-[42px] pl-12 pr-10 text-slate-700 font-bold text-[11px] tracking-wide outline-none transition-all shadow-sm cursor-pointer appearance-none uppercase"
                         >
-                            <option value="all">All Status</option>
+                            <option value="all">Active Status</option>
                             <option value="pending">Pending</option>
                             <option value="verified">Verified</option>
                             <option value="rejected">Rejected</option>
@@ -815,6 +838,7 @@ export default function SupervisorShortageVerify() {
                                         <th className="px-6 py-4 text-center whitespace-nowrap">SAP Stock</th>
                                         <th className="px-6 py-4 text-center whitespace-nowrap">Opening</th>
                                         <th className="px-6 py-4 text-center whitespace-nowrap">Today's</th>
+                                        <th className="px-6 py-4 text-center whitespace-nowrap">Target</th>
                                         <th className="px-6 py-4 text-center whitespace-nowrap">Status</th>
                                         <th className="px-6 py-4 text-right whitespace-nowrap">Actions</th>
                                     </tr>
@@ -870,6 +894,9 @@ export default function SupervisorShortageVerify() {
                                                     <span className="text-[11px] font-black text-orange-600 tabular-nums">{entry?.todays_stock ?? '—'}</span>
                                                 </td>
                                                 <td className="px-6 py-4 text-center">
+                                                    <span className="text-[11px] font-black text-indigo-600 tabular-nums">{entry ? needTotal : '—'}</span>
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
                                                     {entry ? (
                                                         <span className={cn(
                                                             "px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border",
@@ -879,7 +906,11 @@ export default function SupervisorShortageVerify() {
                                                         )}>
                                                             {entry.status === 'PENDING_SUPERVISOR' ? 'SUBMITTED' : entry.status}
                                                         </span>
-                                                    ) : '—'}
+                                                    ) : (
+                                                        <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border bg-slate-50 text-slate-400 border-slate-200">
+                                                            IDLE
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
                                                     {entry && (

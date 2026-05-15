@@ -19,6 +19,7 @@ import {
     Bell,
     FileText,
     CheckSquare,
+    History,
 } from 'lucide-react';
 
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -44,10 +45,13 @@ import {
     DEO_VERIFY,
     DEO_NOTIFICATIONS,
     DEO_SHORTAGE,
+    DEO_SHORTAGE_HISTORY,
     DEO_MACHINE_ENTRY,
+    DEO_LINES,
     SUPERVISOR_DASHBOARD,
     SUPERVISOR_VERIFY,
     SUPERVISOR_SHORTAGE,
+    SUPERVISOR_SHORTAGE_HISTORY,
     SUPERVISOR_REPORTS,
     SUPERVISOR_ALERTS,
     SUPERVISOR_MONITORING,
@@ -100,7 +104,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 { icon: Package, label: 'Inventory', path: ADMIN_INVENTORY },
                 { icon: Search, label: 'Machine Registry', path: ADMIN_PART_LOOKUP },
                 { icon: Activity, label: 'Production Lines', path: ADMIN_LINES },
-                { icon: Factory, label: 'Machine Monitor', path: SUPERVISOR_MACHINE_MONITOR },
+                { icon: Factory, label: 'Machine Monitor', path: '/admin/machine-monitor' },
                 { icon: Target, label: 'New Registration Car Model', path: ADMIN_MODELS },
             ]
         },
@@ -123,6 +127,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 // { icon: Factory, label: 'Machine Monitor', path: SUPERVISOR_MACHINE_MONITOR },
                 { icon: ClipboardCheck, label: 'Verify Production Logs', path: SUPERVISOR_VERIFY },
                 { icon: Mail, label: 'Verify Shortage Requests', path: SUPERVISOR_SHORTAGE },
+                { icon: History, label: 'Shortage History', path: SUPERVISOR_SHORTAGE_HISTORY },
             ]
         }
     ];
@@ -135,10 +140,10 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         {
             title: 'OPERATOR CONSOLE',
             items: [
-                { icon: Activity, label: 'Dashboard', path: DEO_DASHBOARD },
                 { icon: ClipboardCheck, label: 'Daily Production', path: DEO_ENTRY },
                 // { icon: ClipboardList, label: 'Machine Entry', path: DEO_MACHINE_ENTRY },
                 { icon: Mail, label: 'Shortage Requests', path: DEO_SHORTAGE },
+                { icon: History, label: 'Shortage History', path: DEO_SHORTAGE_HISTORY },
             ]
         }
     ];

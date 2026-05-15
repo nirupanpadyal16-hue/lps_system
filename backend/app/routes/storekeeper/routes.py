@@ -92,6 +92,7 @@ def accept_rm_request(rm_id):
     if item and item.effective_stock < item.demand_quantity:
         # Generate PSR formatted_id
         from sqlalchemy import func
+        from app.models import PartMachineMapping
         max_psr_id = db.session.query(func.max(PartShortageRequest.id)).scalar() or 0
         psr_formatted_id = f"PSR-{(max_psr_id + 1):03d}"
         
@@ -109,6 +110,38 @@ def accept_rm_request(rm_id):
             supervisor_id=model.supervisor_id if model else None,
             line_id=model.production_line_id if model else None,
         )
+        
+        # ─── DYNAMIC SUB-MACHINE LOAD BALANCING ───
+        mapping = PartMachineMapping.query.filter_by(sap_part_number=item.sap_part_number).first()
+        if mapping and mapping.machine:
+            master_names = [name.strip() for name in mapping.machine.split(',') if name.strip()]
+            for master_name in master_names:
+                master_line = ProductionLine.query.filter_by(name=master_name, parent_id=None).first()
+                if master_line:
+                    sub_machines = ProductionLine.query.filter_by(parent_id=master_line.id, is_active=True).all()
+                    if not sub_machines:
+                        # No sub-machines, just use the master line
+                        psr.assigned_machines.append(master_line)
+                    else:
+                        # Find the least loaded sub-machine
+                        least_loaded = None
+                        min_load = float('inf')
+                        for sub in sub_machines:
+                            load = PartShortageRequest.query.filter(
+                                PartShortageRequest.assigned_machines.any(id=sub.id),
+                                PartShortageRequest.status.in_(['PENDING', 'IN_PROGRESS', 'DEO_FILLED'])
+                            ).count()
+                            if load < min_load:
+                                min_load = load
+                                least_loaded = sub
+                        
+                        if least_loaded:
+                            psr.assigned_machines.append(least_loaded)
+            
+            # Set the primary machine_id to the first routed sub-machine for legacy compatibility
+            if psr.assigned_machines:
+                psr.machine_id = psr.assigned_machines[0].id
+
         db.session.add(psr)
         
         # Update item status to PENDING_DEO
@@ -219,24 +252,20 @@ def reject_rm_request(rm_id):
 @require_sk
 def get_dispatch_queue():
     """
-    Returns demands/inventory items that are PRODUCTION_DONE and ready for dispatch.
+    Returns demands that are AWAITING_STORE_DISPATCH (explicitly authorized by PPC/Admin).
     """
-    # Get all inventory items that are PRODUCTION_DONE (not yet dispatched)
-    items = InventoryItem.query.filter_by(status='PRODUCTION_DONE').all()
+    # Get demands explicitly authorized for dispatch
+    demands = Demand.query.filter_by(status='AWAITING_STORE_DISPATCH').all()
 
-    # Group by demand
-    demand_map = {}
-    for item in items:
-        did = item.demand_id
-        if did not in demand_map:
-            demand = Demand.query.get(did) if did else None
-            demand_map[did] = {
-                "demand": demand.to_dict() if demand else None,
-                "parts": []
-            }
-        demand_map[did]["parts"].append(item.to_dict())
+    results = []
+    for demand in demands:
+        items = InventoryItem.query.filter_by(demand_id=demand.id).all()
+        results.append({
+            "demand": demand.to_dict(),
+            "parts": [i.to_dict() for i in items]
+        })
 
-    return jsonify({"success": True, "data": list(demand_map.values())})
+    return jsonify({"success": True, "data": results})
 
 
 @sk_bp.route('/dispatches', methods=['GET'])
@@ -254,8 +283,9 @@ def get_dispatches():
 def create_dispatch():
     """
     Store Keeper dispatches completed parts to client.
-    Updates InventoryItem status to DISPATCHED.
-    Updates Demand status to DISPATCHED.
+    Captures full vehicle/driver/transporter details.
+    Auto-deducts dispatched quantities from InventoryItem.current_stock.
+    Updates InventoryItem status → DISPATCHED and Demand status → DISPATCHED.
     """
     user = get_sk_user()
     data = request.json or {}
@@ -280,19 +310,28 @@ def create_dispatch():
         dispatch_date=datetime.utcnow().date(),
         quantity_dispatched=data.get('quantity_dispatched', 0),
         vehicle_count=data.get('vehicle_count', 0),
-        client_name=data.get('client_name', ''),
+        client_name=data.get('client_name', data.get('company_name', '')),
         challan_number=data.get('challan_number'),
         dispatch_notes=data.get('dispatch_notes'),
+        # Vehicle / Driver / Transporter details
+        vehicle_name=data.get('vehicle_name', ''),
+        vehicle_number=data.get('vehicle_number', ''),
+        driver_name=data.get('driver_name', ''),
+        driver_contact=data.get('driver_contact', ''),
+        transporter_name=data.get('transporter_name', ''),
         status='DISPATCHED',
     )
     db.session.add(dispatch)
 
-    # Mark specified inventory items as DISPATCHED
+    # Mark specified inventory items as DISPATCHED + deduct stock
     for item_id in inventory_item_ids:
         item = InventoryItem.query.get(item_id)
         if item:
             item.status = 'DISPATCHED'
-            dispatch.inventory_item_id = item_id  # Link last item (or use separate table for multi)
+            # Physical stock deduction
+            deduction = item.demand_quantity or 0
+            item.current_stock = max(0, (item.current_stock or 0) - deduction)
+            dispatch.inventory_item_id = item_id
 
     # Mark demand as DISPATCHED
     demand = Demand.query.get(demand_id)
@@ -307,7 +346,7 @@ def create_dispatch():
         Notification.send(
             user_id=admin.id,
             title="Parts Dispatched to Client",
-            message=f"Store Keeper {user.name} dispatched {dispatch.quantity_dispatched} parts to {dispatch.client_name}. Challan: {dispatch.challan_number or 'N/A'}",
+            message=f"Store Keeper {user.name} dispatched to {dispatch.client_name}. Driver: {dispatch.driver_name}. Vehicle: {dispatch.vehicle_name} ({dispatch.vehicle_number}). Challan: {dispatch.challan_number or 'N/A'}",
             notification_type='DISPATCHED',
             demand_id=demand_id,
             dispatch_id=dispatch.id

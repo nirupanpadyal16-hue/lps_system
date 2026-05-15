@@ -7,11 +7,13 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Car, Plus, Search, Edit2, Trash2, AlertTriangle,
-    Eye, Calendar, Info, Clock, MapPin, ChevronDown, LayoutGrid
+    Eye, Calendar, Info, Clock, MapPin, ChevronDown, LayoutGrid, Truck
 } from 'lucide-react';
 import { getToken } from '../../lib/storage';
 import { API_BASE } from '../../lib/apiConfig';
+import { ppcApi } from '../../api/newRolesApi';
 import DemandFormModal from '../admin/demand/DemandFormModal';
+import toast from 'react-hot-toast';
 
 interface Demand {
     id: number;
@@ -75,6 +77,20 @@ const PPCDemandPage = () => {
             setIsDeleteModalOpen(false);
             setDemandToDelete(null);
         } catch (e) { console.error(e); }
+    };
+
+    const handleSendToDispatch = async (demand: Demand) => {
+        try {
+            const res = await ppcApi.sendToDispatch(demand.id);
+            if (res.data.success) {
+                toast.success(`${demand.model_name} sent to Store Keeper for dispatch!`);
+                loadData();
+            } else {
+                toast.error(res.data.message || 'Failed to send to dispatch');
+            }
+        } catch (e: any) {
+            toast.error(e?.response?.data?.message || 'Failed to send to dispatch');
+        }
     };
 
     const filtered = demands.filter(d => {
@@ -216,16 +232,29 @@ const PPCDemandPage = () => {
                                                 demand.status === 'PENDING' ? 'bg-amber-50 text-amber-600 border-amber-100' :
                                                 demand.status === 'IN_PROGRESS' ? 'bg-blue-50 text-blue-600 border-blue-100' :
                                                 demand.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                                demand.status === 'PRODUCTION_DONE' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
+                                                demand.status === 'AWAITING_STORE_DISPATCH' ? 'bg-orange-50 text-orange-600 border-orange-100' :
+                                                demand.status === 'DISPATCHED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
                                                 'bg-ind-bg text-ind-text2 border-ind-border'
                                             }`}>
-                                                {demand.status.replace('_', ' ')}
+                                                {demand.status.replace(/_/g, ' ')}
                                             </span>
                                         </td>
                                         <td className="px-6 py-2 text-right">
                                             <div className="font-bold text-xs text-slate-800">{demand.quantity?.toLocaleString()} Units</div>
                                         </td>
                                         <td className="px-6 py-2 text-right">
-                                            <div className="flex justify-end gap-2">
+                                            <div className="flex justify-end gap-2 items-center">
+                                                {/* Send to Dispatch – only visible for PRODUCTION_DONE */}
+                                                {demand.status === 'PRODUCTION_DONE' && (
+                                                    <button
+                                                        onClick={() => handleSendToDispatch(demand)}
+                                                        title="Send to Store Keeper for Dispatch"
+                                                        className="flex items-center gap-1.5 px-3 h-8 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest transition-all shadow-sm active:scale-95"
+                                                    >
+                                                        <Truck size={12} /> Dispatch
+                                                    </button>
+                                                )}
                                                 <button
                                                     onClick={() => setSelectedInfoDemand(demand)}
                                                     className="p-1 hover:bg-orange-50 rounded-md"

@@ -500,7 +500,7 @@ export default function InventoryPage() {
                 return [key, { key, vehicleName: i.vehicle_name, demandId: dId, formattedDemandId: fId }];
             })
         ).values()
-    ).sort((a, b) => a.vehicleName.localeCompare(b.vehicleName));
+    ).sort((a, b) => (a.vehicleName || '').localeCompare(b.vehicleName || ''));
 
     const seededDemandIds = new Set(items.map(i => i.demand_id).filter(id => id !== null));
     const availableDemands = demands.filter(d => !seededDemandIds.has(d.id));

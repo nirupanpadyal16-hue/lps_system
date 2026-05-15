@@ -44,7 +44,8 @@ def get_staff():
 # ---------------------------------------------------------------------------
 @admin_bp.route('/lines', methods=['GET'])
 @jwt_required()
-@role_required(['Admin', 'Manager', 'PPC_Planner'])
+@role_required(['Admin', 'Manager', 'PPC_Planner', 'DEO', 'Supervisor'])
+
 def get_lines():
     lines = ProductionLine.query.all()
     return jsonify({
@@ -113,7 +114,7 @@ def get_machines_status():
 
 @admin_bp.route('/lines', methods=['POST'])
 @jwt_required()
-@role_required(['Admin'])
+@role_required(['Admin', 'Manager', 'PPC_Planner', 'DEO', 'Supervisor'])
 def create_line():
     data = request.json
     if not data or not data.get('name'):
@@ -133,7 +134,7 @@ def create_line():
 
 @admin_bp.route('/lines/<int:line_id>', methods=['PUT'])
 @jwt_required()
-@role_required(['Admin'])
+@role_required(['Admin', 'Manager', 'PPC_Planner', 'DEO', 'Supervisor'])
 def update_line(line_id):
     line = ProductionLine.query.get(line_id)
     if not line:
@@ -152,7 +153,7 @@ def update_line(line_id):
 
 @admin_bp.route('/lines/<int:line_id>', methods=['DELETE'])
 @jwt_required()
-@role_required(['Admin'])
+@role_required(['Admin', 'Manager', 'PPC_Planner', 'DEO', 'Supervisor'])
 def delete_line(line_id):
     line = ProductionLine.query.get(line_id)
     if not line:
@@ -1221,7 +1222,7 @@ def create_shortage_request():
         item = InventoryItem.query.get(item_id)
         if not item:
             continue
-        item.status = 'PENDING_DEO'
+        item.status = 'WAITING_RM_APPROVAL'
         shortage_qty = max(item.demand_quantity - item.current_stock, 0)
         
         # ── Auto-Allocation Logic ──────────────────────────────────────────
@@ -1258,7 +1259,7 @@ def create_shortage_request():
             inventory_item_id=item.id,
             shortage_quantity=shortage_qty,
             deadline=deadline,
-            status='PENDING',
+            status='WAITING_RM_APPROVAL',
             deo_id=deo_id,
             supervisor_id=supervisor_id,
             line_id=line_id,

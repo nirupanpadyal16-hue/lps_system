@@ -90,22 +90,28 @@ const DEODailyProduction: React.FC = () => {
   const [showFormModal, setShowFormModal] = useState(false);
   const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
   const [formShift, setFormShift] = useState('Shift I');
-  const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
-  const [subMachineLogs, setSubMachineLogs] = useState<any[]>([]);
+  const [formSapPart, setFormSapPart] = useState('');
+  const [formSubMachine, setFormSubMachine] = useState('');
+  const [formMachineId, setFormMachineId] = useState<number | null>(null);
+  const [formProduced, setFormProduced] = useState('');
+  const [formRunTime, setFormRunTime] = useState('');
   const [remark, setRemark] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
   const [editingStatus, setEditingStatus] = useState<string | null>(null);
 
+  const [shortageRequests, setShortageRequests] = useState<any[]>([]);
+
   const fetchData = async (dateOverride?: string) => {
     setLoading(true);
     const targetDate = dateOverride !== undefined ? dateOverride : filterDate;
     try {
-      const [historyRes, inventoryRes, machinesRes] = await Promise.all([
+      const [historyRes, inventoryRes, machinesRes, shortageRes] = await Promise.all([
         deoMachineApi.getEntries({ date: targetDate }),
         deoMachineApi.getInventory(),
-        deoMachineApi.getMachines()
+        deoMachineApi.getMachines(),
+        deoMachineApi.getShortageRequests()
       ]);
       const mappedHistory = (historyRes.data?.data || []).map((e: any) => ({
         ...e,
@@ -114,6 +120,7 @@ const DEODailyProduction: React.FC = () => {
       setHistoryEntries(mappedHistory);
       setInventoryItems(inventoryRes.data?.data || []);
       setMachines(machinesRes.data?.data || []);
+      setShortageRequests(shortageRes.data?.data || []);
     } catch (error) {
       toast.error('Failed to sync with terminal');
     } finally {
@@ -126,23 +133,16 @@ const DEODailyProduction: React.FC = () => {
   }, [filterDate, filterShift]);
 
   useEffect(() => {
-    if (selectedMachine && !isEditing) {
-      const newLogs = selectedMachine.children.map((sm: any) => {
-        return {
-          id: sm.id,
-          name: sm.name,
-          part_id: '',
-          sap_part_number: '',
-          production: '',
-          run_time: ''
-        };
-      });
-      setSubMachineLogs(newLogs);
+    if (!isEditing && formSapPart.trim().length > 3) {
+      const req = shortageRequests.find(r => r.inventory_item?.sap_part_number?.toUpperCase() === formSapPart.toUpperCase().trim());
+      if (req && req.machine_name) {
+        setFormSubMachine(req.machine_name);
+        setFormMachineId(req.machine_id);
+      }
     }
-  }, [selectedMachine, isEditing, inventoryItems]);
+  }, [formSapPart, shortageRequests, isEditing]);
 
   const handleReset = () => {
-    setSelectedMachine(null);
     setRemark('');
     setIsEditing(false);
     setEditingId(null);
@@ -150,7 +150,11 @@ const DEODailyProduction: React.FC = () => {
     setEditingStatus(null);
     setFormDate(new Date().toISOString().split('T')[0]);
     setFormShift('Shift I');
-    setSubMachineLogs([]);
+    setFormSapPart('');
+    setFormSubMachine('');
+    setFormMachineId(null);
+    setFormProduced('');
+    setFormRunTime('');
   };
 
   const handleEdit = (entry: ProductionEntry) => {
@@ -162,75 +166,64 @@ const DEODailyProduction: React.FC = () => {
     setRejectionReason(entry.rejection_reason || null);
     setEditingStatus(entry.status);
 
-    const part = inventoryItems.find(p => p.sap_part_number === entry.sap_part_number);
-
-    setSubMachineLogs([{
-      id: entry.machine_id || `temp_${Math.random()}`,
-      name: entry.sub_machine_name || '',
-      sap_part_number: entry.sap_part_number,
-      part_id: part?.id.toString() || '',
-      production: entry.parts_produced.toString(),
-      run_time: entry.machine_run_time?.toString() || ''
-    }]);
-
-    const parentMachine = machines.find(m => m.children.some(c => c.id === parseInt(entry.machine_id)));
-    setSelectedMachine(parentMachine || null);
+    setFormSapPart(entry.sap_part_number || '');
+    setFormSubMachine(entry.sub_machine_name || entry.machine_name || '');
+    setFormMachineId(entry.machine_id ? parseInt(entry.machine_id) : null);
+    setFormProduced(entry.parts_produced?.toString() || '');
+    setFormRunTime(entry.machine_run_time?.toString() || '');
 
     setShowFormModal(true);
   };
 
   const handleSubmit = async () => {
-    const validLogs = subMachineLogs.filter(log => log.production);
-
-    if (validLogs.length === 0) {
+    if (!formProduced) {
       toast.error('Please enter production quantity');
       return;
     }
-
-    // Validation Check: Ensure all rows have a part number
-    const missingSap = validLogs.find(log => !log.sap_part_number);
-    if (missingSap) {
-      toast.error(`Please enter SAP Part Number for all rows with production.`);
+    if (!formSapPart) {
+      toast.error('Please enter SAP Part Number');
       return;
     }
 
     setSubmitting(true);
     try {
-      for (const log of validLogs) {
-        let mId = typeof log.id === 'string' && log.id.startsWith('temp_') ? null : log.id;
+      let mId = formMachineId;
 
-        // Intelligent ID Lookup: If manual entry, try to find the real machine ID by name
-        if (!mId && log.name) {
-          for (const m of machines) {
-            const child = m.children.find(c => c.name.toLowerCase().trim() === log.name.toLowerCase().trim());
-            if (child) {
-              mId = child.id;
-              break;
-            }
-            if (m.name.toLowerCase().trim() === log.name.toLowerCase().trim()) {
-              mId = m.id;
-              break;
-            }
+      // Intelligent ID Lookup: If manual entry, try to find the real machine ID by name
+      if (!mId && formSubMachine) {
+        for (const m of machines) {
+          const child = m.children.find(c => c.name.toLowerCase().trim() === formSubMachine.toLowerCase().trim());
+          if (child) {
+            mId = child.id;
+            break;
+          }
+          if (m.name.toLowerCase().trim() === formSubMachine.toLowerCase().trim()) {
+            mId = m.id;
+            break;
           }
         }
-
-        const entryData = {
-          inventory_item_id: log.part_id ? parseInt(log.part_id) : null,
-          shift: formShift,
-          date: formDate,
-          parts_produced: parseFloat(log.production),
-          machine_id: mId,
-          sap_part_number: log.sap_part_number,
-          machine_runtime_mins: log.run_time ? parseFloat(log.run_time) : null,
-          deo_notes: remark
-        };
-
-        if (isEditing && editingId) {
-          await deoMachineApi.updateMachineEntry(editingId, entryData);
-        } else {
-          await deoMachineApi.createEntry(entryData);
-        }
       }
+
+      // Try to find part id from inventory
+      const part = inventoryItems.find(p => p.sap_part_number.toUpperCase() === formSapPart.toUpperCase().trim());
+
+      const entryData = {
+        inventory_item_id: part ? part.id : null,
+        shift: formShift,
+        date: formDate,
+        parts_produced: parseFloat(formProduced),
+        machine_id: mId,
+        sap_part_number: formSapPart.toUpperCase().trim(),
+        machine_runtime_mins: formRunTime ? parseFloat(formRunTime) : null,
+        deo_notes: remark
+      };
+
+      if (isEditing && editingId) {
+        await deoMachineApi.updateMachineEntry(editingId, entryData);
+      } else {
+        await deoMachineApi.createEntry(entryData);
+      }
+
       setShowFormModal(false);
       setShowSuccess(true);
       setFilterDate(formDate);
@@ -656,106 +649,76 @@ const DEODailyProduction: React.FC = () => {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-900 uppercase tracking-widest ml-1">Production Machine</label>
+                    <label className="text-[10px] font-black text-slate-900 uppercase tracking-widest ml-1">SAP Part Number</label>
                     <div className="relative group">
-                      <Cpu size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-                      <select
-                        value={selectedMachine?.id || ''}
-                        onChange={(e) => {
-                          const m = machines.find(m => m.id === parseInt(e.target.value));
-                          setSelectedMachine(m || null);
-                        }}
-                        className="w-full bg-white border border-slate-200 rounded-xl py-3 pl-11 pr-10 text-xs font-black text-slate-800 outline-none appearance-none focus:border-orange-400 transition-all shadow-sm"
-                      >
-                        <option value="">Select Target Machine</option>
-                        {machines.map(m => (
-                          <option key={m.id} value={m.id}>{m.name}</option>
-                        ))}
-                      </select>
-                      <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                      <Package size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                      <input
+                        type="text"
+                        placeholder="Enter SAP Part No"
+                        value={formSapPart}
+                        onChange={(e) => setFormSapPart(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-xl py-3 pl-11 pr-4 text-xs font-black text-slate-800 outline-none focus:border-orange-400 transition-all shadow-sm uppercase"
+                      />
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-900 uppercase tracking-widest ml-1">Sub-Machine Matrix</label>
+                  {formSapPart && (
+                    <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+                      <label className="text-[10px] font-black text-slate-900 uppercase tracking-widest ml-1">Production Details</label>
 
-
-                    <div className="bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden shadow-inner">
-                      <table className="w-full text-left">
-                        <thead className="bg-slate-100/30">
-                          <tr>
-                            <th className="px-5 py-3 text-[9px] font-black text-slate-900 uppercase tracking-widest whitespace-nowrap">Sub Machine</th>
-                            <th className="px-5 py-3 text-[9px] font-black text-slate-900 uppercase tracking-widest whitespace-nowrap">SAP Part Number</th>
-                            <th className="px-5 py-3 text-[9px] font-black text-slate-900 uppercase tracking-widest text-right whitespace-nowrap">Qty</th>
-                            <th className="px-5 py-3 text-[9px] font-black text-slate-900 uppercase tracking-widest text-right whitespace-nowrap">Machine Run Time</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {subMachineLogs.map((log, idx) => (
-                            <tr key={log.id} className="bg-white/50 hover:bg-white transition-colors">
+                      <div className="bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden shadow-inner">
+                        <table className="w-full text-left">
+                          <thead className="bg-slate-100/30">
+                            <tr>
+                              <th className="px-5 py-3 text-[9px] font-black text-slate-900 uppercase tracking-widest whitespace-nowrap">Sub Machine</th>
+                              <th className="px-5 py-3 text-[9px] font-black text-slate-900 uppercase tracking-widest whitespace-nowrap">SAP Part No</th>
+                              <th className="px-5 py-3 text-[9px] font-black text-slate-900 uppercase tracking-widest text-right whitespace-nowrap">Produced Qty</th>
+                              <th className="px-5 py-3 text-[9px] font-black text-slate-900 uppercase tracking-widest text-right whitespace-nowrap">Run Time (Hrs)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            <tr className="bg-white/50 hover:bg-white transition-colors">
                               <td className="px-5 py-3">
                                 <input
                                   type="text"
-                                  placeholder="Name"
-                                  value={log.name}
-                                  onChange={(e) => {
-                                    const newLogs = [...subMachineLogs];
-                                    const val = e.target.value;
-                                    newLogs[idx].name = val;
-                                    setSubMachineLogs(newLogs);
-                                  }}
+                                  placeholder="Auto or Manual"
+                                  value={formSubMachine}
+                                  onChange={(e) => setFormSubMachine(e.target.value)}
                                   className="w-full bg-white border border-ind-border/60 rounded-lg py-1.5 px-3 text-[11px] font-black text-slate-800 uppercase outline-none focus:border-orange-400"
                                 />
                               </td>
                               <td className="px-5 py-3">
-                                <div className="relative group">
-                                  <input
-                                    type="text"
-                                    placeholder="Enter SAP Part No"
-                                    value={log.sap_part_number}
-                                    onChange={(e) => {
-                                      const newLogs = [...subMachineLogs];
-                                      const val = e.target.value.toUpperCase();
-                                      newLogs[idx].sap_part_number = val;
-                                      setSubMachineLogs(newLogs);
-                                    }}
-                                    className="w-full bg-white border border-ind-border/60 rounded-lg py-1.5 px-3 text-[11px] font-black text-slate-800 uppercase outline-none focus:border-orange-400"
-                                  />
-
-                                </div>
+                                <input
+                                  type="text"
+                                  value={formSapPart}
+                                  readOnly
+                                  className="w-full bg-slate-100 border border-slate-200 rounded-lg py-1.5 px-3 text-[11px] font-black text-slate-500 uppercase outline-none cursor-not-allowed"
+                                />
                               </td>
                               <td className="px-5 py-3 text-right">
                                 <input
                                   type="number"
                                   placeholder="0"
-                                  value={log.production}
-                                  onChange={(e) => {
-                                    const newLogs = [...subMachineLogs];
-                                    newLogs[idx].production = e.target.value;
-                                    setSubMachineLogs(newLogs);
-                                  }}
+                                  value={formProduced}
+                                  onChange={(e) => setFormProduced(e.target.value)}
                                   className="w-20 bg-white border border-ind-border/60 rounded-lg py-1.5 px-3 text-[11px] font-black text-slate-800 text-right outline-none focus:border-orange-400"
                                 />
                               </td>
                               <td className="px-5 py-3">
                                 <input
                                   type="number"
-                                  placeholder="Hours"
-                                  value={log.run_time}
-                                  onChange={(e) => {
-                                    const newLogs = [...subMachineLogs];
-                                    newLogs[idx].run_time = e.target.value;
-                                    setSubMachineLogs(newLogs);
-                                  }}
+                                  placeholder="0"
+                                  value={formRunTime}
+                                  onChange={(e) => setFormRunTime(e.target.value)}
                                   className="w-20 bg-white border border-ind-border/60 rounded-lg py-1.5 px-3 text-[11px] font-black text-slate-800 text-right outline-none focus:border-orange-400"
                                 />
                               </td>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
-                  </div>
+                  )}
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-900 uppercase tracking-widest ml-1">Operator Remarks</label>
                     <div className="relative group">

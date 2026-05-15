@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    Plus, Search, Trash2, Eye, Activity, Factory,
-    CheckCircle2, AlertCircle, X, ArrowLeft
+    Plus, Search, Trash2, Eye, Activity, Factory, CheckCircle2, AlertTriangle, LayoutGrid, Calendar,
+    X, ArrowLeft, Loader2, ChevronLeft, ChevronRight, ChevronDown
 } from 'lucide-react';
 import { API_BASE } from '../../../lib/apiConfig';
 import { getToken } from '../../../lib/storage';
@@ -30,32 +30,40 @@ interface LineGroup {
     sub_machines: SubMachine[];
 }
 
-const ProductionLinesPage = () => {
+const PAGE_SIZE = 10;
+
+interface ProductionLinesPageProps {
+    canAddGroup?: boolean; // Admin = true, DEO = false
+}
+
+const ProductionLinesPage = ({ canAddGroup = true }: ProductionLinesPageProps) => {
     const [lines, setLines] = useState<LineGroup[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedLineId, setSelectedLineId] = useState<number | null>(null);
+    const [selectedLine, setSelectedLine] = useState<LineGroup | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    
+    // Shortage data state
+    const [requests, setRequests] = useState<any[]>([]);
+    const [filterStatus, setFilterStatus] = useState('all');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedDate, setSelectedDate] = useState('');
 
     // Modals
     const [isAddGroupModalOpen, setIsAddGroupModalOpen] = useState(false);
     const [isAddMachineModalOpen, setIsAddMachineModalOpen] = useState(false);
-
-    // Form state
     const [newGroupName, setNewGroupName] = useState('');
     const [newMachineName, setNewMachineName] = useState('');
 
     const fetchStatus = async () => {
         setIsLoading(true);
         try {
-            const token = getToken();
-            const response = await fetch(`${API_BASE}/admin/machines/status`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+            const res = await fetch(`${API_BASE}/admin/machines/status`, {
+                headers: { 'Authorization': `Bearer ${getToken()}` }
             });
-            if (response.ok) {
-                const result = await response.json();
-                if (result.success) {
-                    setLines(result.data);
-                }
+            if (res.ok) {
+                const result = await res.json();
+                if (result.success) setLines(result.data);
             }
         } catch (error) {
             console.error('Failed to fetch machine status:', error);
@@ -64,365 +72,582 @@ const ProductionLinesPage = () => {
         }
     };
 
-    useEffect(() => {
+    const fetchRequests = async () => {
+        try {
+            const res = await fetch(`${API_BASE}/deo/shortage-requests`, {
+                headers: { 'Authorization': `Bearer ${getToken()}` }
+            });
+            if (res.ok) {
+                const result = await res.json();
+                if (result.success) setRequests(result.data);
+            }
+        } catch (error) {
+            console.error('Failed to fetch requests:', error);
+        }
+    };
+
+    useEffect(() => { 
         fetchStatus();
+        fetchRequests();
     }, []);
 
-    // Filtered lines
-    const filteredLines = lines.filter(line =>
-        line.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    const selectedLine = lines.find(l => l.id === selectedLineId) || null;
-
-    // Derived stats
+    // Stats
     const totalLines = lines.length;
     const activeLines = lines.filter(l => l.status === 'Active').length;
-    const inactiveLines = totalLines - activeLines;
+    const offlineLines = totalLines - activeLines;
+    const totalMachines = lines.reduce((s, l) => s + l.total_machines, 0);
 
-    // Handlers
+    // Filtered + paginated
+    const filtered = lines.filter(l =>
+        l.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+    const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+    useEffect(() => { setCurrentPage(1); }, [searchTerm]);
+
     const handleAddGroup = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const response = await fetch(`${API_BASE}/admin/lines`, {
+            await fetch(`${API_BASE}/admin/lines`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
                 body: JSON.stringify({ name: newGroupName, isActive: true })
             });
-            if (response.ok) {
-                setNewGroupName('');
-                setIsAddGroupModalOpen(false);
-                fetchStatus();
-            }
+            setNewGroupName('');
+            setIsAddGroupModalOpen(false);
+            fetchStatus();
         } catch (error) { console.error(error); }
     };
 
     const handleAddMachine = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedLineId) return;
+        if (!selectedLine) return;
         try {
-            const response = await fetch(`${API_BASE}/admin/lines`, {
+            await fetch(`${API_BASE}/admin/lines`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
-                body: JSON.stringify({ name: newMachineName, isActive: true, parent_id: selectedLineId })
+                body: JSON.stringify({ name: newMachineName, isActive: true, parent_id: selectedLine.id })
             });
-            if (response.ok) {
-                setNewMachineName('');
-                setIsAddMachineModalOpen(false);
-                fetchStatus();
-            }
+            setNewMachineName('');
+            setIsAddMachineModalOpen(false);
+            fetchStatus();
+            fetchRequests();
         } catch (error) { console.error(error); }
     };
 
     const handleDeleteLine = async (id: number) => {
         if (!confirm('Are you sure you want to delete this?')) return;
         try {
-            const response = await fetch(`${API_BASE}/admin/lines/${id}`, {
+            await fetch(`${API_BASE}/admin/lines/${id}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${getToken()}` }
             });
-            if (response.ok) {
-                if (selectedLineId === id) setSelectedLineId(null);
-                fetchStatus();
-            }
+            if (selectedLine?.id === id) setSelectedLine(null);
+            fetchStatus();
         } catch (error) { console.error(error); }
     };
 
-    return (
-        <div className="bg-gray-50 min-h-[calc(100vh-64px)] p-6 font-sans text-gray-800">
-            <div className="max-w-[1600px] mx-auto bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[calc(100vh-112px)]">
+    // ─── Sub-Machine Detail View ──────────────────────────────────────────────
+    if (selectedLine) {
+        // Detailed view logic similar to ShortageDashboard
+        const shortagesForLine = requests.filter(req => {
+            const rawLine = req.master_machine || req.line_name || 'UNASSIGNED';
+            const individualLines = rawLine.split(',').map(s => s.trim());
+            return individualLines.includes(selectedLine.name);
+        }).filter(r => {
+            let matches = true;
+            if (filterStatus === 'pending') matches = r.status === 'PENDING';
+            else if (filterStatus === 'in-progress') matches = r.status === 'IN_PROGRESS' || r.status === 'REJECTED' || r.status === 'DEO_FILLED' || r.status === 'VERIFIED';
+            else if (filterStatus === 'rejected') matches = r.status === 'REJECTED';
+            else if (filterStatus === 'completed') matches = r.status === 'COMPLETED' || r.status === 'VERIFIED';
+            if (!matches) return false;
 
-                {/* Header Section */}
-                <div className="bg-white border-b border-gray-200 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0">
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                            <Factory className="text-orange-600" />
-                            Production Line Module
-                        </h1>
-                        <p className="text-gray-500 text-sm mt-1">Real-time telemetry and machine allocation dashboard</p>
+            const query = searchQuery.toLowerCase();
+            const partMatch = r.inventory_item?.sap_part_number?.toLowerCase().includes(query) ||
+                            r.inventory_item?.part_description?.toLowerCase().includes(query);
+            if (searchQuery && !partMatch) return false;
+
+            if (selectedDate && r.created_at?.split('T')[0] !== selectedDate) return false;
+            return true;
+        });
+
+        const totalShortages = shortagesForLine.length;
+        const pendingShortages = shortagesForLine.filter(r => r.status === 'PENDING').length;
+        const verifiedShortages = shortagesForLine.filter(r => r.status === 'VERIFIED' || r.status === 'COMPLETED').length;
+
+        return (
+            <div className="min-h-screen bg-gray-50/30">
+                {/* Header with KPIs */}
+                <div className="p-6 bg-white border-b border-gray-200 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={() => setSelectedLine(null)}
+                            className="h-10 w-10 flex items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 transition-all"
+                        >
+                            <ArrowLeft size={20} />
+                        </button>
+                        <div>
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+                                    <Factory size={16} className="text-orange-600" />
+                                </div>
+                                <h1 className="text-2xl font-black text-gray-900">Shortages: {selectedLine.name}</h1>
+                            </div>
+                        </div>
                     </div>
 
-                    {!selectedLine ? (
-                        <div className="flex items-center gap-4">
-                            <div className="flex bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
-                                <div className="px-4 py-2 border-r border-gray-200 flex flex-col items-center">
-                                    <span className="text-[10px] text-gray-500 uppercase font-bold">Total</span>
-                                    <span className="font-bold text-lg text-gray-900">{totalLines}</span>
-                                </div>
-                                <div className="px-4 py-2 border-r border-gray-200 flex flex-col items-center">
-                                    <span className="text-[10px] text-emerald-600 uppercase font-bold">Active</span>
-                                    <span className="font-bold text-lg text-gray-900">{activeLines}</span>
-                                </div>
-                                <div className="px-4 py-2 flex flex-col items-center">
-                                    <span className="text-[10px] text-red-500 uppercase font-bold">Offline</span>
-                                    <span className="font-bold text-lg text-gray-900">{inactiveLines}</span>
-                                </div>
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center bg-gray-50 rounded-2xl border border-gray-200 p-1">
+                            <div className="px-4 py-1 text-center border-r border-gray-200 min-w-[80px]">
+                                <span className="block text-[8px] font-bold text-gray-400 uppercase tracking-wider">TOTAL</span>
+                                <span className="block text-lg font-black text-gray-800 leading-none">{totalShortages}</span>
                             </div>
-                            <button
-                                onClick={() => setIsAddGroupModalOpen(true)}
-                                className="px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold rounded-lg flex items-center gap-2 transition-colors"
-                            >
-                                <Plus size={16} /> Add Line Group
-                            </button>
+                            <div className="px-4 py-1 text-center border-r border-gray-200 text-amber-500 min-w-[80px]">
+                                <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">PENDING</span>
+                                <span className="block text-lg font-black leading-none">{pendingShortages}</span>
+                            </div>
+                            <div className="px-4 py-1 text-center text-emerald-500 min-w-[80px]">
+                                <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">VERIFIED</span>
+                                <span className="block text-lg font-black leading-none">{verifiedShortages}</span>
+                            </div>
                         </div>
-                    ) : (
-                        <div className="flex items-center gap-4">
-                            <button
-                                onClick={() => setSelectedLineId(null)}
-                                className="px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg flex items-center gap-2 transition-colors border border-gray-200"
-                            >
-                                <ArrowLeft size={16} /> Back to Groups
-                            </button>
-                            <button
-                                onClick={() => setIsAddMachineModalOpen(true)}
-                                className="px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold rounded-lg flex items-center gap-2 transition-colors"
-                            >
-                                <Plus size={16} /> Register Machine
-                            </button>
-                        </div>
-                    )}
+                        <button
+                            onClick={() => setIsAddMachineModalOpen(true)}
+                            className="h-[42px] px-6 bg-orange-600 hover:bg-orange-700 text-white rounded-full text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-orange-600/20"
+                        >
+                            <Plus size={16} /> Register Machine
+                        </button>
+                    </div>
                 </div>
 
-                {/* Content Section */}
-                <div className="flex-1 overflow-auto custom-scrollbar bg-gray-50/50">
-                    <AnimatePresence mode="wait">
-                        {!selectedLine ? (
-                            /* VIEW 1: Groups List */
-                            <motion.div
-                                key="groups"
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -20 }}
-                                className="p-6"
-                            >
-                                <div className="mb-4 max-w-md relative">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                                    <input
-                                        type="text"
-                                        placeholder="Search line name..."
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="w-full bg-white border border-gray-300 text-gray-900 text-sm pl-10 pr-4 py-2 rounded-lg outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all"
-                                    />
-                                </div>
+                {/* Filters Row */}
+                <div className="flex flex-wrap items-center gap-3 px-6 py-4">
+                    <div className="relative group w-48">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 p-1 bg-orange-50 rounded text-orange-500 pointer-events-none">
+                            <LayoutGrid size={11} />
+                        </div>
+                        <select
+                            value={filterStatus}
+                            onChange={(e) => setFilterStatus(e.target.value)}
+                            className="w-full bg-white border border-gray-200 rounded-full h-[40px] pl-12 pr-10 text-gray-700 font-bold text-[11px] tracking-wide outline-none transition-all appearance-none uppercase"
+                        >
+                            <option value="all">All Status</option>
+                            <option value="pending">Pending</option>
+                            <option value="in-progress">In progress</option>
+                            <option value="rejected">Rejected</option>
+                            <option value="completed">Completed</option>
+                        </select>
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                            <ChevronDown size={14} />
+                        </div>
+                    </div>
 
-                                <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
-                                    <table className="w-full text-sm text-left">
-                                        <thead className="bg-gray-50 border-b border-gray-200">
-                                            <tr>
-                                                <th className="py-3 px-6 font-semibold text-gray-600">Sr.NO</th>
-                                                <th className="py-3 px-6 font-semibold text-gray-600">Line Name</th>
-                                                <th className="py-3 px-6 font-semibold text-gray-600">Total Machines</th>
-                                                <th className="py-3 px-6 font-semibold text-gray-600 text-center">Status</th>
-                                                <th className="py-3 px-6 font-semibold text-gray-600 text-right">Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-200">
-                                            {isLoading ? (
-                                                <tr><td colSpan={5} className="p-8 text-center text-gray-500">Loading...</td></tr>
-                                            ) : filteredLines.length === 0 ? (
-                                                <tr><td colSpan={5} className="p-8 text-center text-gray-500">No lines found.</td></tr>
-                                            ) : filteredLines.map((line, idx) => (
-                                                <tr key={line.id} className="hover:bg-gray-50 transition-colors">
-                                                    <td className="py-4 px-6 text-gray-500">{(idx + 1).toString().padStart(2, '0')}</td>
-                                                    <td className="py-4 px-6 font-bold text-gray-900">{line.name}</td>
-                                                    <td className="py-4 px-6 text-gray-600">{line.total_machines} Machines</td>
-                                                    <td className="py-4 px-6 text-center">
-                                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${line.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
-                                                            {line.status}
-                                                        </span>
-                                                    </td>
-                                                    <td className="py-4 px-6 text-right">
-                                                        <div className="flex items-center justify-end gap-2">
-                                                            <button
-                                                                onClick={() => setSelectedLineId(line.id)}
-                                                                className="px-3 py-1.5 bg-orange-100 text-orange-700 hover:bg-orange-200 rounded-md text-xs font-semibold transition-colors flex items-center gap-1"
-                                                            >
-                                                                <Eye size={14} /> View
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleDeleteLine(line.id)}
-                                                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                                                            >
-                                                                <Trash2 size={16} />
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </motion.div>
-                        ) : (
-                            /* VIEW 2: Sub Machines List */
-                            <motion.div
-                                key="machines"
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: 20 }}
-                                className="p-6"
-                            >
-                                <div className="mb-4 flex items-center gap-4 bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                                    <div className="flex flex-col">
-                                        <span className="text-[10px] text-gray-500 uppercase font-bold">Current Group</span>
-                                        <h2 className="text-xl font-bold text-gray-900">{selectedLine.name}</h2>
-                                    </div>
-                                    <div className="h-8 w-px bg-gray-200" />
-                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${selectedLine.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
-                                        {selectedLine.status}
-                                    </span>
-                                </div>
+                    <div className="relative group w-72">
+                        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                        <input
+                            type="text"
+                            placeholder="Search shortages..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full bg-white border border-gray-200 rounded-full h-[40px] pl-14 pr-6 text-gray-700 font-bold text-[11px] tracking-wide outline-none transition-all uppercase"
+                        />
+                    </div>
 
-                                <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
-                                    <table className="w-full text-sm text-left whitespace-nowrap">
-                                        <thead className="bg-gray-50 border-b border-gray-200">
-                                            <tr>
-                                                <th className="py-3 px-6 font-semibold text-gray-600">Sr.NO</th>
-                                                <th className="py-3 px-6 font-semibold text-gray-600">Sub Machine</th>
-                                                <th className="py-3 px-6 font-semibold text-gray-600">Part Number</th>
-                                                <th className="py-3 px-6 font-semibold text-gray-600">Vehicle Type</th>
-                                                <th className="py-3 px-6 font-semibold text-gray-600">Start Date</th>
-                                                <th className="py-3 px-6 font-semibold text-gray-600">End Date</th>
-                                                <th className="py-3 px-6 font-semibold text-gray-600">Coverage Day</th>
-                                                <th className="py-3 px-6 font-semibold text-gray-600 text-center">Status</th>
-                                                <th className="py-3 px-6 font-semibold text-gray-600 text-right">Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-200">
-                                            {selectedLine.sub_machines.length === 0 ? (
-                                                <tr>
-                                                    <td colSpan={9} className="p-12 text-center">
-                                                        <Factory className="text-gray-300 mx-auto mb-3" size={32} />
-                                                        <h3 className="text-lg font-semibold text-gray-700">No Machines Configured</h3>
-                                                        <p className="text-gray-500 mt-1">Register a sub-machine to begin tracking production.</p>
-                                                    </td>
-                                                </tr>
-                                            ) : selectedLine.sub_machines.map((sub, idx) => (
-                                                <tr key={sub.id} className="hover:bg-gray-50 transition-colors">
-                                                    <td className="py-3 px-6 text-gray-500">{(idx + 1).toString().padStart(2, '0')}</td>
-                                                    <td className="py-3 px-6">
-                                                        <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-gray-100 border border-gray-200 rounded-md">
-                                                            <Activity size={14} className="text-orange-600" />
-                                                            <span className="font-bold text-gray-800">{sub.name}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="py-3 px-6">
-                                                        {sub.part_number ? (
-                                                            <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2 py-1 rounded border border-blue-200">{sub.part_number}</span>
-                                                        ) : <span className="text-gray-400">-</span>}
-                                                    </td>
-                                                    <td className="py-3 px-6">
-                                                        {sub.vehicle_type ? (
-                                                            <span className="text-xs font-bold text-gray-700 uppercase">{sub.vehicle_type}</span>
-                                                        ) : <span className="text-gray-400">-</span>}
-                                                    </td>
-                                                    <td className="py-3 px-6 text-gray-600 text-xs">
-                                                        {sub.start_date || <span className="text-gray-400">-</span>}
-                                                    </td>
-                                                    <td className="py-3 px-6 text-gray-600 text-xs">
-                                                        {sub.end_date || <span className="text-gray-400">-</span>}
-                                                    </td>
-                                                    <td className="py-3 px-6">
-                                                        {sub.coverage_day ? (
-                                                            <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-1 rounded border border-indigo-200">{sub.coverage_day}</span>
-                                                        ) : <span className="text-gray-400">-</span>}
-                                                    </td>
-                                                    <td className="py-3 px-6 text-center">
-                                                        {sub.shortage_status ? (
-                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${sub.shortage_status === 'Complete'
-                                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                                                    : 'bg-orange-50 text-orange-700 border-orange-200'
-                                                                }`}>
-                                                                {sub.shortage_status}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-500 border border-gray-200">
-                                                                IDLE
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                    <td className="py-3 px-6 text-right">
-                                                        <button
-                                                            onClick={() => handleDeleteLine(sub.id)}
-                                                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                                                        >
-                                                            <Trash2 size={16} />
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
+                    <div className="relative group flex-shrink-0">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 p-1 bg-indigo-50/50 rounded text-indigo-400 pointer-events-none">
+                            <Calendar size={12} />
+                        </div>
+                        <input
+                            type="date"
+                            value={selectedDate}
+                            onChange={(e) => setSelectedDate(e.target.value)}
+                            className="bg-white border border-gray-200 rounded-full h-[40px] pl-12 pr-5 text-gray-700 font-bold text-[11px] tracking-wide outline-none transition-all w-[180px] uppercase cursor-pointer"
+                        />
+                    </div>
+                </div>
+
+                {/* Sub-machines table with shortage columns */}
+                <div className="px-6 pb-6">
+                    <div className="bg-white border border-gray-200 rounded-3xl overflow-hidden shadow-sm">
+                        <table className="w-full text-sm text-left border-collapse">
+                            <thead className="bg-white text-gray-900 border-b-2 border-orange-500 uppercase text-[11px] font-black tracking-widest">
+                                <tr>
+                                    <th className="px-6 py-4 whitespace-nowrap">Sr.NO</th>
+                                    <th className="px-6 py-4 whitespace-nowrap">Sub Machine</th>
+                                    <th className="px-6 py-4 whitespace-nowrap">Part Number</th>
+                                    <th className="px-6 py-4 text-center whitespace-nowrap">Demand Date</th>
+                                    <th className="px-6 py-4 text-center whitespace-nowrap">Coverage Day</th>
+                                    <th className="px-6 py-4 text-center whitespace-nowrap">SAP Stock</th>
+                                    <th className="px-6 py-3 text-center whitespace-nowrap">Opening</th>
+                                    <th className="px-6 py-3 text-center whitespace-nowrap">Today's</th>
+                                    <th className="px-6 py-3 text-center whitespace-nowrap">Target</th>
+                                    <th className="px-6 py-3 text-center whitespace-nowrap">Status</th>
+                                    <th className="px-6 py-3 text-right whitespace-nowrap">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {selectedLine.sub_machines.map((sub, idx) => {
+                                    // Only show a machine as OCCUPIED if it has an ACTIVE (non-completed) shortage
+                                    const req = shortagesForLine.find(r =>
+                                        (r.line_name?.trim().toUpperCase() === sub.name.trim().toUpperCase()) &&
+                                        !['COMPLETED', 'REJECTED'].includes(r.status)
+                                    );
+                                    // For display purposes, also find the last completed req for history
+                                    const completedReq = !req && shortagesForLine.find(r =>
+                                        r.line_name?.trim().toUpperCase() === sub.name.trim().toUpperCase() &&
+                                        r.status === 'COMPLETED'
+                                    );
+                                    const isVacant = !req;
+                                    const coverage = req?.todays_stock && req.per_day ? (req.todays_stock / req.per_day).toFixed(1) : "—";
+                                    
+                                    return (
+                                        <tr key={sub.id} className={`hover:bg-gray-50 transition-colors group ${isVacant ? 'bg-emerald-50/30' : ''}`}>
+                                            <td className="px-6 py-4">
+                                                <span className="text-[11px] font-black text-gray-400">{(idx + 1).toString().padStart(2, '0')}</span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${
+                                                        isVacant
+                                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                                                            : 'bg-orange-50 text-orange-600 border-orange-100'
+                                                    }`}>
+                                                        <Activity size={14} />
+                                                    </div>
+                                                    <span className="text-[12px] font-black text-gray-900 tracking-tight">{sub.name}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                {isVacant ? (
+                                                    <span className="text-[11px] font-black text-emerald-600 bg-emerald-50 px-3 py-0.5 rounded-full border border-emerald-200 uppercase tracking-tight">
+                                                        VACANT
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[11px] font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 uppercase tracking-tight">
+                                                        {req?.inventory_item?.sap_part_number || '—'}
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <span className="text-[10px] font-black text-gray-500 uppercase tracking-wider">
+                                                    {req?.created_at ? new Date(req.created_at).toLocaleDateString() : '—'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <span className={`text-[10px] font-black tabular-nums px-2 py-1 rounded border ${
+                                                    isVacant ? 'text-gray-300 border-transparent' :
+                                                    coverage === "—" ? "text-gray-300 border-transparent" :
+                                                    Number(coverage) >= 5 ? "text-emerald-600 bg-emerald-50 border-emerald-100" : "text-rose-600 bg-rose-50 border-rose-100"
+                                                }`}>
+                                                    {isVacant ? '—' : `${coverage} ${coverage !== "—" ? "Days" : ""}`}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-center text-[11px] font-black text-gray-900 tabular-nums">{req?.sap_stock ?? '—'}</td>
+                                            <td className="px-6 py-3 text-center text-[11px] font-black text-gray-900 tabular-nums">{req?.opening_stock ?? '—'}</td>
+                                            <td className="px-6 py-3 text-center text-[11px] font-black text-orange-600 tabular-nums">{req?.todays_stock ?? '—'}</td>
+                                            <td className="px-6 py-3 text-center text-[11px] font-black text-blue-600 tabular-nums">{req?.target_quantity || req?.inventory_item?.demand_quantity || '—'}</td>
+                                            <td className="px-6 py-3 text-center">
+                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border ${
+                                                    isVacant
+                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                        : req?.status === 'COMPLETED' || req?.status === 'VERIFIED'
+                                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                            : req?.status === 'PENDING'
+                                                                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                                                : 'bg-gray-100 text-gray-400 border-gray-200'
+                                                }`}>
+                                                    {isVacant ? 'VACANT' : (req?.status || 'IDLE')}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-3 text-right">
+                                                <button
+                                                    onClick={() => handleDeleteLine(sub.id)}
+                                                    className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* Modals */}
+                {isAddMachineModalOpen && (
+                    <AddModal
+                        title="Register Machine"
+                        description={`Add a physical machine to ${selectedLine.name}`}
+                        label="Machine Name"
+                        placeholder="e.g. 320T-A"
+                        value={newMachineName}
+                        onChange={setNewMachineName}
+                        onSubmit={handleAddMachine}
+                        onClose={() => setIsAddMachineModalOpen(false)}
+                    />
+                )}
+            </div>
+        );
+    }
+
+    // ─── Main Lines List View ─────────────────────────────────────────────────
+    return (
+        <div className="min-h-screen bg-white">
+            {/* Header */}
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                    <div className="flex items-center gap-3 mb-1">
+                        <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+                            <Factory size={16} className="text-orange-600" />
+                        </div>
+                        <h1 className="text-2xl font-black text-gray-900">Production Lines</h1>
+                    </div>
+                    <p className="text-sm text-gray-400 font-semibold ml-11">Manage production line groups and sub-machines</p>
+                </div>
+
+                {/* KPI badges + Add button */}
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1 bg-gray-50 border border-gray-100 rounded-xl overflow-hidden">
+                        {[
+                            { label: 'TOTAL', value: totalLines, color: 'text-gray-700' },
+                            { label: 'ACTIVE', value: activeLines, color: 'text-emerald-600' },
+                            { label: 'OFFLINE', value: offlineLines, color: 'text-red-500' },
+                            { label: 'MACHINES', value: totalMachines, color: 'text-orange-600' },
+                        ].map((k, i) => (
+                            <div key={k.label} className={`px-4 py-2 flex flex-col items-center ${i < 3 ? 'border-r border-gray-100' : ''}`}>
+                                <span className={`text-lg font-black ${k.color}`}>{k.value}</span>
+                                <span className="text-[9px] text-gray-400 font-black uppercase tracking-widest">{k.label}</span>
+                            </div>
+                        ))}
+                    </div>
+                    {canAddGroup && (
+                        <button
+                            onClick={() => setIsAddGroupModalOpen(true)}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white text-sm font-bold rounded-xl transition-colors shadow-sm"
+                        >
+                            <Plus size={16} /> Add Line Group
+                        </button>
+                    )}
                 </div>
             </div>
 
-            {/* Modals */}
-            <AnimatePresence>
-                {(isAddGroupModalOpen || isAddMachineModalOpen) && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                        <motion.div
-                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                            className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
-                            onClick={() => { setIsAddGroupModalOpen(false); setIsAddMachineModalOpen(false); }}
-                        />
-                        <motion.div
-                            initial={{ scale: 0.95, opacity: 0, y: 10 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0, y: 10 }}
-                            className="relative bg-white border border-gray-200 rounded-2xl p-6 max-w-sm w-full shadow-xl"
-                        >
+            {/* Search */}
+            <div className="px-6 pt-5 pb-3">
+                <div className="relative max-w-xs">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                        type="text"
+                        placeholder="Search line name..."
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 text-gray-800 font-medium"
+                    />
+                </div>
+            </div>
+
+            {/* Table */}
+            <div className="px-6 pb-6">
+                <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
+                    <table className="w-full text-sm text-left">
+                        <thead>
+                            <tr className="border-b-2 border-orange-500 bg-white">
+                                {['SR.NO', 'Line Name', 'Total Machines', 'Status', 'Actions'].map(h => (
+                                    <th key={h} className="py-3.5 px-6 text-[11px] font-black text-black uppercase tracking-wider">{h}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {isLoading ? (
+                                <tr>
+                                    <td colSpan={5} className="py-20 text-center">
+                                        <Loader2 size={32} className="animate-spin text-orange-400 mx-auto mb-3" />
+                                        <p className="text-gray-400 text-sm font-bold">Loading lines...</p>
+                                    </td>
+                                </tr>
+                            ) : paginated.length === 0 ? (
+                                <tr>
+                                    <td colSpan={5} className="py-20 text-center">
+                                        <Factory size={40} className="text-gray-200 mx-auto mb-3" />
+                                        <p className="text-gray-400 text-sm font-black uppercase tracking-widest">No lines found</p>
+                                    </td>
+                                </tr>
+                            ) : paginated.map((line, idx) => (
+                                <tr key={line.id} className="hover:bg-orange-50/30 transition-colors">
+                                    <td className="py-4 px-6">
+                                        <span className="text-sm font-black text-gray-400">{(currentPage - 1) * PAGE_SIZE + idx + 1}</span>
+                                    </td>
+                                    <td className="py-4 px-6">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center">
+                                                <Factory size={15} className="text-orange-500" />
+                                            </div>
+                                            <span className="font-black text-gray-900">{line.name}</span>
+                                        </div>
+                                    </td>
+                                    <td className="py-4 px-6">
+                                        <span className="text-sm font-bold text-orange-600">
+                                            {line.total_machines} Machines
+                                        </span>
+                                    </td>
+                                    <td className="py-4 px-6">
+                                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider ${
+                                            line.status === 'Active'
+                                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                                : 'bg-gray-100 text-gray-500 border border-gray-200'
+                                        }`}>
+                                            <span className={`w-1.5 h-1.5 rounded-full ${line.status === 'Active' ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+                                            {line.status}
+                                        </span>
+                                    </td>
+                                    <td className="py-4 px-6">
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => setSelectedLine(line)}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 text-orange-700 hover:bg-orange-100 rounded-lg text-xs font-bold transition-colors border border-orange-200"
+                                            >
+                                                <Eye size={13} /> VIEW
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteLine(line.id)}
+                                                className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                    <div className="flex items-center justify-between mt-4 px-1">
+                        <p className="text-xs font-black text-gray-400 uppercase tracking-widest">
+                            SHOWING {Math.min((currentPage - 1) * PAGE_SIZE + 1, filtered.length)} TO {Math.min(currentPage * PAGE_SIZE, filtered.length)} OF {filtered.length} LINES
+                        </p>
+                        <div className="flex items-center gap-2">
                             <button
-                                onClick={() => { setIsAddGroupModalOpen(false); setIsAddMachineModalOpen(false); }}
-                                className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 transition-colors"
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                             >
-                                <X size={20} />
+                                <ChevronLeft size={14} /> PREV
                             </button>
-
-                            <h3 className="text-xl font-bold text-gray-900 mb-1">
-                                {isAddGroupModalOpen ? 'Create Line Group' : 'Register Machine'}
-                            </h3>
-                            <p className="text-sm text-gray-500 mb-6">
-                                {isAddGroupModalOpen ? 'Define a new top-level production area.' : `Add a new physical machine to ${selectedLine?.name}.`}
-                            </p>
-
-                            <form onSubmit={isAddGroupModalOpen ? handleAddGroup : handleAddMachine}>
-                                <div className="space-y-1 mb-6">
-                                    <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
-                                        {isAddGroupModalOpen ? 'Group Name' : 'Machine Name'}
-                                    </label>
-                                    <input
-                                        autoFocus required type="text"
-                                        value={isAddGroupModalOpen ? newGroupName : newMachineName}
-                                        onChange={e => isAddGroupModalOpen ? setNewGroupName(e.target.value) : setNewMachineName(e.target.value)}
-                                        placeholder={isAddGroupModalOpen ? "e.g. 320T" : "e.g. 320T-A"}
-                                        className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2.5 text-sm text-gray-900 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all font-medium"
-                                    />
-                                </div>
-                                <div className="flex gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => { setIsAddGroupModalOpen(false); setIsAddMachineModalOpen(false); }}
-                                        className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-bold transition-colors"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className="flex-[2] py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-bold transition-colors shadow-sm"
-                                    >
-                                        Confirm
-                                    </button>
-                                </div>
-                            </form>
-                        </motion.div>
+                            {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                                <button
+                                    key={p}
+                                    onClick={() => setCurrentPage(p)}
+                                    className={`w-8 h-8 rounded-lg text-xs font-black transition-all ${
+                                        p === currentPage
+                                            ? 'bg-orange-500 text-white shadow-sm'
+                                            : 'text-gray-500 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    {p}
+                                </button>
+                            ))}
+                            <button
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                                className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                            >
+                                NEXT <ChevronRight size={14} />
+                            </button>
+                        </div>
                     </div>
                 )}
-            </AnimatePresence>
+            </div>
+
+            {/* Add Line Group Modal */}
+            {isAddGroupModalOpen && (
+                <AddModal
+                    title="Create Line Group"
+                    description="Define a new top-level production area"
+                    label="Group Name"
+                    placeholder="e.g. 320T"
+                    value={newGroupName}
+                    onChange={setNewGroupName}
+                    onSubmit={handleAddGroup}
+                    onClose={() => setIsAddGroupModalOpen(false)}
+                />
+            )}
         </div>
     );
 };
+
+// ─── Reusable Add Modal ───────────────────────────────────────────────────────
+
+function AddModal({ title, description, label, placeholder, value, onChange, onSubmit, onClose }: {
+    title: string;
+    description: string;
+    label: string;
+    placeholder: string;
+    value: string;
+    onChange: (v: string) => void;
+    onSubmit: (e: React.FormEvent) => void;
+    onClose: () => void;
+}) {
+    return (
+        <AnimatePresence>
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <motion.div
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
+                    onClick={onClose}
+                />
+                <motion.div
+                    initial={{ scale: 0.95, opacity: 0, y: 10 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.95, opacity: 0, y: 10 }}
+                    className="relative bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-gray-100"
+                >
+                    <button
+                        onClick={onClose}
+                        className="absolute top-4 right-4 text-gray-300 hover:text-gray-700 transition-colors"
+                    >
+                        <X size={18} />
+                    </button>
+                    <div className="flex items-center gap-3 mb-1">
+                        <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+                            <Plus size={15} className="text-orange-600" />
+                        </div>
+                        <h3 className="text-base font-black text-gray-900">{title}</h3>
+                    </div>
+                    <p className="text-xs text-gray-400 font-semibold mb-5 ml-11">{description}</p>
+                    <form onSubmit={onSubmit}>
+                        <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">{label}</label>
+                        <input
+                            autoFocus required type="text"
+                            value={value}
+                            onChange={e => onChange(e.target.value)}
+                            placeholder={placeholder}
+                            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-orange-400 mb-5"
+                        />
+                        <div className="flex gap-3">
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                className="flex-[2] py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl text-sm font-black transition-colors shadow-sm"
+                            >
+                                Confirm
+                            </button>
+                        </div>
+                    </form>
+                </motion.div>
+            </div>
+        </AnimatePresence>
+    );
+}
 
 export default ProductionLinesPage;

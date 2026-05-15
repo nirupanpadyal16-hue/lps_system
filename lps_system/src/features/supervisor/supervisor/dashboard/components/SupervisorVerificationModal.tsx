@@ -163,18 +163,18 @@ const SupervisorVerificationModal: React.FC<SupervisorVerificationModalProps> = 
                             <div className="relative">
                                 <FileText size={14} className="absolute left-4 top-4 text-slate-400" />
                                 <div className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-12 pr-6 text-[11px] font-bold text-slate-600 min-h-[80px] shadow-sm italic">
-                                    {log.remarks || 'No remarks provided by operator.'}
+                                    {log.deo_notes || log.remarks || 'No remarks provided by operator.'}
                                 </div>
                             </div>
                         </div>
 
                         <div className="space-y-1.5 pt-4 border-t border-slate-50">
-                            <label className="text-[10px] font-black text-[#f37021] uppercase tracking-widest ml-1">Supervisor Review Feedback</label>
+                            <label className="text-[10px] font-black text-[#f37021] uppercase tracking-widest ml-1">Supervisor Observation / Feedback</label>
                             <div className="relative group">
                                 <Edit2 size={14} className="absolute left-4 top-4 text-slate-400 group-focus-within:text-[#f37021] transition-colors" />
                                 <textarea 
                                     rows={2}
-                                    placeholder="Add review feedback or reason for rejection..."
+                                    placeholder="Add observation notes or reason for rejection..."
                                     value={rejectionReason}
                                     onChange={(e) => setRejectionReason(e.target.value)}
                                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-12 pr-6 text-xs font-bold text-slate-800 outline-none focus:border-[#f37021] transition-all shadow-sm resize-none"

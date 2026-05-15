@@ -292,7 +292,8 @@ def get_shortage_entries():
         q = q.filter(
             or_(
                 PartShortageRequest.supervisor_id == user.id,
-                (PartShortageRequest.supervisor_id == None) & (PartShortageRequest.line_id == user.assigned_line_id)
+                (PartShortageRequest.supervisor_id == None) & (PartShortageRequest.line_id == user.assigned_line_id),
+                PartShortageRequest.line_id == None
             )
         )
         
@@ -414,20 +415,13 @@ def supervisor_mark_all_read():
 @role_required(['Supervisor', 'Admin'])
 def supervisor_get_machine_entries():
     """
-    Supervisor monitors all machine production entries for their line.
-    Filters by demand, date, or shift.
+    Supervisor sees ALL machine production entries (PENDING → needs verification).
+    No machine_id filter — entries without a linked machine are shown too.
+    Optional filters: date, demand_id, shift.
     """
     from app.models import MachineProductionEntry
-    user = User.query.filter_by(username=get_jwt_identity()).first()
 
     query = MachineProductionEntry.query
-    # Supervisors see entries on their assigned line
-    if user.role == 'Supervisor' and user.assigned_line_id:
-        # Get machines on supervisor's line
-        line_machines = ProductionLine.query.filter_by(parent_id=user.assigned_line_id).all()
-        machine_ids = [m.id for m in line_machines]
-        if machine_ids:
-            query = query.filter(MachineProductionEntry.machine_id.in_(machine_ids))
 
     date_filter = request.args.get('date')
     demand_id = request.args.get('demand_id', type=int)
@@ -444,7 +438,7 @@ def supervisor_get_machine_entries():
     if shift:
         query = query.filter_by(shift=shift)
 
-    entries = query.order_by(MachineProductionEntry.date.desc(), MachineProductionEntry.shift).all()
+    entries = query.order_by(MachineProductionEntry.created_at.desc()).all()
     return jsonify({"success": True, "data": [e.to_dict() for e in entries]})
 
 
@@ -452,24 +446,139 @@ def supervisor_get_machine_entries():
 @jwt_required()
 @role_required(['Supervisor', 'Admin'])
 def supervisor_verify_machine_entry(entry_id):
-    """Supervisor verifies or rejects a DEO machine production entry."""
-    from app.models import MachineProductionEntry
+    """Supervisor verifies or rejects a DEO machine production entry.
+    
+    On VERIFY:
+    - Marks entry as VERIFIED.
+    - Increments InventoryItem.produced_qty.
+    - Checks if total produced_qty >= shortage_quantity on any linked PartShortageRequest.
+    - If shortage is met: marks PSR as COMPLETED, clears assigned_machines (vacates).
+    - Then checks if next pending shortage request is waiting for the same machine(s) and auto-assigns.
+    
+    Supervisor can add an observation note at any time (even without verify/reject).
+    """
+    from app.models import MachineProductionEntry, InventoryItem, PartShortageRequest, Notification, ProductionLine
     data = request.json or {}
-    status = data.get('status')  # VERIFIED | REJECTED
-    if status not in ('VERIFIED', 'REJECTED'):
+    status = data.get('status')  # VERIFIED | REJECTED | None (observation only)
+    observation = data.get('notes', data.get('observation', ''))  # Supervisor observation
+    
+    if status and status not in ('VERIFIED', 'REJECTED'):
         return jsonify({"success": False, "message": "status must be VERIFIED or REJECTED"}), 400
 
     entry = MachineProductionEntry.query.get_or_404(entry_id)
     user = User.query.filter_by(username=get_jwt_identity()).first()
 
-    entry.status = status
-    entry.supervisor_id = user.id
-    entry.supervisor_notes = data.get('notes', '')
-    entry.verified_at = datetime.now()
-    if status == 'REJECTED':
-        entry.rejection_reason = data.get('reason', '')
+    # Always save observation
+    if observation:
+        entry.supervisor_notes = observation
+        entry.supervisor_id = user.id
+
+    if status:
+        entry.status = status
+        entry.supervisor_id = user.id
+        entry.verified_at = datetime.now()
+        
+        if status == 'REJECTED':
+            entry.rejection_reason = data.get('reason', observation or '')
+            
+        elif status == 'VERIFIED':
+            # ── Step 1: Look up inventory item (by ID or by SAP part number) ──
+            item = None
+            if entry.inventory_item_id:
+                item = InventoryItem.query.get(entry.inventory_item_id)
+            if not item and entry.sap_part_number:
+                item = InventoryItem.query.filter(
+                    db.func.upper(db.func.trim(InventoryItem.sap_part_number)) ==
+                    entry.sap_part_number.strip().upper()
+                ).first()
+                if item:
+                    entry.inventory_item_id = item.id  # Backfill link
+
+            if item:
+                # ── Step 2: Increment produced quantity ──
+                item.produced_qty = (item.produced_qty or 0.0) + float(entry.parts_produced or 0)
+                item.sync_current_stock() if hasattr(item, 'sync_current_stock') else None
+                db.session.add(item)
+                db.session.flush()
+
+                # ── Step 3: Check all shortage requests for this part ──
+                psrs = PartShortageRequest.query.filter_by(
+                    inventory_item_id=item.id
+                ).filter(
+                    PartShortageRequest.status.notin_(['COMPLETED', 'REJECTED'])
+                ).all()
+
+                for psr in psrs:
+                    # Total verified production for this SAP part
+                    from sqlalchemy import func as sqlfunc
+                    total_verified = db.session.query(
+                        sqlfunc.sum(MachineProductionEntry.parts_produced)
+                    ).filter(
+                        MachineProductionEntry.inventory_item_id == item.id,
+                        MachineProductionEntry.status == 'VERIFIED'
+                    ).scalar() or 0.0
+
+                    shortage_demand = float(psr.shortage_quantity or 0.0)
+
+                    if shortage_demand > 0 and total_verified >= shortage_demand:
+                        # ── Shortage is FULFILLED ──
+                        vacated_machine_ids = [m.id for m in psr.assigned_machines]
+                        
+                        psr.status = 'COMPLETED'
+                        psr.assigned_machines = []  # Vacate machines
+                        db.session.flush()
+
+                        # ── Step 4: Auto-assign next waiting shortage to freed machines ──
+                        for machine_id in vacated_machine_ids:
+                            machine = ProductionLine.query.get(machine_id)
+                            if not machine:
+                                continue
+                            # Find next PENDING shortage that lists this machine in their part mapping
+                            next_psr = PartShortageRequest.query.join(
+                                InventoryItem,
+                                PartShortageRequest.inventory_item_id == InventoryItem.id
+                            ).filter(
+                                PartShortageRequest.status == 'PENDING',
+                                # Machine not yet assigned
+                                ~PartShortageRequest.assigned_machines.any()
+                            ).order_by(PartShortageRequest.created_at.asc()).first()
+
+                            if next_psr:
+                                next_psr.assigned_machines.append(machine)
+                                machine.status = 'BUSY'
+                                db.session.flush()
+                            else:
+                                # No shortage is waiting, so set machine back to AVAILABLE
+                                machine.status = 'AVAILABLE'
+                                db.session.add(machine)
+                                db.session.flush()
+
+                    elif total_verified > 0:
+                        psr.status = 'IN_PROGRESS'
+
+                # ── Step 5: Check if PSR COMPLETED → notify Storekeeper ──
+                all_done = all(p.status == 'COMPLETED' for p in PartShortageRequest.query.filter_by(
+                    inventory_item_id=item.id
+                ).all())
+                if all_done:
+                    item.status = 'PRODUCTION_DONE'
+                    store_keepers = User.query.filter_by(role='Store_Keeper', is_active=True).all()
+                    for sk in store_keepers:
+                        notif = Notification(
+                            user_id=sk.id,
+                            title="Part Manufacturing Complete",
+                            message=(
+                                f"Part {item.sap_part_number} for demand "
+                                f"{item.demand.formatted_id if item.demand else 'N/A'} "
+                                f"is fully manufactured. Ready for dispatch."
+                            ),
+                            notification_type='INFO'
+                        )
+                        db.session.add(notif)
+                else:
+                    item.status = 'IN_PRODUCTION'
 
     db.session.commit()
-    log_audit(f"SUPERVISOR_VERIFY_MACHINE_ENTRY_{status}", f"Entry {entry_id}")
+    log_audit(f"SUPERVISOR_MACHINE_ENTRY_{status or 'OBSERVED'}_{entry_id}", f"By {get_jwt_identity()}")
     return jsonify({"success": True, "data": entry.to_dict()})
 

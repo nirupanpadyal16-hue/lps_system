@@ -6,6 +6,7 @@ export const SUPERVISOR_VERIFY = "/supervisor/verify";
 export const SUPERVISOR_REPORTS = "/supervisor/reports";
 export const SUPERVISOR_ALERTS = "/supervisor/alerts";
 export const SUPERVISOR_SHORTAGE = "/supervisor/shortage";
+export const SUPERVISOR_SHORTAGE_HISTORY = "/supervisor/shortage-history";
 export const SUPERVISOR_MACHINE_MONITOR = "/supervisor/machine-monitor";
 export const MANAGER_DASHBOARD = "/manager/dashboard";
 export const ADMIN_HOME = "/admin";
@@ -16,7 +17,9 @@ export const DEO_REPORTS = "/deo/reports";
 export const DEO_VERIFY = "/deo/verify";
 export const DEO_NOTIFICATIONS = "/deo/notifications";
 export const DEO_SHORTAGE = "/deo/shortage";
+export const DEO_SHORTAGE_HISTORY = "/deo/shortage-history";
 export const DEO_MACHINE_ENTRY = "/deo/machine-entry";
+export const DEO_LINES = "/deo/lines";
 
 // Admin Specific Sub-routes
 export const ADMIN_LINES = "/admin/lines";

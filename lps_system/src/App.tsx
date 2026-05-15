@@ -25,8 +25,12 @@ import InventoryPage from './features/admin/inventory/InventoryPage';
 import PartLookupPage from './features/admin/inventory/PartLookupPage';
 import MachineMappingPage from './features/admin/mappings/MachineMappingPage';
 import SupervisorMachineMonitorPage from './features/supervisor/SupervisorMachineMonitorPage';
+import AdminMachineMonitorPage from './features/admin/AdminMachineMonitorPage';
 // New role pages
 import PPCDashboardPage from './features/ppc/PPCDashboardPage';
+import PPCDemandPage from './features/ppc/PPCDemandPage';
+import PPCInventoryPage from './features/ppc/PPCInventoryPage';
+import PPCMachineRegistryPage from './features/ppc/PPCMachineRegistryPage';
 import SKDashboardPage from './features/storekeeper/SKDashboardPage';
 
 import { UserRole } from './config/roles';
@@ -46,6 +50,7 @@ import {
   DEO_VERIFY,
   DEO_NOTIFICATIONS,
   DEO_SHORTAGE,
+  DEO_SHORTAGE_HISTORY,
   ADMIN_LINES,
   ADMIN_MODELS,
   ADMIN_ASSIGNMENTS,
@@ -56,13 +61,17 @@ import {
   ADMIN_INVENTORY,
   ADMIN_PART_LOOKUP,
   SUPERVISOR_SHORTAGE,
+  SUPERVISOR_SHORTAGE_HISTORY,
   SUPERVISOR_MACHINE_MONITOR,
   DEO_MACHINE_ENTRY,
+  DEO_LINES,
   PPC_HOME,
   SK_HOME,
 } from './config/routePaths';
 
 import { getUser } from './lib/storage';
+
+const ADMIN_MACHINE_MONITOR = '/admin/machine-monitor';
 
 
 const RoleBasedRedirect = () => {
@@ -80,7 +89,7 @@ const RoleBasedRedirect = () => {
     case UserRole.SUPERVISOR:
       return <Navigate to={SUPERVISOR_DASHBOARD} replace />;
     case UserRole.DEO:
-      return <Navigate to={DEO_DASHBOARD} replace />;
+      return <Navigate to={DEO_SHORTAGE} replace />;
     case UserRole.PPC_PLANNER:
       return <Navigate to="/ppc/demand" replace />;
     case UserRole.STORE_KEEPER:
@@ -115,14 +124,15 @@ function App() {
                         {/* Shared Routes (Admin + Manager) */}
                         <Route element={<AuthGuard allowedRoles={[UserRole.ADMIN, UserRole.MANAGER]} />}>
                           <Route path={ADMIN_MODELS.replace('/admin/', '')} element={<ModelRegisterPage />} />
-                          <Route path={ADMIN_DEMAND.replace('/admin/', '')} element={<DemandManagementPage />} />
+                          {/* Demand, Inventory, Machine Registry → PPC pages (support Dispatch button & /api/ppc/* endpoints that allow Admin) */}
+                          <Route path={ADMIN_DEMAND.replace('/admin/', '')} element={<PPCDemandPage />} />
                           <Route path={ADMIN_ORDERS.replace('/admin/', '')} element={<OrderInboxPage />} />
                           <Route path={ADMIN_USERS.replace('/admin/', '')} element={<UserAccountsPage />} />
                           <Route path={ADMIN_AUDIT.replace('/admin/', '')} element={<AdminAuditPage />} />
                           <Route path={ADMIN_LINES.replace('/admin/', '')} element={<ProductionLinesPage />} />
                           <Route path={ADMIN_ASSIGNMENTS.replace('/admin/', '')} element={<AssignmentPage />} />
-                          <Route path={ADMIN_INVENTORY.replace('/admin/', '')} element={<InventoryPage />} />
-                          <Route path={ADMIN_PART_LOOKUP.replace('/admin/', '')} element={<PartLookupPage />} />
+                          <Route path={ADMIN_INVENTORY.replace('/admin/', '')} element={<PPCInventoryPage />} />
+                          <Route path={ADMIN_PART_LOOKUP.replace('/admin/', '')} element={<PPCMachineRegistryPage />} />
                           <Route path="mappings" element={<MachineMappingPage />} />
 
                         </Route>
@@ -130,6 +140,7 @@ function App() {
                         {/* Admin Only Dashboard */}
                         <Route element={<AuthGuard allowedRoles={[UserRole.ADMIN]} />}>
                           <Route index element={<AdminDashboardPage />} />
+                          <Route path="machine-monitor" element={<AdminMachineMonitorPage />} />
                         </Route>
                       </Route>
 
@@ -149,6 +160,7 @@ function App() {
                         <Route path={SUPERVISOR_REPORTS} element={<SupervisorDashboardPage />} />
                         <Route path={SUPERVISOR_ALERTS} element={<SupervisorDashboardPage />} />
                         <Route path={SUPERVISOR_SHORTAGE} element={<SupervisorDashboardPage />} />
+                        <Route path={SUPERVISOR_SHORTAGE_HISTORY} element={<SupervisorDashboardPage />} />
                       </Route>
                       <Route element={<AuthGuard allowedRoles={[UserRole.DEO, UserRole.ADMIN]} />}>
                         <Route path={DEO_DASHBOARD} element={<DEODashboardPage />} />
@@ -158,7 +170,9 @@ function App() {
                         <Route path={DEO_VERIFY} element={<DEODashboardPage />} />
                         <Route path={DEO_NOTIFICATIONS} element={<DEODashboardPage />} />
                         <Route path={DEO_SHORTAGE} element={<DEODashboardPage />} />
-                        // <Route path={DEO_MACHINE_ENTRY} element={<DEOMachineEntryPage />} />
+                        <Route path={DEO_SHORTAGE_HISTORY} element={<DEODashboardPage />} />
+                        <Route path={DEO_MACHINE_ENTRY} element={<DEOMachineEntryPage />} />
+                        <Route path={DEO_LINES} element={<ProductionLinesPage canAddGroup={false} />} />
                       </Route>
 
                       {/* Supervisor Machine Monitor — Supervisor + Admin only */}

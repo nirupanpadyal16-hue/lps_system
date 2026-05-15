@@ -61,7 +61,7 @@ const authHeaders = () => ({
 
 // ─── Action Badge Component ───────────────────────────────────────────────────
 
-function ActionBadge({ action, onNewDemand }: { action: string; onNewDemand?: () => void }) {
+function ActionBadge({ action, onSendToRegistry, sending }: { action: string; onSendToRegistry?: () => void; sending?: boolean }) {
     if (action === 'GO_TO_PRODUCTION') {
         return (
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold">
@@ -86,23 +86,24 @@ function ActionBadge({ action, onNewDemand }: { action: string; onNewDemand?: ()
             </span>
         );
     }
-    if (action === 'PENDING_DEO') {
+    if (action === 'PENDING_DEO' || action === 'WAITING_RM_APPROVAL') {
         return (
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold animate-pulse">
                 <Clock size={13} />
-                Got to Production
+                In Machine Registry
             </span>
         );
     }
-    // NEW_DEMAND
+    // NEW_DEMAND — one-click: sends shortage request directly to Machine Registry
     return (
         <button
-            onClick={onNewDemand}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-bold transition-all shadow-sm hover:shadow-md active:scale-95"
+            onClick={onSendToRegistry}
+            disabled={sending}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 disabled:opacity-60 text-white text-xs font-bold transition-all shadow-sm hover:shadow-md active:scale-95"
         >
-            <AlertTriangle size={13} />
-            New Demand
-            <ArrowRight size={12} />
+            {sending ? <Loader2 size={13} className="animate-spin" /> : <AlertTriangle size={13} />}
+            {sending ? 'Sending...' : 'Send to Registry'}
+            {!sending && <ArrowRight size={12} />}
         </button>
     );
 }
@@ -414,6 +415,8 @@ export default function PPCInventoryPage() {
     const [shortageModalItems, setShortageModalItems] = useState<InventoryItem[] | null>(null);
     const [itemToDelete, setItemToDelete] = useState<InventoryItem | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    // Track which items are being sent to machine registry
+    const [sendingItemIds, setSendingItemIds] = useState<Set<number>>(new Set());
 
     // Inline edit state
     const [editingStockId, setEditingStockId] = useState<number | null>(null);
@@ -498,7 +501,7 @@ export default function PPCInventoryPage() {
                 return [key, { key, vehicleName: i.vehicle_name, demandId: dId, formattedDemandId: fId }];
             })
         ).values()
-    ).sort((a, b) => a.vehicleName.localeCompare(b.vehicleName));
+    ).sort((a, b) => (a.vehicleName || '').localeCompare(b.vehicleName || ''));
 
     const seededDemandIds = new Set(items.map(i => i.demand_id).filter(id => id !== null));
     const availableDemands = demands.filter(d => !seededDemandIds.has(d.id));
@@ -569,6 +572,32 @@ export default function PPCInventoryPage() {
             toast.error('Delete failed');
         } finally {
             setIsDeleting(false);
+        }
+    };
+
+    const handleSendToMachineRegistry = async (item: InventoryItem) => {
+        setSendingItemIds(prev => new Set(prev).add(item.id));
+        try {
+            const res = await fetch(`${API}/admin/shortage-requests`, {
+                method: 'POST',
+                headers: authHeaders(),
+                body: JSON.stringify({ inventory_item_ids: [item.id] })
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast.success(`${item.sap_part_number} sent to Machine Registry ✓`);
+                fetchAll();
+            } else {
+                toast.error(data.message || 'Failed to send to registry');
+            }
+        } catch {
+            toast.error('Failed to send to registry');
+        } finally {
+            setSendingItemIds(prev => {
+                const next = new Set(prev);
+                next.delete(item.id);
+                return next;
+            });
         }
     };
 
@@ -774,7 +803,8 @@ export default function PPCInventoryPage() {
                                             <div className="flex items-center gap-2">
                                                 <ActionBadge 
                                                     action={item.action} 
-                                                    onNewDemand={() => setShortageModalItems([item])} 
+                                                    onSendToRegistry={() => handleSendToMachineRegistry(item)}
+                                                    sending={sendingItemIds.has(item.id)}
                                                 />
                                                 <button
                                                     onClick={() => setItemToDelete(item)}

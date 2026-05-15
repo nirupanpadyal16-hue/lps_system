@@ -203,31 +203,30 @@ const SKDispatchPage: React.FC = () => {
       toast.error('Vehicle Name is required');
       return;
     }
+    if (!form.driver_name.trim()) {
+      toast.error('Driver Name is required');
+      return;
+    }
     setSubmitting(true);
     try {
-      const token = getToken();
       const payload = {
         ...form,
         status,
         demand_id: selectedEntry?.demand?.id,
-        inventory_item_ids: selectedEntry?.parts?.map((p: any) => p.id) || []
+        inventory_item_ids: selectedEntry?.parts?.map((p: any) => p.id) || [],
+        quantity_dispatched: selectedEntry?.parts?.reduce((s: number, p: any) => s + (p.demand_quantity || 0), 0) || 0,
       };
-      const res = await fetch(`${API_BASE}/admin/dispatches`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (data.success) {
+      const res = await skApi.createDispatch(payload);
+      if (res.data.success) {
         toast.success(status === 'DRAFT' ? 'Draft saved!' : 'Dispatch submitted successfully!');
         setIsDrawerOpen(false);
         resetForm();
         fetchQueue();
       } else {
-        toast.error(data.message || 'Failed to create dispatch');
+        toast.error(res.data.message || 'Failed to create dispatch');
       }
-    } catch {
-      toast.error('Failed to create dispatch');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Failed to create dispatch');
     } finally {
       setSubmitting(false);
     }

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
     CheckCircle2, AlertTriangle, X, Database, LayoutGrid, Search, ChevronDown, Info, Car,
-    Loader2, Package, Calendar, Timer, Clock, Zap, User, MapPin, Eye, Factory, ArrowLeft
+    Loader2, Package, Calendar, Timer, Clock, Zap, User, MapPin, Eye, Factory, ArrowLeft, Plus
 } from 'lucide-react';
 import { API_BASE } from '../../lib/apiConfig';
 import { getToken } from '../../lib/storage';
@@ -64,7 +64,7 @@ interface LineGroup {
     name: string;
     total_shortages: number;
     pending_count: number;
-    sub_machines: string[];
+    sub_machines: SubMachine[];
     total_machines_master?: number | null;
 }
 
@@ -622,7 +622,83 @@ const DetailsModal = ({ request, onClose }: { request: ShortageRequest, onClose:
     );
 };
 
-export default function DEOShortageRequests() {
+function AddModal({ title, description, label, placeholder, value, onChange, onSubmit, onClose }: {
+    title: string;
+    description: string;
+    label: string;
+    placeholder: string;
+    value: string;
+    onChange: (v: string) => void;
+    onSubmit: (e: React.FormEvent) => void;
+    onClose: () => void;
+}) {
+    return (
+        <AnimatePresence>
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <motion.div
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+                    onClick={onClose}
+                />
+                <motion.div
+                    initial={{ scale: 0.95, opacity: 0, y: 10 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.95, opacity: 0, y: 10 }}
+                    className="relative bg-white rounded-[2rem] p-8 max-w-sm w-full shadow-2xl border border-slate-100"
+                >
+                    <button
+                        onClick={onClose}
+                        className="absolute top-6 right-6 text-slate-300 hover:text-slate-700 transition-colors"
+                    >
+                        <X size={20} />
+                    </button>
+                    <div className="flex items-center gap-4 mb-2">
+                        <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center">
+                            <Plus size={20} className="text-orange-600" />
+                        </div>
+                        <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">{title}</h3>
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-6 ml-14">{description}</p>
+                    <form onSubmit={onSubmit}>
+                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
+                            {label}
+                        </label>
+                        <input
+                            autoFocus
+                            required
+                            type="text"
+                            value={value}
+                            onChange={(e) => onChange(e.target.value)}
+                            placeholder={placeholder}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm font-black focus:outline-none focus:ring-4 focus:ring-orange-500/5 focus:border-orange-500 transition-all placeholder:text-slate-300 mb-6"
+                        />
+                        <div className="flex gap-4">
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="flex-1 py-4 border border-slate-200 text-slate-500 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                className="flex-[2] py-4 bg-orange-600 hover:bg-orange-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-orange-600/20"
+                            >
+                                Confirm Registration
+                            </button>
+                        </div>
+                    </form>
+                </motion.div>
+            </div>
+        </AnimatePresence>
+    );
+}
+
+interface DEOShortageRequestsProps {
+    onlyShowHistory?: boolean;
+}
+
+export default function DEOShortageRequests({ onlyShowHistory = false }: DEOShortageRequestsProps) {
     const [requests, setRequests] = useState<ShortageRequest[]>([]);
     const [lineGroupsMaster, setLineGroupsMaster] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -635,6 +711,12 @@ export default function DEOShortageRequests() {
     const [activeViewMachine, setActiveViewMachine] = useState<string | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const pageSize = 10;
+
+    // Modal state for machine management
+    const [isAddGroupModalOpen, setIsAddGroupModalOpen] = useState(false);
+    const [isAddMachineModalOpen, setIsAddMachineModalOpen] = useState(false);
+    const [newGroupName, setNewGroupName] = useState('');
+    const [newMachineName, setNewMachineName] = useState('');
 
     const fetchLineGroups = async () => {
         try {
@@ -661,6 +743,100 @@ export default function DEOShortageRequests() {
         }
     };
 
+    // Partition data based on active vs historical view
+    const relevantRequests = useMemo(() => {
+        return requests.filter(r => {
+            // Hide shortages waiting for RM approval so DEOs only see ready-to-work jobs
+            if (r.status === 'WAITING_RM_APPROVAL') return false;
+
+            const isDone = ['COMPLETED', 'VERIFIED'].includes(r.status);
+            return onlyShowHistory ? isDone : !isDone;
+        });
+    }, [requests, onlyShowHistory]);
+
+    const handleAddGroup = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            const res = await fetch(`${API_BASE}/admin/lines`, {
+                method: 'POST',
+                headers: authHeaders(),
+                body: JSON.stringify({
+                    name: newGroupName,
+                    isActive: true
+                })
+            });
+            if (res.ok) {
+                toast.success('Line Group created successfully');
+                setNewGroupName('');
+                setIsAddGroupModalOpen(false);
+                fetchLineGroups();
+                fetchRequests(true);
+            } else {
+                toast.error('Failed to create Line Group');
+            }
+        } catch (error) {
+            console.error('Failed to add group:', error);
+            toast.error('Failed to create Line Group');
+        }
+    };
+
+    const handleAddMachine = async (e: React.FormEvent) => {
+        e.preventDefault();
+        let masterLine = lineGroupsMaster.find(lg => lg.name === activeViewMachine);
+        
+        // Auto-create parent line if it doesn't exist in DB
+        if (!masterLine && activeViewMachine) {
+            try {
+                const resMaster = await fetch(`${API_BASE}/admin/lines`, {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: JSON.stringify({
+                        name: activeViewMachine,
+                        isActive: true,
+                        parent_id: null
+                    })
+                });
+                const dataMaster = await resMaster.json();
+                if (dataMaster.success) {
+                    masterLine = dataMaster.data;
+                } else {
+                    toast.error("Failed to auto-create parent line group");
+                    return;
+                }
+            } catch (error) {
+                console.error("Failed to auto-create parent line:", error);
+                toast.error("Error creating parent line group");
+                return;
+            }
+        }
+
+        if (!masterLine) return;
+
+        try {
+            const res = await fetch(`${API_BASE}/admin/lines`, {
+                method: 'POST',
+                headers: authHeaders(),
+                body: JSON.stringify({
+                    name: newMachineName,
+                    isActive: true,
+                    parent_id: masterLine.id
+                })
+            });
+            if (res.ok) {
+                toast.success('Machine registered successfully');
+                setNewMachineName('');
+                setIsAddMachineModalOpen(false);
+                fetchLineGroups();
+                fetchRequests(true);
+            } else {
+                toast.error('Failed to register machine');
+            }
+        } catch (error) {
+            console.error('Failed to add machine:', error);
+            toast.error('Failed to register machine');
+        }
+    };
+
     useEffect(() => {
         fetchLineGroups();
         fetchRequests();
@@ -677,7 +853,7 @@ export default function DEOShortageRequests() {
     }, []);
 
     const filteredRequests = useMemo(() => {
-        return requests.filter(r => {
+        return relevantRequests.filter(r => {
             let matches = true;
             if (filterStatus === 'pending') matches = r.status === 'PENDING';
             else if (filterStatus === 'in-progress') matches = r.status === 'IN_PROGRESS' || r.status === 'REJECTED' || r.status === 'DEO_FILLED' || r.status === 'VERIFIED';
@@ -688,100 +864,122 @@ export default function DEOShortageRequests() {
 
             const query = searchQuery.toLowerCase();
             const partMatch = r.inventory_item?.sap_part_number?.toLowerCase().includes(query) ||
-                r.inventory_item?.part_description?.toLowerCase().includes(query) ||
-                r.inventory_item?.vehicle_name?.toLowerCase().includes(query);
-            const idMatch = r.formatted_id.toLowerCase().includes(query);
-            if (searchQuery && !partMatch && !idMatch) return false;
+                            r.inventory_item?.part_description?.toLowerCase().includes(query) ||
+                            r.formatted_id?.toLowerCase().includes(query);
 
-            if (selectedDate && selectedDate !== "") {
-                const rDate = r.created_at?.split('T')[0];
-                if (rDate !== selectedDate) return false;
+            if (searchQuery && !partMatch) return false;
+
+            if (selectedDate && r.created_at?.split('T')[0] !== selectedDate) {
+                return false;
             }
 
             return true;
         });
-    }, [requests, filterStatus, searchQuery, selectedDate]);
+    }, [relevantRequests, filterStatus, searchQuery, selectedDate]);
 
     const derivedLineGroups = useMemo(() => {
         const groups: Record<string, LineGroup> = {};
+        const officialNames = new Set(lineGroupsMaster.map(lg => lg.name));
         
-        requests.forEach(req => {
-            const rawLine = req.master_machine || req.line_name || 'UNASSIGNED';
+        lineGroupsMaster.forEach(lg => {
+            groups[lg.name] = {
+                name: lg.name,
+                total_shortages: 0,
+                pending_count: 0,
+                sub_machines: lg.sub_machines || [],
+                total_machines_master: lg.total_machines
+            };
+        });
+
+        // 2. Add shortage counts from relevant requests
+        relevantRequests.forEach(req => {
+            const rawLine = req.master_machine || req.line_name;
+            if (!rawLine) return;
+
             const individualLines = rawLine.split(',').map(s => s.trim()).filter(Boolean);
             
             individualLines.forEach(lineName => {
-                if (!groups[lineName]) {
-                    const masterGroup = lineGroupsMaster.find(lg => lg.name === lineName);
-                    groups[lineName] = {
-                        name: lineName,
-                        total_shortages: 0,
-                        pending_count: 0,
-                        sub_machines: [],
-                        total_machines_master: masterGroup ? masterGroup.total_machines : null
-                    };
-                }
-                groups[lineName].total_shortages += 1;
-                if (req.status === 'PENDING' || req.status === 'IN_PROGRESS' || req.status === 'REJECTED') {
-                    groups[lineName].pending_count += 1;
-                }
-                
-                const subMachineName = req.line_name || lineName;
-                if (!groups[lineName].sub_machines.includes(subMachineName)) {
-                    groups[lineName].sub_machines.push(subMachineName);
+                // Only count if it's an official group
+                if (officialNames.has(lineName)) {
+                    groups[lineName].total_shortages += 1;
+                    if (req.status === 'PENDING' || req.status === 'IN_PROGRESS' || req.status === 'REJECTED') {
+                        groups[lineName].pending_count += 1;
+                    }
                 }
             });
         });
 
         return Object.values(groups).sort((a, b) => a.name.localeCompare(b.name));
-    }, [requests, lineGroupsMaster]);
+    }, [relevantRequests, lineGroupsMaster]);
 
     const shortagesForActiveGroup = useMemo(() => {
         if (!activeViewMachine) return [];
         return filteredRequests.filter(req => {
-            const rawLine = req.master_machine || req.line_name || 'UNASSIGNED';
-            const individualLines = rawLine.split(',').map(s => s.trim());
+            const rawLine = req.master_machine || req.line_name;
+            if (!rawLine) return false;
+            const individualLines = rawLine.split(',').map(s => s.trim()).filter(Boolean);
             return individualLines.includes(activeViewMachine);
         });
     }, [filteredRequests, activeViewMachine]);
 
     // Current list for pagination
     const currentList = useMemo(() => {
+        const query = searchQuery.toLowerCase();
+
         if (!activeViewMachine) {
-            return derivedLineGroups.filter(lg => lg.name.toLowerCase().includes(searchQuery.toLowerCase()));
+            return derivedLineGroups.filter(lg => lg.name.toLowerCase().includes(query));
         }
 
-        // Detailed view items
-        const masterLine = lineGroupsMaster.find(lg => lg.name === activeViewMachine);
-        const allSubMachines = masterLine ? masterLine.sub_machines : [];
+        // ── FIXED DRILL-DOWN LOGIC ─────────────────────────────────────────
+        // Get only sub-machines that truly belong to this group (from master)
+        const group = derivedLineGroups.find(lg => lg.name === activeViewMachine);
+        const groupSubMachines: SubMachine[] = group ? group.sub_machines : [];
 
-        if (allSubMachines.length === 0) {
-            return shortagesForActiveGroup.map(req => ({
-                machineName: req.line_name || 'Generic',
-                shortage: req
-            }));
-        }
+        // Build a map: sub-machine name -> the shortage request assigned to it
+        // A shortage is "assigned to" a sub-machine if that sub-machine appears
+        // in req.sub_machines[] AND belongs to the activeViewMachine group.
+        const subMachineToReq = new Map<string, ShortageRequest>();
 
-        const matchedReqIds = new Set<number>();
-        const result = allSubMachines.map((sub: SubMachine) => {
-            const match = shortagesForActiveGroup.find(req =>
-                req.line_name?.trim().toUpperCase() === sub.name?.trim().toUpperCase()
+        shortagesForActiveGroup.forEach(req => {
+            // req.sub_machines comes from the API, already filtered to this group's machines
+            const reqSubs: Array<{ id: number; name: string }> = (req as any).sub_machines || [];
+            reqSubs.forEach(sub => {
+                // Only assign to sub-machines that belong to THIS group
+                const isInGroup = groupSubMachines.some(
+                    gs => gs.id === sub.id || gs.name === sub.name
+                );
+                if (isInGroup && !subMachineToReq.has(sub.name)) {
+                    subMachineToReq.set(sub.name, req);
+                }
+            });
+        });
+
+        // Build rows: one row per registered sub-machine in this group
+        const result: DisplayItem[] = groupSubMachines.map(sub => ({
+            machineName: sub.name,
+            shortage: subMachineToReq.get(sub.name),
+        }));
+
+        // Also surface any shortages for this group that didn't match a registered sub-machine
+        const matchedIds = new Set(Array.from(subMachineToReq.values()).map(r => r.id));
+        shortagesForActiveGroup
+            .filter(req => !matchedIds.has(req.id))
+            .forEach(req => {
+                const reqSubs: Array<{ id: number; name: string }> = (req as any).sub_machines || [];
+                const label = reqSubs.length > 0 ? reqSubs[0].name : (req.line_name || 'Generic');
+                result.push({ machineName: label, shortage: req });
+            });
+
+        // Apply search filter
+        if (query) {
+            return result.filter(item =>
+                item.machineName.toLowerCase().includes(query) ||
+                item.shortage?.inventory_item?.sap_part_number?.toLowerCase().includes(query)
             );
-            if (match) matchedReqIds.add(match.id);
-            return { machineName: sub.name, shortage: match };
-        });
+        }
 
-        const genericShortages = shortagesForActiveGroup.filter(req => !matchedReqIds.has(req.id));
-        let genericIdx = 0;
-        return result.map((item: DisplayItem) => {
-            if (!item.shortage && genericIdx < genericShortages.length) {
-                return {
-                    machineName: item.machineName,
-                    shortage: genericShortages[genericIdx++]
-                };
-            }
-            return item;
-        });
-    }, [activeViewMachine, derivedLineGroups, searchQuery, lineGroupsMaster, shortagesForActiveGroup]);
+        return result;
+    }, [activeViewMachine, derivedLineGroups, searchQuery, shortagesForActiveGroup]);
 
     const paginatedItems = useMemo(() => {
         return currentList.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -808,7 +1006,7 @@ export default function DEOShortageRequests() {
                 <div className="flex flex-col gap-1">
                     <h1 className="text-[24px] font-black text-ind-text tracking-tight leading-none flex items-center gap-2">
                         <Factory className="text-orange-600" />
-                        {activeViewMachine ? `Shortages: ${activeViewMachine}` : 'Shortage Dashboard'}
+                        {activeViewMachine ? `Shortages: ${activeViewMachine}` : onlyShowHistory ? 'Shortage History Log' : 'Shortage Dashboard'}
                     </h1>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                         {activeViewMachine ? '' : ''}
@@ -818,17 +1016,33 @@ export default function DEOShortageRequests() {
                 <div className="flex items-center bg-gray-50 rounded-2xl border border-slate-200 p-1 shadow-inner">
                     <div className="px-4 py-1 text-center border-r border-slate-200 min-w-[80px]">
                         <span className="block text-[8px] font-bold text-slate-400 uppercase tracking-wider">TOTAL</span>
-                        <span className="block text-lg font-black text-slate-800 leading-none">{requests.length}</span>
+                        <span className="block text-lg font-black text-slate-800 leading-none">{relevantRequests.length}</span>
                     </div>
                     <div className="px-4 py-1 text-center border-r border-slate-200 text-amber-500 min-w-[80px]">
                         <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">PENDING</span>
-                        <span className="block text-lg font-black leading-none">{requests.filter(r => r.status === 'PENDING').length}</span>
+                        <span className="block text-lg font-black leading-none">{relevantRequests.filter(r => r.status === 'PENDING').length}</span>
                     </div>
                     <div className="px-4 py-1 text-center text-emerald-500 min-w-[80px]">
-                        <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">VERIFIED</span>
-                        <span className="block text-lg font-black leading-none">{requests.filter(r => r.status === 'VERIFIED' || r.status === 'COMPLETED').length}</span>
+                        <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">{onlyShowHistory ? 'COMPLETED' : 'VERIFIED'}</span>
+                        <span className="block text-lg font-black leading-none">{relevantRequests.filter(r => r.status === 'VERIFIED' || r.status === 'COMPLETED').length}</span>
                     </div>
                 </div>
+
+                {!activeViewMachine ? (
+                    <button
+                        onClick={() => setIsAddGroupModalOpen(true)}
+                        className="h-[42px] px-6 bg-orange-600 hover:bg-orange-700 text-white rounded-full text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-orange-600/20"
+                    >
+                        <Plus size={16} /> Add Line Group
+                    </button>
+                ) : (
+                    <button
+                        onClick={() => setIsAddMachineModalOpen(true)}
+                        className="h-[42px] px-6 bg-orange-600 hover:bg-orange-700 text-white rounded-full text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-orange-600/20"
+                    >
+                        <Plus size={16} /> Register Machine
+                    </button>
+                )}
             </div>
 
             <div className="flex flex-col md:flex-row items-center justify-between gap-3 px-1 mb-3">
@@ -852,11 +1066,19 @@ export default function DEOShortageRequests() {
                             onChange={(e) => setFilterStatus(e.target.value)}
                             className="w-full bg-white border border-slate-200 focus:border-orange-500 rounded-full h-[42px] pl-12 pr-10 text-slate-700 font-bold text-[11px] tracking-wide outline-none transition-all shadow-sm cursor-pointer appearance-none uppercase"
                         >
-                            <option value="all">All Status</option>
-                            <option value="pending">Pending</option>
-                            <option value="in-progress">In progress</option>
-                            <option value="rejected">Rejected</option>
-                            <option value="completed">Completed</option>
+                            {onlyShowHistory ? (
+                                <>
+                                    <option value="all">All History</option>
+                                    <option value="completed">Completed</option>
+                                </>
+                            ) : (
+                                <>
+                                    <option value="all">Active Status</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="in-progress">In progress</option>
+                                    <option value="rejected">Rejected</option>
+                                </>
+                            )}
                         </select>
                         <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                             <ChevronDown size={14} />
@@ -906,7 +1128,7 @@ export default function DEOShortageRequests() {
                                         <th className="px-6 py-4 text-left whitespace-nowrap">Sr.No</th>
                                         <th className="px-6 py-4 text-left whitespace-nowrap">Line Name</th>
                                         <th className="px-6 py-4 text-center whitespace-nowrap">Total Machines</th>
-                                        <th className="px-6 py-4 text-center whitespace-nowrap">Active Shortages</th>
+                                        <th className="px-6 py-4 text-center whitespace-nowrap">{onlyShowHistory ? 'Historical Shortages' : 'Active Shortages'}</th>
                                         <th className="px-6 py-4 text-center whitespace-nowrap">Status</th>
                                         <th className="px-6 py-4 text-right whitespace-nowrap">Actions</th>
                                     </tr>
@@ -940,9 +1162,11 @@ export default function DEOShortageRequests() {
                                                 <td className="px-6 py-4 text-center">
                                                     <span className={cn(
                                                         "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border",
-                                                        lg.pending_count === 0 ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-amber-50 text-amber-600 border-amber-100"
+                                                        lg.pending_count === 0 
+                                                            ? onlyShowHistory ? "bg-slate-50 text-slate-600 border-slate-100" : "bg-emerald-50 text-emerald-600 border-emerald-100" 
+                                                            : "bg-amber-50 text-amber-600 border-amber-100"
                                                     )}>
-                                                        {lg.pending_count === 0 ? 'ALL FILLED' : `${lg.pending_count} PENDING`}
+                                                        {onlyShowHistory ? 'ARCHIVED' : lg.pending_count === 0 ? 'ALL FILLED' : `${lg.pending_count} PENDING`}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
@@ -1168,6 +1392,32 @@ export default function DEOShortageRequests() {
                 <ViewFillModal
                     request={viewFillRequest}
                     onClose={() => setViewFillRequest(null)}
+                />
+            )}
+
+            {isAddGroupModalOpen && (
+                <AddModal
+                    title="Create Line Group"
+                    description="Define a new top-level production area"
+                    label="Group Name"
+                    placeholder="e.g. 110T, 320T..."
+                    value={newGroupName}
+                    onChange={setNewGroupName}
+                    onSubmit={handleAddGroup}
+                    onClose={() => setIsAddGroupModalOpen(false)}
+                />
+            )}
+
+            {isAddMachineModalOpen && (
+                <AddModal
+                    title="Register Machine"
+                    description={`Add a physical machine to ${activeViewMachine}`}
+                    label="Machine Name"
+                    placeholder="e.g. 110T-A, 110T-B..."
+                    value={newMachineName}
+                    onChange={setNewMachineName}
+                    onSubmit={handleAddMachine}
+                    onClose={() => setIsAddMachineModalOpen(false)}
                 />
             )}
         </div>
