@@ -33,7 +33,7 @@ interface Demand {
     quantity: number;
     start_date: string;
     end_date: string;
-    status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
+    status: string;
     line?: string;
     manager?: string;
     assigned_deo_name?: string;
@@ -42,6 +42,7 @@ interface Demand {
     supervisor_email?: string;
     customer?: string;
     createdAt: string;
+    actual?: number;
 }
 
 const DemandManagementPage = () => {
@@ -297,7 +298,8 @@ const DemandManagementPage = () => {
                             <tr>
                                 <th className="px-6 py-2 text-left">Demand</th>
                                 <th className="px-6 py-2 text-center">Status</th>
-                                <th className="px-6 py-2 text-right">Target</th>
+                                <th className="px-6 py-2 text-right">Plan</th>
+                                <th className="px-6 py-2 text-right">Actual</th>
                                 <th className="px-6 py-2 text-right">Actions</th>
                             </tr>
                         </thead>
@@ -334,28 +336,34 @@ const DemandManagementPage = () => {
                                         {/* Status */}
                                         <td className="px-6 py-2 text-center">
                                             <div className="flex flex-col items-center gap-1">
-                                                <span
-                                                    className={`px-3 py-1 rounded-full text-[10px] font-bold border
-                      ${demand.status === "PENDING"
-                                                            ? "bg-amber-50 text-amber-600 border-amber-100"
-                                                            : demand.status === "IN_PROGRESS"
-                                                                ? "bg-blue-50 text-blue-600 border-blue-100"
-                                                                : demand.status === "COMPLETED"
-                                                                    ? "bg-emerald-50 text-emerald-600 border-emerald-100"
-                                                                    : "bg-ind-bg text-ind-text2 border-ind-border"
-                                                        }`}
-                                                >
-                                                    {demand.status.replace("_", " ")}
-                                                </span>
+                                                 <span
+                                                     className={`px-3 py-1 rounded-full text-[10px] font-bold border
+                                                        ${demand.status === "PENDING" ? "bg-amber-50 text-amber-600 border-amber-100" :
+                                                          demand.status === "IN_PROGRESS" ? "bg-blue-50 text-blue-600 border-blue-100" :
+                                                          demand.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                                                          demand.status === "PRODUCTION_DONE" ? "bg-indigo-50 text-indigo-700 border-indigo-100" :
+                                                          demand.status === "AWAITING_STORE_DISPATCH" ? "bg-orange-50 text-orange-600 border-orange-100" :
+                                                          demand.status === "DISPATCHED" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                                                          "bg-ind-bg text-ind-text2 border-ind-border"
+                                                         }`}
+                                                 >
+                                                     {demand.status.replace(/_/g, " ")}
+                                                 </span>
                                             </div>
                                         </td>
 
-                                        {/* Target */}
+                                        {/* Plan */}
                                         <td className="px-6 py-2 text-right ">
                                             <div className="font-bold text-xs text-slate-800">
                                                 {demand.quantity.toLocaleString()} Units
                                             </div>
+                                        </td>
 
+                                        {/* Actual */}
+                                        <td className="px-6 py-2 text-right">
+                                            <div className="font-bold text-xs text-indigo-600">
+                                                {demand.actual?.toLocaleString() || '0'} Units
+                                            </div>
                                         </td>
 
                                         {/* Actions */}

@@ -558,30 +558,18 @@ def supervisor_verify_machine_entry(entry_id):
                         psr.assigned_machines = []  # Vacate machines
                         db.session.flush()
 
-                        # ── Step 4: Auto-assign next waiting shortage to freed machines ──
+                        # ── Step 4: Free vacated machines + promote HOLD queue ──
+                        vacated_machine_objects = []
                         for machine_id in vacated_machine_ids:
                             machine = ProductionLine.query.get(machine_id)
-                            if not machine:
-                                continue
-                            # Find next PENDING shortage that lists this machine in their part mapping
-                            next_psr = PartShortageRequest.query.join(
-                                InventoryItem,
-                                PartShortageRequest.inventory_item_id == InventoryItem.id
-                            ).filter(
-                                PartShortageRequest.status == 'PENDING',
-                                # Machine not yet assigned
-                                ~PartShortageRequest.assigned_machines.any()
-                            ).order_by(PartShortageRequest.created_at.asc()).first()
-
-                            if next_psr:
-                                next_psr.assigned_machines.append(machine)
-                                machine.status = 'BUSY'
-                                db.session.flush()
-                            else:
-                                # No shortage is waiting, so set machine back to AVAILABLE
+                            if machine:
                                 machine.status = 'AVAILABLE'
                                 db.session.add(machine)
-                                db.session.flush()
+                                vacated_machine_objects.append(machine)
+                        db.session.flush()
+
+                        # Use the proven HOLD promotion logic from the model
+                        PartShortageRequest.process_hold_queue_for_machines(vacated_machine_objects)
 
                     elif total_verified > 0:
                         psr.status = 'IN_PROGRESS'
@@ -612,3 +600,59 @@ def supervisor_verify_machine_entry(entry_id):
     log_audit(f"SUPERVISOR_MACHINE_ENTRY_{status or 'OBSERVED'}_{entry_id}", f"By {get_jwt_identity()}")
     return jsonify({"success": True, "data": entry.to_dict()})
 
+
+
+# -- Manual HOLD Promotion Endpoint -----------------------------------------------
+@supervisor_bp.route('/promote-hold-queue', methods=['POST'])
+@jwt_required()
+@role_required(['Supervisor', 'Admin'])
+def promote_hold_queue():
+    """
+    Scan all machines: for any machine that has a HOLD shortage waiting but no
+    active (PENDING/IN_PROGRESS) shortage occupying it, promote the oldest HOLD
+    PSR to PENDING. Used to unstick cases where automatic promotion didn't fire.
+    """
+    from app.models import PartShortageRequest, ProductionLine, Notification
+
+    sub_machines = ProductionLine.query.filter(ProductionLine.parent_id != None).all()
+    promoted = []
+
+    for machine in sub_machines:
+        occupied = PartShortageRequest.query.filter(
+            PartShortageRequest.assigned_machines.any(id=machine.id),
+            PartShortageRequest.status.in_(['PENDING', 'IN_PROGRESS', 'DEO_FILLED', 'WAITING_RM_APPROVAL'])
+        ).count() > 0
+
+        if not occupied:
+            hold_psr = PartShortageRequest.query.filter(
+                PartShortageRequest.assigned_machines.any(id=machine.id),
+                PartShortageRequest.status == 'HOLD'
+            ).order_by(PartShortageRequest.created_at.asc()).first()
+
+            if hold_psr:
+                hold_psr.status = 'PENDING'
+                machine.status = 'BUSY'
+                db.session.add(machine)
+                db.session.add(hold_psr)
+                promoted.append({'psr_id': hold_psr.id, 'formatted_id': hold_psr.formatted_id, 'machine': machine.name})
+
+                if hold_psr.deo_id:
+                    Notification.send(
+                        user_id=hold_psr.deo_id,
+                        title='Shortage Request Activated',
+                        message=f'PSR {hold_psr.formatted_id} promoted from HOLD. Machine {machine.name} is now assigned.',
+                        notification_type='INFO',
+                        shortage_request_id=hold_psr.id
+                    )
+                if hold_psr.supervisor_id:
+                    Notification.send(
+                        user_id=hold_psr.supervisor_id,
+                        title='HOLD Queue Activated',
+                        message=f'PSR {hold_psr.formatted_id} promoted to PENDING on {machine.name}.',
+                        notification_type='INFO',
+                        shortage_request_id=hold_psr.id
+                    )
+
+    db.session.commit()
+    log_audit('PROMOTE_HOLD_QUEUE', f'{len(promoted)} PSRs promoted to PENDING')
+    return jsonify({'success': True, 'message': f'{len(promoted)} HOLD request(s) promoted to PENDING', 'promoted': promoted})

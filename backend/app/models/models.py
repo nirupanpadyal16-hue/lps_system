@@ -468,12 +468,30 @@ class Demand(db.Model):
             return f"{self.model.supervisor.username}@gmail.com"
         return None
 
+    @property
+    def actual_quantity(self):
+        from app.models.models import InventoryItem
+        items = InventoryItem.query.filter_by(demand_id=self.id).all()
+        if not items:
+            return 0
+
+        # Only items that need manufacturing
+        production_items = [it for it in items if it.status != 'SUFFICIENT']
+        if not production_items:
+            # If all parts were sufficient, the actual count is considered 100% complete
+            return self.quantity
+
+        # The actual completed count is bounded by the minimum progress amongst all shortage components,
+        # capped at the demand quantity.
+        min_produced = min(it.produced_qty or 0.0 for it in production_items)
+        return min(int(min_produced), self.quantity)
+
     @staticmethod
     def check_and_update_status(demand_id):
         """
         New logic:
         - SUFFICIENT items are excluded from production check (no manufacturing needed)
-        - Demand moves to PRODUCTION_DONE only when all SHORTAGE items reach PRODUCTION_DONE
+        - Demand moves to AWAITING_STORE_DISPATCH directly when all SHORTAGE items are PRODUCTION_DONE
         - Demand moves to DISPATCHED when Store Keeper dispatches
         """
         if not demand_id:
@@ -482,7 +500,7 @@ class Demand(db.Model):
         if not demand:
             return
 
-        from app.models.models import InventoryItem
+        from app.models.models import InventoryItem, Notification, User
         items = InventoryItem.query.filter_by(demand_id=demand_id).all()
         if not items:
             return
@@ -491,17 +509,38 @@ class Demand(db.Model):
         production_items = [it for it in items if it.status != 'SUFFICIENT']
 
         if not production_items:
-            # All parts were already in stock — mark done
-            demand.status = 'PRODUCTION_DONE'
-            db.session.commit()
+            # All parts were already in stock — mark done and directly route to dispatch
+            if demand.status not in ['AWAITING_STORE_DISPATCH', 'DISPATCHED', 'COMPLETED']:
+                demand.status = 'AWAITING_STORE_DISPATCH'
+                # Send Notification to Store Keepers automatically!
+                store_keepers = User.query.filter_by(role='Store_Keeper', is_active=True).all()
+                for sk in store_keepers:
+                    Notification.send(
+                        user_id=sk.id,
+                        title="Model Ready for Dispatch (Auto-Authorized)",
+                        message=f"Production is completed for {demand.model_name} ({demand.formatted_id}). Automated routing initiated. Please process delivery.",
+                        notification_type='DISPATCH_AUTHORIZED',
+                        demand_id=demand.id
+                    )
+                db.session.commit()
             return
 
         all_production_done = all(
             it.status in ['PRODUCTION_DONE', 'DISPATCHED'] for it in production_items
         )
 
-        if all_production_done and demand.status not in ['PRODUCTION_DONE', 'DISPATCHED', 'COMPLETED']:
-            demand.status = 'PRODUCTION_DONE'
+        if all_production_done and demand.status not in ['AWAITING_STORE_DISPATCH', 'DISPATCHED', 'COMPLETED', 'PRODUCTION_DONE']:
+            demand.status = 'AWAITING_STORE_DISPATCH'
+            # Send Notification to Store Keepers automatically!
+            store_keepers = User.query.filter_by(role='Store_Keeper', is_active=True).all()
+            for sk in store_keepers:
+                Notification.send(
+                    user_id=sk.id,
+                    title="Model Ready for Dispatch (Auto-Authorized)",
+                    message=f"Production is completed for {demand.model_name} ({demand.formatted_id}). Automated routing initiated. Please process delivery.",
+                    notification_type='DISPATCH_AUTHORIZED',
+                    demand_id=demand.id
+                )
             db.session.commit()
 
     def __repr__(self):
@@ -525,7 +564,8 @@ class Demand(db.Model):
             "supervisor_email": self.supervisor_email,
             "customer": self.customer,
             "company": self.company,
-            "createdAt": self.created_at.isoformat() if self.created_at else None
+            "createdAt": self.created_at.isoformat() if self.created_at else None,
+            "actual": self.actual_quantity
         }
 
 # ----------------------------- DEOProductionEntry -----------------------------
@@ -799,9 +839,19 @@ class InventoryItem(db.Model):
             "rm_status": self.rm_status,
             "action": self.action,
             "machine_group": machine_group,
+            "master_material_data": self.master_material_data,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
+
+    @property
+    def master_material_data(self):
+        """Fetches technical RM specifications from the MasterData table based on SAP Part Number."""
+        from app.models import MasterData
+        master = MasterData.query.filter_by(sap_part_number=self.sap_part_number).first()
+        if master and master.material_rel:
+            return master.material_rel.to_dict()
+        return {}
 
 
 # ----------------------------- PartShortageRequest -----------------------------
@@ -933,6 +983,7 @@ class PartShortageRequest(db.Model):
             "is_overdue": self.is_overdue,
             "status": self.status,
             "deo_id": self.deo_id,
+            "master_material_data": self.inventory_item.master_material_data if self.inventory_item else {},
             "deo_name": self.deo.name if self.deo else None,
             "sap_stock": self.sap_stock,
             "opening_stock": self.opening_stock,

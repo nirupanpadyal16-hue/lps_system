@@ -28,6 +28,7 @@ interface Demand {
     manager?: string;
     customer?: string;
     createdAt: string;
+    actual?: number;
 }
 
 const PPCDemandPage = () => {
@@ -200,7 +201,8 @@ const PPCDemandPage = () => {
                             <tr>
                                 <th className="px-6 py-2 text-left">Demand</th>
                                 <th className="px-6 py-2 text-center">Status</th>
-                                <th className="px-6 py-2 text-right">Target</th>
+                                <th className="px-6 py-2 text-right">Plan</th>
+                                <th className="px-6 py-2 text-right">Actual</th>
                                 <th className="px-6 py-2 text-right">Actions</th>
                             </tr>
                         </thead>
@@ -242,6 +244,9 @@ const PPCDemandPage = () => {
                                         </td>
                                         <td className="px-6 py-2 text-right">
                                             <div className="font-bold text-xs text-slate-800">{demand.quantity?.toLocaleString()} Units</div>
+                                        </td>
+                                        <td className="px-6 py-2 text-right">
+                                            <div className="font-bold text-xs text-indigo-600">{demand.actual?.toLocaleString() || '0'} Units</div>
                                         </td>
                                         <td className="px-6 py-2 text-right">
                                             <div className="flex justify-end gap-2 items-center">

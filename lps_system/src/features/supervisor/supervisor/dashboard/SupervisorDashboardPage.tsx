@@ -197,14 +197,14 @@ const SupervisorDashboardPage = () => {
             if (logsRes.data?.success) {
                 const mappedLogs = (logsRes.data.data || []).map((e: any) => ({
                     ...e,
-                    machine_run_time: e.machine_runtime_mins
+                    machine_run_time: e.machine_runtime_mins ? (e.machine_runtime_mins / 60).toFixed(1) : '0'
                 }));
                 setProductionLogs(mappedLogs);
             }
             const rawVerifications = Array.isArray(data) ? data : (data?.data ?? []);
             const mappedVerifications = rawVerifications.map((v: any) => ({
                 ...v,
-                machine_run_time: v.machine_runtime_mins // Ensure mapping
+                machine_run_time: v.machine_runtime_mins ? (v.machine_runtime_mins / 60).toFixed(1) : '0'
             }));
             setVerifications(mappedVerifications);
             if (!silent) setError(null);

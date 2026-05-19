@@ -95,6 +95,14 @@ const DEODailyProduction: React.FC = () => {
   const [formMachineId, setFormMachineId] = useState<number | null>(null);
   const [formProduced, setFormProduced] = useState('');
   const [formRunTime, setFormRunTime] = useState('');
+
+  // Multi-machine rows: each row = { machineId, subMachineName, produced, runTime }
+  interface MachineRow { machineId: number | null; subMachineName: string; produced: string; runTime: string; }
+  const [machineRows, setMachineRows] = useState<MachineRow[]>([]);
+
+  const updateMachineRow = (idx: number, field: keyof MachineRow, value: string | number | null) => {
+    setMachineRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
+  };
   const [remark, setRemark] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -115,7 +123,7 @@ const DEODailyProduction: React.FC = () => {
       ]);
       const mappedHistory = (historyRes.data?.data || []).map((e: any) => ({
         ...e,
-        machine_run_time: e.machine_runtime_mins
+        machine_run_time: e.machine_runtime_mins ? (e.machine_runtime_mins / 60).toFixed(1) : '0'
       }));
       setHistoryEntries(mappedHistory);
       setInventoryItems(inventoryRes.data?.data || []);
@@ -134,13 +142,60 @@ const DEODailyProduction: React.FC = () => {
 
   useEffect(() => {
     if (!isEditing && formSapPart.trim().length > 3) {
-      const req = shortageRequests.find(r => r.inventory_item?.sap_part_number?.toUpperCase() === formSapPart.toUpperCase().trim());
-      if (req && req.machine_name) {
-        setFormSubMachine(req.machine_name);
-        setFormMachineId(req.machine_id);
+      // Find the active shortage request for this SAP part
+      const req = shortageRequests.find(
+        r => r.inventory_item?.sap_part_number?.toUpperCase() === formSapPart.toUpperCase().trim() &&
+             !['COMPLETED', 'VERIFIED', 'REJECTED'].includes(r.status)
+      ) || shortageRequests.find(
+        r => r.inventory_item?.sap_part_number?.toUpperCase() === formSapPart.toUpperCase().trim()
+      );
+
+      if (req) {
+        // Build rows from sub_machines (specific: "320T-A", "200T-B", "110T-A")
+        const subMachines: Array<{ id: number; name: string }> = req.sub_machines || [];
+        const masterStr: string = req.master_machine || '';
+        const masterGroups = masterStr.split(',').map((s: string) => s.trim()).filter(Boolean);
+
+        if (subMachines.length > 0) {
+          // Use specific sub-machines assigned to this PSR
+          setMachineRows(subMachines.map(s => ({
+            machineId: s.id,
+            subMachineName: s.name,
+            produced: '',
+            runTime: ''
+          })));
+        } else if (masterGroups.length > 0) {
+          // Fall back: look up sub-machine IDs from machines list
+          const rows = masterGroups.map(grp => {
+            // Find first sub-machine matching this group prefix
+            let machineId: number | null = null;
+            let subName = grp; // default to group name if not found
+            for (const m of machines) {
+              if (m.name.toUpperCase() === grp.toUpperCase() && m.children?.length > 0) {
+                machineId = m.children[0].id;
+                subName = m.children[0].name;
+                break;
+              }
+              const child = m.children?.find(c => c.name.toUpperCase().startsWith(grp.toUpperCase()));
+              if (child) { machineId = child.id; subName = child.name; break; }
+            }
+            return { machineId, subMachineName: subName, produced: '', runTime: '' };
+          });
+          setMachineRows(rows);
+        } else if (req.machine_name) {
+          // Legacy single machine
+          setMachineRows([{ machineId: req.machine_id || null, subMachineName: req.machine_name, produced: '', runTime: '' }]);
+        } else {
+          setMachineRows([{ machineId: null, subMachineName: '', produced: '', runTime: '' }]);
+        }
+      } else {
+        // No matching shortage — one blank row for manual entry
+        setMachineRows([{ machineId: null, subMachineName: '', produced: '', runTime: '' }]);
       }
+    } else if (!formSapPart.trim()) {
+      setMachineRows([]);
     }
-  }, [formSapPart, shortageRequests, isEditing]);
+  }, [formSapPart, shortageRequests, machines, isEditing]);
 
   const handleReset = () => {
     setRemark('');
@@ -155,6 +210,7 @@ const DEODailyProduction: React.FC = () => {
     setFormMachineId(null);
     setFormProduced('');
     setFormRunTime('');
+    setMachineRows([]);
   };
 
   const handleEdit = (entry: ProductionEntry) => {
@@ -176,64 +232,66 @@ const DEODailyProduction: React.FC = () => {
   };
 
   const handleSubmit = async () => {
-    if (!formProduced) {
-      toast.error('Please enter production quantity');
+    if (!formSapPart) { toast.error('Please enter SAP Part Number'); return; }
+
+    // In edit mode: single entry
+    if (isEditing && editingId) {
+      if (!formProduced) { toast.error('Please enter production quantity'); return; }
+      setSubmitting(true);
+      try {
+        let mId = formMachineId;
+        if (!mId && formSubMachine) {
+          for (const m of machines) {
+            const child = m.children.find(c => c.name.toLowerCase().trim() === formSubMachine.toLowerCase().trim());
+            if (child) { mId = child.id; break; }
+            if (m.name.toLowerCase().trim() === formSubMachine.toLowerCase().trim()) { mId = m.id; break; }
+          }
+        }
+        const part = inventoryItems.find(p => p.sap_part_number.toUpperCase() === formSapPart.toUpperCase().trim());
+        await deoMachineApi.updateMachineEntry(editingId, {
+          inventory_item_id: part ? part.id : null,
+          shift: formShift, date: formDate,
+          parts_produced: parseFloat(formProduced),
+          machine_id: mId,
+          sap_part_number: formSapPart.toUpperCase().trim(),
+          machine_runtime_mins: formRunTime ? parseFloat(formRunTime) * 60 : null,
+          deo_notes: remark
+        });
+        setShowFormModal(false); setShowSuccess(true);
+        setFilterDate(formDate); fetchData(formDate); handleReset();
+      } catch { toast.error('Failed to update production'); }
+      finally { setSubmitting(false); }
       return;
     }
-    if (!formSapPart) {
-      toast.error('Please enter SAP Part Number');
-      return;
-    }
+
+    // NEW ENTRY: submit one entry per machine row
+    const validRows = machineRows.filter(r => r.produced && parseFloat(r.produced) > 0);
+    if (validRows.length === 0) { toast.error('Please enter produced quantity for at least one machine'); return; }
 
     setSubmitting(true);
     try {
-      let mId = formMachineId;
-
-      // Intelligent ID Lookup: If manual entry, try to find the real machine ID by name
-      if (!mId && formSubMachine) {
-        for (const m of machines) {
-          const child = m.children.find(c => c.name.toLowerCase().trim() === formSubMachine.toLowerCase().trim());
-          if (child) {
-            mId = child.id;
-            break;
-          }
-          if (m.name.toLowerCase().trim() === formSubMachine.toLowerCase().trim()) {
-            mId = m.id;
-            break;
-          }
-        }
-      }
-
-      // Try to find part id from inventory
       const part = inventoryItems.find(p => p.sap_part_number.toUpperCase() === formSapPart.toUpperCase().trim());
-
-      const entryData = {
-        inventory_item_id: part ? part.id : null,
-        shift: formShift,
-        date: formDate,
-        parts_produced: parseFloat(formProduced),
-        machine_id: mId,
-        sap_part_number: formSapPart.toUpperCase().trim(),
-        machine_runtime_mins: formRunTime ? parseFloat(formRunTime) : null,
-        deo_notes: remark
-      };
-
-      if (isEditing && editingId) {
-        await deoMachineApi.updateMachineEntry(editingId, entryData);
-      } else {
-        await deoMachineApi.createEntry(entryData);
-      }
-
-      setShowFormModal(false);
-      setShowSuccess(true);
-      setFilterDate(formDate);
-      fetchData(formDate); // Force refresh with new date immediately
-      handleReset();
-    } catch (error) {
-      toast.error('Failed to submit production');
-    } finally {
-      setSubmitting(false);
-    }
+      const results = await Promise.allSettled(
+        machineRows.map(async (row) => {
+          if (!row.produced && !row.runTime) return; // skip completely empty rows
+          return deoMachineApi.createEntry({
+            inventory_item_id: part ? part.id : null,
+            shift: formShift,
+            date: formDate,
+            parts_produced: parseFloat(row.produced || '0'),
+            machine_id: row.machineId,
+            sap_part_number: formSapPart.toUpperCase().trim(),
+            machine_runtime_mins: row.runTime ? parseFloat(row.runTime) * 60 : null,
+            deo_notes: remark
+          });
+        })
+      );
+      const failed = results.filter(r => r.status === 'rejected').length;
+      if (failed > 0) toast.error(`${failed} entry(s) failed to save`);
+      setShowFormModal(false); setShowSuccess(true);
+      setFilterDate(formDate); fetchData(formDate); handleReset();
+    } catch { toast.error('Failed to submit production'); }
+    finally { setSubmitting(false); }
   };
 
   const filteredHistory = useMemo(() => {
@@ -664,7 +722,14 @@ const DEODailyProduction: React.FC = () => {
 
                   {formSapPart && (
                     <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
-                      <label className="text-[10px] font-black text-slate-900 uppercase tracking-widest ml-1">Production Details</label>
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-black text-slate-900 uppercase tracking-widest ml-1">Production Details</label>
+                        {machineRows.length > 0 && (
+                          <span className="text-[9px] font-black text-orange-500 uppercase tracking-widest">
+                            {machineRows.length} Machine{machineRows.length > 1 ? 's' : ''} Found
+                          </span>
+                        )}
+                      </div>
 
                       <div className="bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden shadow-inner">
                         <table className="w-full text-left">
@@ -677,43 +742,63 @@ const DEODailyProduction: React.FC = () => {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            <tr className="bg-white/50 hover:bg-white transition-colors">
-                              <td className="px-5 py-3">
-                                <input
-                                  type="text"
-                                  placeholder="Auto or Manual"
-                                  value={formSubMachine}
-                                  onChange={(e) => setFormSubMachine(e.target.value)}
-                                  className="w-full bg-white border border-ind-border/60 rounded-lg py-1.5 px-3 text-[11px] font-black text-slate-800 uppercase outline-none focus:border-orange-400"
-                                />
-                              </td>
-                              <td className="px-5 py-3">
-                                <input
-                                  type="text"
-                                  value={formSapPart}
-                                  readOnly
-                                  className="w-full bg-slate-100 border border-slate-200 rounded-lg py-1.5 px-3 text-[11px] font-black text-slate-500 uppercase outline-none cursor-not-allowed"
-                                />
-                              </td>
-                              <td className="px-5 py-3 text-right">
-                                <input
-                                  type="number"
-                                  placeholder="0"
-                                  value={formProduced}
-                                  onChange={(e) => setFormProduced(e.target.value)}
-                                  className="w-20 bg-white border border-ind-border/60 rounded-lg py-1.5 px-3 text-[11px] font-black text-slate-800 text-right outline-none focus:border-orange-400"
-                                />
-                              </td>
-                              <td className="px-5 py-3">
-                                <input
-                                  type="number"
-                                  placeholder="0"
-                                  value={formRunTime}
-                                  onChange={(e) => setFormRunTime(e.target.value)}
-                                  className="w-20 bg-white border border-ind-border/60 rounded-lg py-1.5 px-3 text-[11px] font-black text-slate-800 text-right outline-none focus:border-orange-400"
-                                />
-                              </td>
-                            </tr>
+                            {isEditing ? (
+                              // Edit mode: single row (legacy behaviour)
+                              <tr className="bg-white/50 hover:bg-white transition-colors">
+                                <td className="px-5 py-3">
+                                  <input type="text" placeholder="Sub Machine" value={formSubMachine}
+                                    onChange={(e) => setFormSubMachine(e.target.value)}
+                                    className="w-full bg-white border border-ind-border/60 rounded-lg py-1.5 px-3 text-[11px] font-black text-slate-800 uppercase outline-none focus:border-orange-400" />
+                                </td>
+                                <td className="px-5 py-3">
+                                  <input type="text" value={formSapPart} readOnly
+                                    className="w-full bg-slate-100 border border-slate-200 rounded-lg py-1.5 px-3 text-[11px] font-black text-slate-500 uppercase outline-none cursor-not-allowed" />
+                                </td>
+                                <td className="px-5 py-3 text-right">
+                                  <input type="number" placeholder="0" value={formProduced}
+                                    onChange={(e) => setFormProduced(e.target.value)}
+                                    className="w-20 bg-white border border-ind-border/60 rounded-lg py-1.5 px-3 text-[11px] font-black text-slate-800 text-right outline-none focus:border-orange-400" />
+                                </td>
+                                <td className="px-5 py-3">
+                                  <input type="number" placeholder="0" value={formRunTime}
+                                    onChange={(e) => setFormRunTime(e.target.value)}
+                                    className="w-20 bg-white border border-ind-border/60 rounded-lg py-1.5 px-3 text-[11px] font-black text-slate-800 text-right outline-none focus:border-orange-400" />
+                                </td>
+                              </tr>
+                            ) : machineRows.length === 0 ? (
+                              <tr>
+                                <td colSpan={4} className="px-5 py-6 text-center text-[11px] font-black text-slate-400 uppercase tracking-widest">
+                                  Enter SAP Part Number to load machines...
+                                </td>
+                              </tr>
+                            ) : (
+                              machineRows.map((row, idx) => (
+                                <tr key={idx} className="bg-white/50 hover:bg-white transition-colors">
+                                  <td className="px-5 py-3">
+                                    <div className="flex items-center gap-2">
+                                      <span className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0"></span>
+                                      <input type="text" value={row.subMachineName}
+                                        onChange={(e) => updateMachineRow(idx, 'subMachineName', e.target.value)}
+                                        className="w-full bg-white border border-ind-border/60 rounded-lg py-1.5 px-3 text-[11px] font-black text-slate-800 uppercase outline-none focus:border-orange-400" />
+                                    </div>
+                                  </td>
+                                  <td className="px-5 py-3">
+                                    <input type="text" value={formSapPart} readOnly
+                                      className="w-full bg-slate-100 border border-slate-200 rounded-lg py-1.5 px-3 text-[11px] font-black text-slate-500 uppercase outline-none cursor-not-allowed" />
+                                  </td>
+                                  <td className="px-5 py-3 text-right">
+                                    <input type="number" placeholder="0" value={row.produced}
+                                      onChange={(e) => updateMachineRow(idx, 'produced', e.target.value)}
+                                      className="w-20 bg-white border border-ind-border/60 rounded-lg py-1.5 px-3 text-[11px] font-black text-slate-800 text-right outline-none focus:border-orange-400" />
+                                  </td>
+                                  <td className="px-5 py-3">
+                                    <input type="number" placeholder="0" value={row.runTime}
+                                      onChange={(e) => updateMachineRow(idx, 'runTime', e.target.value)}
+                                      className="w-20 bg-white border border-ind-border/60 rounded-lg py-1.5 px-3 text-[11px] font-black text-slate-800 text-right outline-none focus:border-orange-400" />
+                                  </td>
+                                </tr>
+                              ))
+                            )}
                           </tbody>
                         </table>
                       </div>

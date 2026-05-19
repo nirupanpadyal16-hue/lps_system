@@ -737,13 +737,21 @@ def create_machine_entry():
         shift_map = {'Shift 1': ('06:00', '15:00'), 'Shift 2': ('15:00', '23:00'), 'Shift 3': ('23:00', '06:00')}
         shift_start, shift_end = shift_map.get(shift, (shift_start, shift_end))
 
+    entry_date = date.today()
+    if data.get('date'):
+        try:
+            from datetime import datetime as dt
+            entry_date = dt.strptime(data['date'], '%Y-%m-%d').date()
+        except Exception:
+            pass
+
     entry = MachineProductionEntry(
         deo_id=user.id,
         inventory_item_id=inventory_item_id,
         adhoc_part_id=adhoc_part_id,
         demand_id=demand_id,
         machine_id=machine_id,
-        date=date.today(),
+        date=entry_date,
         shift=shift,
         shift_start=shift_start,
         shift_end=shift_end,

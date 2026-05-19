@@ -46,11 +46,14 @@ interface ShortageRequest {
     deo_name?: string;
     deo_email?: string;
     master_machine?: string;
+    master_material_data?: Record<string, any>;
+    all_machines?: Array<{ id: number; name: string; parent_id?: number }>;
 }
 
 interface DisplayItem {
     machineName: string;
     shortage: ShortageRequest | undefined;
+    allMachines?: string[]; // all machines for this part from master mapping
 }
 
 interface SubMachine {
@@ -486,6 +489,32 @@ const DetailsModal = ({ request, onClose }: { request: ShortageRequest, onClose:
                                 <span>Production Context</span>
                             </div>
                             <div className="space-y-5">
+                                {/* Machine routing — shows ALL machines for this part */}
+                                <div className="flex items-start gap-4">
+                                    <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center text-orange-500 flex-shrink-0 mt-1">
+                                        <Activity size={16} />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-[7.5px] font-black text-orange-500 uppercase tracking-widest mb-2">Manufacturing Machines</p>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {(() => {
+                                                const assignedSubs: Array<{ id: number; name: string }> = (request as any).sub_machines || [];
+                                                const masterStr: string = request.master_machine || '';
+                                                const masterList = masterStr.split(',').map(s => s.trim()).filter(Boolean);
+                                                const names: string[] = assignedSubs.length > 0
+                                                    ? assignedSubs.map(s => s.name)
+                                                    : masterList;
+                                                return names.length > 0 ? names.map((n, i) => (
+                                                    <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-orange-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wide border border-orange-600 shadow-sm shadow-orange-200">
+                                                        <Activity size={10} />{n}
+                                                    </span>
+                                                )) : (
+                                                    <span className="text-[11px] font-black text-slate-400 uppercase">No machine assigned</span>
+                                                );
+                                            })()}
+                                        </div>
+                                    </div>
+                                </div>
                                 <div className="flex items-center gap-4">
                                     <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-500 flex-shrink-0">
                                         <LayoutGrid size={16} />
@@ -583,28 +612,70 @@ const DetailsModal = ({ request, onClose }: { request: ShortageRequest, onClose:
                                 </div>
                                 <div className="grid grid-cols-1 gap-4">
                                     <div className="grid grid-cols-3 gap-2">
-                                        <div className="bg-white/60 p-3 rounded-xl border border-emerald-100/50">
+                                        <div className="bg-white/60 p-3 rounded-xl border border-emerald-100/50 text-center">
                                             <p className="text-[7px] font-black text-emerald-600 uppercase tracking-widest mb-1">SAP Stock</p>
                                             <p className="text-[12px] font-black text-slate-900">{request.sap_stock ?? '—'}</p>
                                         </div>
-                                        <div className="bg-white/60 p-3 rounded-xl border border-emerald-100/50">
+                                        <div className="bg-white/60 p-3 rounded-xl border border-emerald-100/50 text-center">
                                             <p className="text-[7px] font-black text-emerald-600 uppercase tracking-widest mb-1">Opening</p>
                                             <p className="text-[12px] font-black text-slate-900">{request.opening_stock ?? '—'}</p>
                                         </div>
-                                        <div className="bg-white/60 p-3 rounded-xl border border-emerald-100/50">
+                                        <div className="bg-white/60 p-3 rounded-xl border border-emerald-100/50 text-center">
                                             <p className="text-[7px] font-black text-emerald-600 uppercase tracking-widest mb-1">Today's</p>
                                             <p className="text-[12px] font-black text-slate-900">{request.todays_stock ?? '—'}</p>
                                         </div>
                                     </div>
                                     {request.deo_notes && (
                                         <div className="bg-white/60 p-3 rounded-xl border border-emerald-100/50">
-                                            <p className="text-[7px] font-black text-emerald-600 uppercase tracking-widest mb-1">Notes</p>
-                                            <p className="text-[10px] font-bold text-slate-700 italic">"{request.deo_notes}"</p>
+                                            <p className="text-[7px] font-black text-emerald-600 uppercase tracking-widest mb-1">DEO Notes</p>
+                                            <p className="text-[11px] font-bold text-slate-800 italic leading-relaxed">"{request.deo_notes}"</p>
                                         </div>
                                     )}
                                 </div>
                             </div>
                         )}
+
+                        {/* Technical Specifications Section */}
+                        <div className="bg-indigo-50/30 rounded-3xl p-6 border border-indigo-100/50">
+                            <div className="text-[10px] font-black text-indigo-700 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                <Activity size={12} />
+                                <span>RM Technical Specifications</span>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-white/60 p-3 rounded-xl border border-indigo-100/30">
+                                    <p className="text-[7px] font-black text-indigo-500 uppercase tracking-widest mb-1">RM Grade</p>
+                                    <p className="text-[11px] font-black text-slate-900 uppercase">
+                                        {request.master_material_data?.['RM Grade'] || request.master_material_data?.['rm_grade'] || '—'}
+                                    </p>
+                                </div>
+                                <div className="bg-white/60 p-3 rounded-xl border border-indigo-100/30">
+                                    <p className="text-[7px] font-black text-indigo-500 uppercase tracking-widest mb-1">RM Thickness</p>
+                                    <p className="text-[11px] font-black text-slate-900">
+                                        {request.master_material_data?.['RM Thk mm'] || request.master_material_data?.['rm_thk_mm'] || '—'} mm
+                                    </p>
+                                </div>
+                                <div className="bg-white/60 p-3 rounded-xl border border-indigo-100/30 col-span-2">
+                                    <p className="text-[7px] font-black text-indigo-500 uppercase tracking-widest mb-1">RM Size / Act Size</p>
+                                    <p className="text-[11px] font-black text-slate-900 uppercase">
+                                        {request.master_material_data?.['RM SIZE'] || request.master_material_data?.['rm_size'] || '—'}
+                                        {request.master_material_data?.['Act RM Sizes'] && ` (Act: ${request.master_material_data['Act RM Sizes']})`}
+                                    </p>
+                                </div>
+                                <div className="bg-white/60 p-3 rounded-xl border border-indigo-100/30">
+                                    <p className="text-[7px] font-black text-indigo-500 uppercase tracking-widest mb-1">Sheet Dimensions</p>
+                                    <p className="text-[11px] font-black text-slate-900">
+                                        {request.master_material_data?.['Sheet Width'] || '—'} x {request.master_material_data?.['Sheet Length'] || '—'}
+                                    </p>
+                                </div>
+                                <div className="bg-white/60 p-3 rounded-xl border border-indigo-100/30">
+                                    <p className="text-[7px] font-black text-indigo-500 uppercase tracking-widest mb-1">Comp/Sheet</p>
+                                    <p className="text-[11px] font-black text-slate-900">
+                                        {request.master_material_data?.['No of comp per sheet'] || '—'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -717,6 +788,30 @@ export default function DEOShortageRequests({ onlyShowHistory = false }: DEOShor
     const [isAddMachineModalOpen, setIsAddMachineModalOpen] = useState(false);
     const [newGroupName, setNewGroupName] = useState('');
     const [newMachineName, setNewMachineName] = useState('');
+    const [promotingHold, setPromotingHold] = useState(false);
+
+    const promoteHoldQueue = async () => {
+        setPromotingHold(true);
+        try {
+            const res = await fetch(`${API}/supervisor/promote-hold-queue`, {
+                method: 'POST',
+                headers: authHeaders()
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert(data.message || 'Hold queue promoted successfully!');
+                fetchLineGroups();
+                fetchRequests(true);
+            } else {
+                alert('Failed to promote hold queue: ' + (data.message || 'Unknown error'));
+            }
+        } catch (err) {
+            console.error('Failed to promote hold queue:', err);
+            alert('Network error while promoting hold queue');
+        } finally {
+            setPromotingHold(false);
+        }
+    };
 
     const fetchLineGroups = async () => {
         try {
@@ -894,13 +989,26 @@ export default function DEOShortageRequests({ onlyShowHistory = false }: DEOShor
 
         // 2. Add shortage counts from relevant requests
         relevantRequests.forEach(req => {
+            // Collect group names from master_machine string first
             const rawLine = req.master_machine || req.line_name;
-            if (!rawLine) return;
+            const groupNamesFromMaster = rawLine
+                ? rawLine.split(',').map(s => s.trim()).filter(Boolean)
+                : [];
 
-            const individualLines = rawLine.split(',').map(s => s.trim()).filter(Boolean);
-            
-            individualLines.forEach(lineName => {
-                // Only count if it's an official group
+            // Also derive group names from sub_machines (e.g., "320T-A" → "320T")
+            const subMachines: Array<{ id: number; name: string }> = (req as any).sub_machines || [];
+            const groupNamesFromSubs = subMachines
+                .map(s => {
+                    // "320T-A" → "320T", "200T-B" → "200T"
+                    const match = s.name.match(/^([A-Za-z0-9]+T)/i);
+                    return match ? match[1].toUpperCase() : null;
+                })
+                .filter((g): g is string => g !== null);
+
+            // Merge and deduplicate
+            const allGroupNames = [...new Set([...groupNamesFromMaster, ...groupNamesFromSubs])];
+
+            allGroupNames.forEach(lineName => {
                 if (officialNames.has(lineName)) {
                     groups[lineName].total_shortages += 1;
                     if (req.status === 'PENDING' || req.status === 'IN_PROGRESS' || req.status === 'REJECTED') {
@@ -916,10 +1024,21 @@ export default function DEOShortageRequests({ onlyShowHistory = false }: DEOShor
     const shortagesForActiveGroup = useMemo(() => {
         if (!activeViewMachine) return [];
         return filteredRequests.filter(req => {
+            // Check 1: master_machine string (e.g., "320T, 200T, 110T")
             const rawLine = req.master_machine || req.line_name;
-            if (!rawLine) return false;
-            const individualLines = rawLine.split(',').map(s => s.trim()).filter(Boolean);
-            return individualLines.includes(activeViewMachine);
+            if (rawLine) {
+                const individualLines = rawLine.split(',').map(s => s.trim()).filter(Boolean);
+                if (individualLines.includes(activeViewMachine)) return true;
+            }
+
+            // Check 2: any assigned sub-machine starts with the active group name
+            const subMachines: Array<{ id: number; name: string }> = (req as any).sub_machines || [];
+            if (subMachines.some(s =>
+                s.name.toUpperCase().startsWith(activeViewMachine.toUpperCase() + '-') ||
+                s.name.toUpperCase() === activeViewMachine.toUpperCase()
+            )) return true;
+
+            return false;
         });
     }, [filteredRequests, activeViewMachine]);
 
@@ -931,18 +1050,8 @@ export default function DEOShortageRequests({ onlyShowHistory = false }: DEOShor
             return derivedLineGroups.filter(lg => lg.name.toLowerCase().includes(query));
         }
 
-        // ── FIXED DRILL-DOWN LOGIC ─────────────────────────────────────────
-        // Get only sub-machines that truly belong to this group (from master)
-        const group = derivedLineGroups.find(lg => lg.name === activeViewMachine);
-        const groupSubMachines: SubMachine[] = group ? group.sub_machines : [];
-
-        // Build a map: sub-machine name -> the shortage request assigned to it
-        // A shortage is "assigned to" a sub-machine if that sub-machine appears
-        // in req.sub_machines[] AND belongs to the activeViewMachine group.
-        const subMachineToReq = new Map<string, ShortageRequest>();
-
-        // Sort: Primary occupying requests (Active/Pending) first, HOLD requests last.
-        // Secondarily, sort by creation age (FIFO oldest-to-newest first).
+        // ── DRILL-DOWN: one row per shortage request, showing ALL its machines ─────
+        // Sort: Active/Pending first, HOLD last, then FIFO by id
         const sortedShortages = [...shortagesForActiveGroup].sort((a, b) => {
             const scoreA = a.status === 'HOLD' ? 2 : 1;
             const scoreB = b.status === 'HOLD' ? 2 : 1;
@@ -950,44 +1059,58 @@ export default function DEOShortageRequests({ onlyShowHistory = false }: DEOShor
             return a.id - b.id;
         });
 
+        // Build result: one row per unique shortage request
+        const seenIds = new Set<number>();
+        const result: DisplayItem[] = [];
+
         sortedShortages.forEach(req => {
-            // req.sub_machines comes from the API, already filtered to this group's machines
-            const reqSubs: Array<{ id: number; name: string }> = (req as any).sub_machines || [];
-            reqSubs.forEach(sub => {
-                // Only assign to sub-machines that belong to THIS group
-                const isInGroup = groupSubMachines.some(
-                    gs => gs.id === sub.id || gs.name === sub.name
-                );
-                if (isInGroup && !subMachineToReq.has(sub.name)) {
-                    subMachineToReq.set(sub.name, req);
-                }
+            if (seenIds.has(req.id)) return;
+            seenIds.add(req.id);
+
+            // Collect ALL machine names for this part from BOTH sources:
+            // 1. assigned sub-machines (specific machines like "320T-A", "200T-B", "110T-A")
+            // 2. master_machine string (group names like "320T, 200T, 110T")
+            const assignedSubs: Array<{ id: number; name: string }> = (req as any).sub_machines || [];
+            const masterMachineStr: string = req.master_machine || '';
+            const masterMachineGroups = masterMachineStr
+                .split(',')
+                .map(s => s.trim())
+                .filter(Boolean);
+
+            // Use sub-machine names if available (more specific), otherwise fall back to group-level names
+            // ALWAYS show all of them — never just one
+            let allMachines: string[];
+            if (assignedSubs.length > 0) {
+                // Has actual assigned machines — show ALL sub-machine names (e.g., "320T-A", "200T-B", "110T-A")
+                allMachines = assignedSubs.map(s => s.name);
+            } else if (masterMachineGroups.length > 0) {
+                // No sub-machines yet — show group-level machines from master mapping (e.g., "320T", "200T", "110T")
+                allMachines = masterMachineGroups;
+            } else {
+                allMachines = [activeViewMachine || '—'];
+            }
+
+            // Primary display label: the sub-machine belonging to the CURRENT group view (highlighted in orange)
+            // or first machine if none matches
+            const primaryLabel = assignedSubs.find(s => {
+                // Match by parent group name
+                return masterMachineGroups.some(g =>
+                    s.name.toUpperCase().startsWith(g.toUpperCase())
+                ) || s.name.toUpperCase().includes((activeViewMachine || '').toUpperCase());
+            })?.name || assignedSubs[0]?.name || masterMachineGroups[0] || activeViewMachine || '—';
+
+            result.push({
+                machineName: primaryLabel,
+                shortage: req,
+                allMachines,
             });
         });
-
-        // Build rows: one row per registered sub-machine in this group
-        const result: DisplayItem[] = groupSubMachines.map(sub => ({
-            machineName: sub.name,
-            shortage: subMachineToReq.get(sub.name),
-        }));
-
-        // Also surface any shortages for this group that didn't match a registered sub-machine
-        const matchedIds = new Set(Array.from(subMachineToReq.values()).map(r => r.id));
-        shortagesForActiveGroup
-            .filter(req => !matchedIds.has(req.id))
-            .forEach(req => {
-                const reqSubs: Array<{ id: number; name: string }> = (req as any).sub_machines || [];
-                // Find the sub-machine assigned to this request that ACTUALLY belongs to our active group view!
-                const relevantSub = reqSubs.find(sub => 
-                    groupSubMachines.some(gs => gs.id === sub.id || gs.name === sub.name)
-                );
-                const label = relevantSub ? relevantSub.name : (req.line_name || activeViewMachine || '—');
-                result.push({ machineName: label, shortage: req });
-            });
 
         // Apply search filter
         if (query) {
             return result.filter(item =>
                 item.machineName.toLowerCase().includes(query) ||
+                item.allMachines?.some(m => m.toLowerCase().includes(query)) ||
                 item.shortage?.inventory_item?.sap_part_number?.toLowerCase().includes(query)
             );
         }
@@ -1050,12 +1173,23 @@ export default function DEOShortageRequests({ onlyShowHistory = false }: DEOShor
                         <Plus size={16} /> Add Line Group
                     </button>
                 ) : (
-                    <button
-                        onClick={() => setIsAddMachineModalOpen(true)}
-                        className="h-[42px] px-6 bg-orange-600 hover:bg-orange-700 text-white rounded-full text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-orange-600/20"
-                    >
-                        <Plus size={16} /> Register Machine
-                    </button>
+                    <>
+                        <button
+                            onClick={() => setIsAddMachineModalOpen(true)}
+                            className="h-[42px] px-6 bg-orange-600 hover:bg-orange-700 text-white rounded-full text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-orange-600/20"
+                        >
+                            <Plus size={16} /> Register Machine
+                        </button>
+                        <button
+                            onClick={promoteHoldQueue}
+                            disabled={promotingHold}
+                            title="Promote HOLD shortage requests to PENDING if their machines are now free"
+                            className="h-[42px] px-5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white rounded-full text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-amber-500/20"
+                        >
+                            {promotingHold ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
+                            {promotingHold ? 'Promoting...' : 'Promote Hold'}
+                        </button>
+                    </>
                 )}
             </div>
 
@@ -1235,8 +1369,9 @@ export default function DEOShortageRequests({ onlyShowHistory = false }: DEOShor
                                             coverage = (req.todays_stock / req.per_day).toFixed(1);
                                         }
 
+                                        const allMachines: string[] = item.allMachines || [machineName];
                                         return (
-                                            <tr key={machineName} className={cn(
+                                            <tr key={`${req?.id ?? machineName}-${idx}`} className={cn(
                                                 "hover:bg-slate-50 transition-colors group",
                                                 isRejected && "bg-rose-50/30"
                                             )}>
@@ -1244,14 +1379,21 @@ export default function DEOShortageRequests({ onlyShowHistory = false }: DEOShor
                                                     <span className="text-[11px] font-black text-slate-900">{serialNum}</span>
                                                 </td>
                                                 <td className="px-3 py-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={cn(
-                                                            "w-8 h-8 rounded-lg flex items-center justify-center border",
-                                                            !req ? "bg-slate-50 text-slate-600 border-slate-100" : "bg-orange-50 text-orange-600 border-orange-100"
-                                                        )}>
-                                                            <Activity size={14} />
-                                                        </div>
-                                                        <span className="text-[11px] font-black text-slate-900 tracking-tight">{machineName}</span>
+                                                    <div className="flex flex-wrap items-center gap-1.5">
+                                                        {allMachines.map((mName, mi) => (
+                                                            <span
+                                                                key={mi}
+                                                                className={cn(
+                                                                    "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide border shadow-sm",
+                                                                    mName === activeViewMachine
+                                                                        ? "bg-orange-500 text-white border-orange-600 shadow-orange-200"
+                                                                        : "bg-orange-50 text-orange-700 border-orange-100"
+                                                                )}
+                                                            >
+                                                                <Activity size={10} />
+                                                                {mName}
+                                                            </span>
+                                                        ))}
                                                     </div>
                                                 </td>
                                                 <td className="px-3 py-4">

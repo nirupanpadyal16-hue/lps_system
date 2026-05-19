@@ -381,6 +381,11 @@ function SeedModal({ demands, onClose, onSuccess }: {
                         <option key={d.id} value={d.id}>{d.formatted_id} — {d.model_name}</option>
                     ))}
                 </select>
+                {demands.length === 0 && (
+                    <div className="p-4 bg-orange-50 border border-orange-100 rounded-xl text-orange-700 text-xs font-bold mb-4">
+                        No new demands available for import.
+                    </div>
+                )}
                 {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
                 <div className="flex gap-3">
                     <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold">Cancel</button>
@@ -447,6 +452,9 @@ export default function PPCInventoryPage() {
                 setSupervisors(allUsers.filter((u: any) => u.role === 'Supervisor'));
             }
             if (lineData.success) setLines(lineData.data);
+        } catch (err: any) {
+            console.error('Fetch error:', err);
+            toast.error('Failed to load data. Please check connection.');
         } finally {
             setLoading(false);
         }
