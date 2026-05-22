@@ -36,8 +36,6 @@ import { supervisorMachineApi } from '../../../../api/newRolesApi';
 
 // Modular Components
 import { SupervisorVerifyLogs } from './components/SupervisorVerifyLogs';
-import { LogDetailView } from './components/LogDetailModal';
-import SupervisorVerificationModal from './components/SupervisorVerificationModal';
 import { RowRejectionModal } from './components/RowRejectionModal';
 import { SupervisorKPI } from './components/SupervisorKPI';
 import { SupervisorAnalytics } from './components/SupervisorAnalytics';
@@ -139,17 +137,17 @@ const SupervisorDashboardPage = () => {
     // ── Core state ──────────────────────────────────────────────────────────
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [verifications, setVerifications] = useState<Verification[]>([]);
+    const [, setVerifications] = useState<Verification[]>([]);
     const [productionLogs, setProductionLogs] = useState<any[]>([]);
     const [assignedModels, setAssignedModels] = useState<AssignedModel[]>([]);
-    const [shortageEntries, setShortageEntries] = useState<any[]>([]);
+    const [, setShortageEntries] = useState<any[]>([]);
     const [selectedLog, setSelectedLog] = useState<Verification | null>(null);
-    const [selectedRowIndex, setSelectedRowIndex] = useState<number | null>(null);
+    const [] = useState<number | null>(null);
     const [rejectingRowIndex, setRejectingRowIndex] = useState<number | null>(null);
     const [rowRejectionComment, setRowRejectionComment] = useState('');
-    const [isLineOpen, setIsLineOpen] = useState(false);
-    const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-    const [isVerifying, setIsVerifying] = useState(false); // scoped loading for bulk verify
+    const [, setIsLineOpen] = useState(false);
+    const [, setIsCalendarOpen] = useState(false);
+    const [, setIsVerifying] = useState(false); // scoped loading for bulk verify
 
     const { config: modalConfig, open: openModal, close: closeModal } = useModal();
 
@@ -235,60 +233,10 @@ const SupervisorDashboardPage = () => {
     }, [selectedDate]); // intentionally run once; refs keep values current
 
     // ── Filtering ────────────────────────────────────────────────────────────
-    const uniqueLines = useMemo(
-        () =>
-            Array.from(new Set(assignedModels.map(m => m.line_name).filter(Boolean))).sort() as string[],
-        [assignedModels]
-    );
 
-    const filteredAssignedModels = useMemo(
-        () =>
-            selectedLine === 'Select Line'
-                ? assignedModels
-                : assignedModels.filter(m => m.line_name === selectedLine),
-        [assignedModels, selectedLine]
-    );
 
-    const filteredVerifications = useMemo(() => {
-        let filtered = verifications;
-        if (selectedDate)
-            filtered = filtered.filter(v => v.date === selectedDate);
-        if (selectedLine !== 'Select Line')
-            filtered = filtered.filter(v => v.line_name === selectedLine);
-        return filtered;
-    }, [verifications, selectedLine, selectedDate]);
 
     // ── KPI ──────────────────────────────────────────────────────────────────
-    const kpiStats = useMemo(() => {
-        const uniqueDeos = Array.from(
-            new Set(filteredAssignedModels.map(m => m.assigned_deo_name).filter(Boolean))
-        );
-        const activeDeos = Array.from(
-            new Set(
-                filteredAssignedModels
-                    .filter(m => (m.actual_qty ?? 0) > 0)
-                    .map(m => m.assigned_deo_name)
-            )
-        ).length;
-
-        const awaitingReview = filteredVerifications.filter(v =>
-            ['SUBMITTED', 'PENDING', 'AWAITING'].includes(v.status?.toUpperCase() ?? '') || !v.status
-        ).length;
-
-        const verifiedShortages = shortageEntries.filter(e => e.status === 'VERIFIED').length;
-
-        const pendingShortages = shortageEntries.filter(e => e.status === 'PENDING_SUPERVISOR').length;
-        const rejectedShortages = shortageEntries.filter(e => e.status === 'REJECTED').length;
-
-        return {
-            totalDeos: uniqueDeos.length,
-            activeDeos,
-            verifiedShortages,
-            pendingShortages,
-            rejectedShortages,
-            awaitingReview,
-        };
-    }, [filteredAssignedModels, filteredVerifications, shortageEntries]);
 
     // ── Helpers ──────────────────────────────────────────────────────────────
     const getSapPartNumber = (row: LogRow) =>
@@ -343,101 +291,7 @@ const SupervisorDashboardPage = () => {
         }
     };
 
-    const handleBulkVerify = async () => {
-        if (!selectedLog) return;
 
-        openModal({
-            title: 'Verify Production',
-            message: `Authorize final verification for ${selectedLog.model_name}?`,
-            type: 'confirm',
-            onConfirm: async () => {
-                closeModal();
-                setIsVerifying(true);
-                try {
-                    const token = getToken();
-
-                    await Promise.all(
-                        selectedLog.log_data.map((row, index) =>
-                            verifyDailyProductionRow(
-                                selectedLog.id,
-                                index,
-                                'VERIFIED',
-                                'Bulk Verified by Supervisor',
-                                getSapPartNumber(row)
-                            )
-                        )
-                    );
-
-                    const response = await fetch(
-                        `${API_BASE}/supervisor/finalize-assignment/${selectedLog.car_model_id}`,
-                        {
-                            method: 'POST',
-                            headers: { Authorization: `Bearer ${token}` },
-                        }
-                    );
-
-                    if (response.ok) {
-                        openModal({
-                            title: 'Verification Confirmed',
-                            message: `The production log for ${selectedLog.model_name} has been successfully verified.`,
-                            type: 'alert',
-                            onConfirm: () => {
-                                closeModal();
-                                setSelectedLog(null);
-                                refreshSupervisorData();
-                            },
-                        });
-                    } else {
-                        const errorData = await response.json();
-                        openModal({
-                            title: 'Failed',
-                            message: `Finalization failed: ${errorData.message}`,
-                            type: 'alert',
-                            onConfirm: () => {
-                                closeModal();
-                                refreshSupervisorData();
-                            },
-                        });
-                    }
-                } catch (err) {
-                    console.error('Bulk verify error:', err);
-                    openModal({
-                        title: 'Error',
-                        message: 'An error occurred during bulk verification.',
-                        type: 'alert',
-                        onConfirm: closeModal,
-                    });
-                } finally {
-                    setIsVerifying(false);
-                }
-            },
-        });
-    };
-
-    const handleRejectLog = async (reason: string) => {
-        if (!selectedLog) return;
-
-        const success = await verifyDailyProductionLog(selectedLog.id, 'REJECTED', reason);
-        if (success) {
-            openModal({
-                title: 'Submission Rejected',
-                message: '',
-                type: 'alert',
-                onConfirm: () => {
-                    closeModal();
-                    setSelectedLog(null);
-                    refreshSupervisorData();
-                },
-            });
-        } else {
-            openModal({
-                title: 'Error',
-                message: 'Failed to reject the submission. Please try again.',
-                type: 'alert',
-                onConfirm: closeModal,
-            });
-        }
-    };
 
     const handleVerifyMachineEntry = async (id: number, status: 'VERIFIED' | 'REJECTED', reason: string = '') => {
         try {
@@ -461,85 +315,7 @@ const SupervisorDashboardPage = () => {
         }
     };
 
-    const handleSupervisorRowSave = async (updatedRow: LogRow) => {
-        if (selectedRowIndex === null || !selectedLog) return;
 
-        const updatedLog = patchLogRow(selectedLog, selectedRowIndex, {
-            ...updatedRow,
-            row_status: 'VERIFIED',
-        });
-        setSelectedLog(updatedLog);
-
-        const token = getToken();
-        try {
-            const res = await fetch(`${API_BASE}/supervisor/update-log`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({
-                    log_id: selectedLog.id,
-                    model_name: selectedLog.model_name,
-                    car_model_id: selectedLog.car_model_id,
-                    demand_id: selectedLog.demand_id,
-                    deo_id: selectedLog.deo_id,
-                    log_data: updatedLog.log_data,
-                    is_final:
-                        selectedLog.status === 'SUBMITTED' || selectedLog.status === 'VERIFIED',
-                }),
-            });
-            if (res.ok) refreshSupervisorData(true);
-        } catch (e) {
-            console.error('Failed to sync supervisor edit', e);
-        }
-
-        setSelectedRowIndex(null);
-    };
-
-    const handleSupervisorRowVerify = async (
-        status: 'VERIFIED' | 'REJECTED',
-        reason: string = '',
-        updatedRow?: LogRow
-    ) => {
-        if (selectedRowIndex === null || !selectedLog) return;
-
-        if (updatedRow) {
-            const updatedLog = patchLogRow(selectedLog, selectedRowIndex, {
-                ...updatedRow,
-                row_status: status,
-                'Production Status': status,
-                rejection_reason: reason,
-            });
-            setSelectedLog(updatedLog);
-
-            const token = getToken();
-            await fetch(`${API_BASE}/supervisor/update-log`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({
-                    log_id: selectedLog.id,
-                    model_name: selectedLog.model_name,
-                    car_model_id: selectedLog.car_model_id,
-                    demand_id: selectedLog.demand_id,
-                    deo_id: selectedLog.deo_id,
-                    log_data: updatedLog.log_data,
-                    is_final: true,
-                }),
-            });
-        }
-
-        if (status === 'REJECTED') {
-            setRejectingRowIndex(selectedRowIndex);
-            setSelectedRowIndex(null);
-        } else {
-            await handleRowVerify(selectedRowIndex, status, reason);
-            setSelectedRowIndex(null);
-        }
-    };
 
     // ── Route → content map (replaces switch) ───────────────────────────────
     const ROUTE_CONTENT: Record<string, React.ReactNode> = {
@@ -562,124 +338,8 @@ const SupervisorDashboardPage = () => {
     /* vidyasagar: This function controls what component is rendered based on the sidebar selection. Change routes or add new modules here. */
     const renderContent = () =>
         ROUTE_CONTENT[location.pathname] ?? (
-            <div className="space-y-1 pb-0 font-sans">
-                {/* Header */}
-                <div className="flex flex-col lg:flex-row lg:items-center justify-end gap-2 px-2">                    <div className="flex items-center gap-2 relative">
-                    {/* Line filter */}
-                    <div className="relative">
-                        <div
-                            role="combobox"
-                            aria-expanded={isLineOpen}
-                            aria-haspopup="listbox"
-                            tabIndex={0}
-                            onClick={() => setIsLineOpen(v => !v)}
-                            onKeyDown={e => {
-                                if (e.key === 'Enter' || e.key === ' ') setIsLineOpen(v => !v);
-                                if (e.key === 'Escape') setIsLineOpen(false);
-                            }}
-                            className="bg-white rounded-xl px-4 py-2.5 flex items-center justify-between min-w-[140px] shadow-sm border border-ind-border/60 cursor-pointer hover:border-slate-300 transition-all group z-[60]"
-                        >
-                            <span
-                                className={`text-[11px] font-bold ${selectedLine === 'Select Line'
-                                    ? 'text-ind-text3'
-                                    : 'text-ind-text'
-                                    }`}
-                            >
-                                {selectedLine === 'Select Line' ? 'All lines' : selectedLine}
-                            </span>
-                            <ChevronDown
-                                size={14}
-                                className={`text-ind-text3 group-hover:text-ind-text2 transition-transform ${isLineOpen ? 'rotate-180' : ''
-                                    }`}
-                            />
-                        </div>
-
-                        {isLineOpen && (
-                            <>
-                                <div
-                                    className="fixed inset-0 z-[55]"
-                                    onClick={() => setIsLineOpen(false)}
-                                />
-                                <ul
-                                    role="listbox"
-                                    className="absolute top-[110%] left-0 w-full bg-white rounded-xl shadow-xl overflow-hidden z-[100] border border-ind-border/50 py-1 animate-in fade-in slide-in-from-top-2"
-                                >
-                                    <li
-                                        role="option"
-                                        aria-selected={selectedLine === 'Select Line'}
-                                        onClick={() => {
-                                            setSelectedLine('Select Line');
-                                            setIsLineOpen(false);
-                                        }}
-                                        className="px-4 py-2.5 text-[10px] font-bold text-ind-text3 hover:bg-ind-bg cursor-pointer"
-                                    >
-                                        All
-                                    </li>
-                                    {uniqueLines.map(line => (
-                                        <li
-                                            key={line}
-                                            role="option"
-                                            aria-selected={selectedLine === line}
-                                            onClick={() => {
-                                                setSelectedLine(line);
-                                                setIsLineOpen(false);
-                                            }}
-                                            className={`px-4 py-2.5 text-[10px] font-bold hover:bg-orange-50 hover:text-orange-900 cursor-pointer transition-colors ${selectedLine === line
-                                                ? 'bg-orange-50 text-orange-900'
-                                                : 'text-ind-text2'
-                                                }`}
-                                        >
-                                            {line}
-                                        </li>
-                                    ))}
-                                </ul>
-                            </>
-                        )}
-                    </div>
-
-                    <div className="relative">
-                        <button
-                            onClick={() => setIsCalendarOpen(v => !v)}
-                            className="bg-white rounded-xl px-4 py-2.5 flex items-center gap-4 shadow-sm border border-ind-border/60 hover:border-slate-300 transition-all group cursor-pointer"
-                        >
-                            <span className="text-[11px] font-bold text-ind-text">
-                                {selectedDate ? new Date(selectedDate).toLocaleDateString('en-US', {
-                                    month: 'short',
-                                    day: '2-digit',
-                                    year: 'numeric',
-                                }) : 'Today'}
-                            </span>
-                            <Calendar
-                                size={15}
-                                className="text-ind-text3 group-hover:text-ind-primary transition-colors"
-                            />
-                        </button>
-                        {isCalendarOpen && (
-                            <SupervisorCalendar
-                                value={selectedDate}
-                                onChange={(date) => {
-                                    if (date) setSelectedDate(date);
-                                }}
-                                onClose={() => setIsCalendarOpen(false)}
-                            />
-                        )}
-                    </div>
-                </div>
-                </div>
-
-                <SupervisorKPI
-                    totalDeos={kpiStats.totalDeos}
-                    awaitingReview={kpiStats.awaitingReview}
-                    verifiedShortages={kpiStats.verifiedShortages}
-                    pendingShortages={kpiStats.pendingShortages}
-                    rejectedShortages={kpiStats.rejectedShortages}
-                />
-
-
-                <SupervisorAnalytics
-                    assignedModels={filteredAssignedModels}
-                    verifications={filteredVerifications}
-                />
+            <div className="hidden">
+                {/* Dashboard content completely hidden per user request */}
             </div>
         );
 
