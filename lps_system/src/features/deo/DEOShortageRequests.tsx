@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
     CheckCircle2, AlertTriangle, X, Database, LayoutGrid, Search, ChevronDown, Info, Car,
-    Loader2, Package, Calendar, Timer, Clock, Zap, User, MapPin, Eye, Factory, ArrowLeft, Plus, Activity
+    Loader2, Package, Calendar, Timer, Clock, Zap, User, MapPin, Eye, Factory, ArrowLeft, Plus, Activity, PlusCircle
 } from 'lucide-react';
 import { API_BASE } from '../../lib/apiConfig';
 import { getToken } from '../../lib/storage';
@@ -641,7 +641,7 @@ const DetailsModal = ({ request, onClose }: { request: ShortageRequest, onClose:
                                 <Activity size={12} />
                                 <span>RM Technical Specifications</span>
                             </div>
-                            
+
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="bg-white/60 p-3 rounded-xl border border-indigo-100/30">
                                     <p className="text-[7px] font-black text-indigo-500 uppercase tracking-widest mb-1">RM Grade</p>
@@ -878,7 +878,7 @@ export default function DEOShortageRequests({ onlyShowHistory = false }: DEOShor
     const handleAddMachine = async (e: React.FormEvent) => {
         e.preventDefault();
         let masterLine = lineGroupsMaster.find(lg => lg.name === activeViewMachine);
-        
+
         // Auto-create parent line if it doesn't exist in DB
         if (!masterLine && activeViewMachine) {
             try {
@@ -960,8 +960,8 @@ export default function DEOShortageRequests({ onlyShowHistory = false }: DEOShor
 
             const query = searchQuery.toLowerCase();
             const partMatch = r.inventory_item?.sap_part_number?.toLowerCase().includes(query) ||
-                            r.inventory_item?.part_description?.toLowerCase().includes(query) ||
-                            r.formatted_id?.toLowerCase().includes(query);
+                r.inventory_item?.part_description?.toLowerCase().includes(query) ||
+                r.formatted_id?.toLowerCase().includes(query);
 
             if (searchQuery && !partMatch) return false;
 
@@ -976,7 +976,7 @@ export default function DEOShortageRequests({ onlyShowHistory = false }: DEOShor
     const derivedLineGroups = useMemo(() => {
         const groups: Record<string, LineGroup> = {};
         const officialNames = new Set(lineGroupsMaster.map(lg => lg.name));
-        
+
         lineGroupsMaster.forEach(lg => {
             groups[lg.name] = {
                 name: lg.name,
@@ -1138,130 +1138,133 @@ export default function DEOShortageRequests({ onlyShowHistory = false }: DEOShor
     }
 
     return (
-        <div className="h-full flex flex-col space-y-1 animate-in fade-in duration-700 overflow-hidden text-slate-900 bg-gray-50/30 p-2">
-            <div className="flex xl:flex-row xl:items-center justify-between gap-4 bg-white border border-slate-200 rounded-2xl mb-2 p-4 shadow-sm">
-                <div className="flex flex-col gap-1">
-                    <h1 className="text-[24px] font-black text-ind-text tracking-tight leading-none flex items-center gap-2">
-                        <Factory className="text-orange-600" />
-                        {activeViewMachine ? `Shortages: ${activeViewMachine}` : onlyShowHistory ? 'Shortage History Log' : 'Shortage Dashboard'}
-                    </h1>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                        {activeViewMachine ? '' : ''}
-                    </p>
-                </div>
-
-                <div className="flex items-center bg-gray-50 rounded-2xl border border-slate-200 p-1 shadow-inner">
-                    <div className="px-4 py-1 text-center border-r border-slate-200 min-w-[80px]">
-                        <span className="block text-[8px] font-bold text-slate-400 uppercase tracking-wider">TOTAL</span>
-                        <span className="block text-lg font-black text-slate-800 leading-none">{relevantRequests.length}</span>
+        <div className="h-full flex flex-col space-y-4 animate-in fade-in duration-700 overflow-hidden text-slate-900 bg-[#f8fafc] min-h-full font-sans relative">
+            {/* DASHBOARD HEADER */}
+            <div className="sticky top-0 z-30 bg-white border-t border-ind-border/60 transition-all pb-2">
+                {/* Top Row: Title & Stats */}
+                <div className="flex xl:flex-row xl:items-center justify-between gap-4 bg-white border-b border-slate-100 mb-2 py-1 px-4">
+                    <div className="p-2">
+                        <h1 className="text-[24px] font-black text-ind-text tracking-tight leading-none">
+                            {activeViewMachine ? `Shortages: ${activeViewMachine}` : onlyShowHistory ? 'Shortage History Log' : 'Shortage Dashboard'}
+                        </h1>
                     </div>
-                    <div className="px-4 py-1 text-center border-r border-slate-200 text-amber-500 min-w-[80px]">
-                        <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">PENDING</span>
-                        <span className="block text-lg font-black leading-none">{relevantRequests.filter(r => r.status === 'PENDING').length}</span>
-                    </div>
-                    <div className="px-4 py-1 text-center text-emerald-500 min-w-[80px]">
-                        <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">{onlyShowHistory ? 'COMPLETED' : 'VERIFIED'}</span>
-                        <span className="block text-lg font-black leading-none">{relevantRequests.filter(r => r.status === 'VERIFIED' || r.status === 'COMPLETED').length}</span>
-                    </div>
-                </div>
 
-                {!activeViewMachine ? (
-                    <button
-                        onClick={() => setIsAddGroupModalOpen(true)}
-                        className="h-[42px] px-6 bg-orange-600 hover:bg-orange-700 text-white rounded-full text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-orange-600/20"
-                    >
-                        <Plus size={16} /> Add Line Group
-                    </button>
-                ) : (
-                    <>
-                        <button
-                            onClick={() => setIsAddMachineModalOpen(true)}
-                            className="h-[42px] px-6 bg-orange-600 hover:bg-orange-700 text-white rounded-full text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-orange-600/20"
-                        >
-                            <Plus size={16} /> Register Machine
-                        </button>
-                        <button
-                            onClick={promoteHoldQueue}
-                            disabled={promotingHold}
-                            title="Promote HOLD shortage requests to PENDING if their machines are now free"
-                            className="h-[42px] px-5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white rounded-full text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-amber-500/20"
-                        >
-                            {promotingHold ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
-                            {promotingHold ? 'Promoting...' : 'Promote Hold'}
-                        </button>
-                    </>
-                )}
-            </div>
-
-            <div className="flex flex-col md:flex-row items-center justify-between gap-3 px-1 mb-3">
-                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                    {activeViewMachine && (
-                        <button
-                            onClick={() => setActiveViewMachine(null)}
-                            className="h-[42px] px-6 bg-white border border-slate-200 rounded-full text-[11px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm"
-                        >
-                            <ArrowLeft size={16} /> Back
-                        </button>
-                    )}
-
-                    {/* Status Filter */}
-                    <div className="relative group w-full md:w-48">
-                        <div className="absolute left-4 top-1/2 -translate-y-1/2 p-1 bg-orange-50 rounded text-orange-500 group-focus-within:text-orange-600 pointer-events-none">
-                            <LayoutGrid size={11} />
+                    {/* Stats Dashboard */}
+                    <div className="flex items-center bg-white backdrop-blur-md rounded-2xl border border-ind-border/50 p-1 shadow-sm overflow-hidden scale-90 origin-right mx-2">
+                        <div className="px-4 py-1 text-center border-r border-ind-border/50 min-w-[80px]">
+                            <span className="block text-[8px] font-bold text-ind-text3 uppercase tracking-wider">TOTAL</span>
+                            <span className="block text-lg font-black text-slate-800 leading-none">{relevantRequests.length}</span>
                         </div>
-                        <select
-                            value={filterStatus}
-                            onChange={(e) => setFilterStatus(e.target.value)}
-                            className="w-full bg-white border border-slate-200 focus:border-orange-500 rounded-full h-[42px] pl-12 pr-10 text-slate-700 font-bold text-[11px] tracking-wide outline-none transition-all shadow-sm cursor-pointer appearance-none uppercase"
-                        >
-                            {onlyShowHistory ? (
-                                <>
-                                    <option value="all">All History</option>
-                                    <option value="completed">Completed</option>
-                                </>
-                            ) : (
-                                <>
-                                    <option value="all">Active Status</option>
-                                    <option value="pending">Pending</option>
-                                    <option value="hold">On Hold</option>
-                                    <option value="in-progress">In progress</option>
-                                    <option value="rejected">Rejected</option>
-                                </>
-                            )}
-                        </select>
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                            <ChevronDown size={14} />
+                        <div className="px-4 py-1 text-center border-r border-ind-border/50 text-amber-500 min-w-[80px]">
+                            <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">PENDING</span>
+                            <span className="block text-lg font-black leading-none">{relevantRequests.filter(r => r.status === 'PENDING').length}</span>
+                        </div>
+                        <div className="px-4 py-1 text-center text-emerald-500 min-w-[80px]">
+                            <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">{onlyShowHistory ? 'COMPLETED' : 'VERIFIED'}</span>
+                            <span className="block text-lg font-black leading-none">{relevantRequests.filter(r => r.status === 'VERIFIED' || r.status === 'COMPLETED').length}</span>
                         </div>
                     </div>
+                </div>
 
-                    {/* Search */}
-                    <div className="relative group w-full md:w-72">
-                        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-orange-500 transition-colors" size={14} />
+                {/* Bottom Row: Filters & Action Button & Date */}
+                <div className="px-4 flex flex-col md:flex-row items-center justify-between gap-2">
+                    {/* Left group: filters and action button */}
+                    <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                        {activeViewMachine && (
+                            <button
+                                onClick={() => setActiveViewMachine(null)}
+                                className="h-[36px] px-4 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-full text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
+                            >
+                                <ArrowLeft size={12} /> Back
+                            </button>
+                        )}
+
+                        {/* Status Filter */}
+                        <div className="relative group w-full md:w-36">
+                            <div className="absolute left-3 top-1/2 -translate-y-1/2 p-0.5 bg-orange-50 rounded text-ind-primary pointer-events-none">
+                                <LayoutGrid size={10} />
+                            </div>
+                            <select
+                                value={filterStatus}
+                                onChange={(e) => setFilterStatus(e.target.value)}
+                                className="w-full bg-white border border-ind-border/60 focus:border-ind-primary rounded-full h-[36px] pl-10 pr-8 text-slate-700 font-bold text-[10px] tracking-wide outline-none appearance-none cursor-pointer uppercase"
+                            >
+                                {onlyShowHistory ? (
+                                    <>
+                                        <option value="all">All History</option>
+                                        <option value="completed">Completed</option>
+                                    </>
+                                ) : (
+                                    <>
+                                        <option value="all">Active Status</option>
+                                        <option value="pending">Pending</option>
+                                        <option value="hold">On Hold</option>
+                                        <option value="in-progress">In progress</option>
+                                        <option value="rejected">Rejected</option>
+                                    </>
+                                )}
+                            </select>
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-ind-text3 opacity-50">
+                                <ChevronDown size={12} />
+                            </div>
+                        </div>
+
+                        {/* Search */}
+                        <div className="relative group w-full md:w-52">
+                            <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#f37021] transition-colors" />
+                            <input
+                                type="text"
+                                placeholder="Search shortages..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full h-[36px] bg-white border border-ind-border/60 rounded-full pl-9 pr-3 text-[10px] font-bold text-slate-700 outline-none focus:border-[#f37021] transition-all shadow-sm placeholder:text-slate-300 uppercase"
+                            />
+                        </div>
+
+                        {/* Action Button: Keep immediately to the right of Search bar */}
+                        {!activeViewMachine ? (
+                            <button
+                                onClick={() => setIsAddGroupModalOpen(true)}
+                                className="w-full md:w-auto bg-gradient-to-r from-[#F37021] to-orange-600 text-white px-6 h-[36px] rounded-full font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-orange-500/10 active:scale-95 transition-all"
+                            >
+                                <PlusCircle size={14} strokeWidth={2.5} />
+                                Add Line
+                            </button>
+                        ) : (
+                            <button
+                                onClick={() => setIsAddMachineModalOpen(true)}
+                                className="w-full md:w-auto bg-gradient-to-r from-[#F37021] to-orange-600 text-white px-6 h-[36px] rounded-full font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-orange-500/10 active:scale-95 transition-all"
+                            >
+                                <PlusCircle size={14} strokeWidth={2.5} />
+                                Register Machine
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Right side: Date Filter */}
+                    <div className="relative group w-full md:w-[160px]">
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 p-0.5 bg-indigo-50/50 rounded text-indigo-400 pointer-events-none">
+                            <Calendar size={10} />
+                        </div>
                         <input
-                            type="text"
-                            placeholder="Search shortages..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full bg-white border border-slate-200 focus:border-orange-500 rounded-full h-[42px] pl-14 pr-6 text-slate-700 font-bold text-[11px] tracking-wide placeholder:text-slate-300 outline-none transition-all shadow-sm uppercase"
+                            type="date"
+                            value={selectedDate}
+                            onClick={(e) => e.currentTarget.showPicker?.()}
+                            onChange={(e) => setSelectedDate(e.target.value)}
+                            className="w-full bg-white border border-ind-border/60 focus:border-ind-primary rounded-full h-[36px] pl-10 pr-8 text-slate-700 font-bold text-[10px] tracking-wide outline-none transition-all shadow-sm cursor-pointer uppercase"
                         />
+                        {selectedDate && (
+                            <button onClick={() => setSelectedDate('')} className="absolute right-8 top-1/2 -translate-y-1/2 text-[8px] font-black text-rose-500 px-1 bg-white hover:underline">CLEAR</button>
+                        )}
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-ind-text3 opacity-50">
+                            <ChevronDown size={12} />
+                        </div>
                     </div>
-                </div>
-
-                {/* Date Filter */}
-                <div className="relative group flex-shrink-0">
-                    <div className="absolute left-4 top-1/2 -translate-y-1/2 p-1 bg-indigo-50/50 rounded text-indigo-400 group-focus-within:text-orange-500 pointer-events-none">
-                        <Calendar size={12} />
-                    </div>
-                    <input
-                        type="date"
-                        value={selectedDate}
-                        onChange={(e) => setSelectedDate(e.target.value)}
-                        className="bg-white border border-slate-200 focus:border-orange-500 rounded-full h-[42px] pl-12 pr-5 text-slate-700 font-bold text-[11px] tracking-wide outline-none transition-all shadow-sm w-[180px] uppercase cursor-pointer"
-                    />
                 </div>
             </div>
 
-            <div className="flex-1 overflow-hidden bg-white border border-slate-200 rounded-3xl shadow-sm flex flex-col">
+            <div className="px-2 pb-2 flex-1 flex flex-col min-h-0">
+                <div className="flex-1 overflow-hidden bg-white border border-slate-200 rounded-3xl shadow-sm flex flex-col">
                 <div className="flex-1 overflow-auto custom-scrollbar">
                     <AnimatePresence mode="wait">
                         {!activeViewMachine ? (
@@ -1311,8 +1314,8 @@ export default function DEOShortageRequests({ onlyShowHistory = false }: DEOShor
                                                 <td className="px-6 py-4 text-center">
                                                     <span className={cn(
                                                         "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border",
-                                                        lg.pending_count === 0 
-                                                            ? onlyShowHistory ? "bg-slate-50 text-slate-600 border-slate-100" : "bg-emerald-50 text-emerald-600 border-emerald-100" 
+                                                        lg.pending_count === 0
+                                                            ? onlyShowHistory ? "bg-slate-50 text-slate-600 border-slate-100" : "bg-emerald-50 text-emerald-600 border-emerald-100"
                                                             : "bg-amber-50 text-amber-600 border-amber-100"
                                                     )}>
                                                         {onlyShowHistory ? 'ARCHIVED' : lg.pending_count === 0 ? 'ALL FILLED' : `${lg.pending_count} PENDING`}
@@ -1379,22 +1382,9 @@ export default function DEOShortageRequests({ onlyShowHistory = false }: DEOShor
                                                     <span className="text-[11px] font-black text-slate-900">{serialNum}</span>
                                                 </td>
                                                 <td className="px-3 py-4">
-                                                    <div className="flex flex-wrap items-center gap-1.5">
-                                                        {allMachines.map((mName, mi) => (
-                                                            <span
-                                                                key={mi}
-                                                                className={cn(
-                                                                    "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide border shadow-sm",
-                                                                    mName === activeViewMachine
-                                                                        ? "bg-orange-500 text-white border-orange-600 shadow-orange-200"
-                                                                        : "bg-orange-50 text-orange-700 border-orange-100"
-                                                                )}
-                                                            >
-                                                                <Activity size={10} />
-                                                                {mName}
-                                                            </span>
-                                                        ))}
-                                                    </div>
+                                                    <span className="text-[11px] font-bold text-slate-800 uppercase tracking-tight">
+                                                        {allMachines.join(', ')}
+                                                    </span>
                                                 </td>
                                                 <td className="px-3 py-4">
                                                     <span className="text-[11px] font-black text-slate-900 uppercase tracking-tight">
@@ -1535,6 +1525,7 @@ export default function DEOShortageRequests({ onlyShowHistory = false }: DEOShor
                         </div>
                     </div>
                 )}
+                </div>
             </div>
 
             {fillRequest && (

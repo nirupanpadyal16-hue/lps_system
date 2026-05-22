@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Plus, Trash2, Save, History, Search, Filter, 
+import {
+  Plus, Trash2, Save, History, Search, Filter,
   ChevronDown, Calendar, Clock, AlertCircle, CheckCircle2,
   Factory, Wrench, Package, ArrowRight
 } from 'lucide-react';
@@ -58,23 +58,21 @@ const DEOMachineEntryPage: React.FC = () => {
       const [shiftRes, entriesRes, linesRes] = await Promise.all([
         deoMachineApi.getShiftInfo(),
         deoMachineApi.getEntries(),
-        fetch('http://localhost:5007/api/admin/lines', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        }).then(res => res.json())
+        deoMachineApi.getLines()
       ]);
 
       const si = shiftRes.data;
       setShiftInfo(si);
       setForm(f => ({ ...f, shift: si?.shift || si?.current_shift || 'Shift 1' }));
       setEntries(entriesRes.data?.data || []);
-      
+
       // USER REQUEST: Only show parts that have a shortage/new demand
       // We filter inventory items to show only those with an active demand_id or marked as shortage
       const allItems = entriesRes.data?.inventory_items || [];
       const shortageItems = allItems.filter((it: any) => it.demand_id || it.is_shortage);
       setInventoryItems(shortageItems);
 
-      setMachines(linesRes.data || []);
+      setMachines(linesRes.data?.data || []);
     } catch {
       toast.error('Failed to load data');
     } finally {
@@ -86,9 +84,9 @@ const DEOMachineEntryPage: React.FC = () => {
 
   const handleMachineChange = (id: string) => {
     const m = machines.find(item => String(item.id) === id);
-    setForm(f => ({ 
-      ...f, 
-      machineId: id, 
+    setForm(f => ({
+      ...f,
+      machineId: id,
       machineName: m?.name || '',
       rows: f.rows.map(r => ({ ...r, machineId: '', subMachineName: '' }))
     }));
@@ -133,21 +131,21 @@ const DEOMachineEntryPage: React.FC = () => {
   const filteredHistory = useMemo(() => {
     if (!searchQuery) return entries;
     const s = searchQuery.toLowerCase();
-    return entries.filter(e => 
-      e.sap_part_number?.toLowerCase().includes(s) || 
+    return entries.filter(e =>
+      e.sap_part_number?.toLowerCase().includes(s) ||
       e.machine_name?.toLowerCase().includes(s)
     );
   }, [entries, searchQuery]);
 
   if (loading) return (
     <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4">
-        <div className="relative">
-            <div className="w-16 h-16 border-4 border-orange-100 border-t-orange-500 rounded-full animate-spin"></div>
-            <div className="absolute inset-0 flex items-center justify-center">
-                <Factory className="text-orange-500 animate-pulse" size={24} />
-            </div>
+      <div className="relative">
+        <div className="w-16 h-16 border-4 border-orange-100 border-t-orange-500 rounded-full animate-spin"></div>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Factory className="text-orange-500 animate-pulse" size={24} />
         </div>
-        <p className="text-slate-400 font-black text-[10px] uppercase tracking-[0.2em] animate-pulse">Synchronizing Floor Data...</p>
+      </div>
+      <p className="text-slate-400 font-black text-[10px] uppercase tracking-[0.2em] animate-pulse">Synchronizing Floor Data...</p>
     </div>
   );
 
@@ -193,7 +191,7 @@ const DEOMachineEntryPage: React.FC = () => {
         {/* Form Panel */}
         <AnimatePresence>
           {showForm && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
@@ -289,7 +287,7 @@ const DEOMachineEntryPage: React.FC = () => {
                                   value={row.machineId}
                                   onChange={e => {
                                     const m = machines.find(line => String(line.id) === form.machineId)
-                                              ?.children?.find((c: any) => String(c.id) === e.target.value);
+                                      ?.children?.find((c: any) => String(c.id) === e.target.value);
                                     updateRow(i, 'machineId', e.target.value);
                                     if (m) updateRow(i, 'subMachineName', m.name);
                                   }}
@@ -386,8 +384,8 @@ const DEOMachineEntryPage: React.FC = () => {
               </div>
               <div className="relative group">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   placeholder="Search logs..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
@@ -427,9 +425,8 @@ const DEOMachineEntryPage: React.FC = () => {
                         </div>
                       </div>
                       <div className="mt-4 flex items-center justify-between">
-                        <div className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest flex items-center gap-1.5 ${
-                          entry.status === 'VERIFIED' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-50 text-slate-400 border border-slate-100'
-                        }`}>
+                        <div className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest flex items-center gap-1.5 ${entry.status === 'VERIFIED' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-50 text-slate-400 border border-slate-100'
+                          }`}>
                           {entry.status === 'VERIFIED' ? <CheckCircle2 size={10} /> : <Clock size={10} />}
                           {entry.status}
                         </div>

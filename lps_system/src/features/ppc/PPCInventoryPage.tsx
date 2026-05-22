@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     Package, RefreshCw, Plus, Search, Filter, Download,
     CheckCircle2, AlertTriangle, Clock, ArrowRight, ChevronDown,
-    X, Loader2, Boxes, AlertCircle, CheckCircle, Upload, Trash2
+    X, Loader2, Boxes, Upload, Trash2, LayoutGrid,
 } from 'lucide-react';
 import { getToken } from '../../lib/storage';
 import { API_BASE as API } from '../../lib/apiConfig';
@@ -21,8 +21,8 @@ interface InventoryItem {
     current_stock: number;
     demand_quantity: number;
     shortage_quantity: number;
-    status: 'SUFFICIENT' | 'SHORTAGE' | 'PENDING_DEO' | 'IN_PRODUCTION' | 'COMPLETED';
-    action: 'STOCK_OK' | 'NEW_DEMAND' | 'PENDING_DEO' | 'GO_TO_PRODUCTION' | 'COMPLETED';
+    status: string;
+    action: string;
     machine_group?: string;
     created_at: string;
     updated_at: string;
@@ -72,9 +72,9 @@ function ActionBadge({ action, onSendToRegistry, sending }: { action: string; on
     }
     if (action === 'STOCK_OK') {
         return (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold">
                 <CheckCircle2 size={13} />
-                Stock OK
+                Dispatch Ready
             </span>
         );
     }
@@ -110,125 +110,10 @@ function ActionBadge({ action, onSendToRegistry, sending }: { action: string; on
 
 // ─── Add Part Modal ───────────────────────────────────────────────────────────
 
-function AddPartModal({ demands, onClose, onSuccess }: {
-    demands: Demand[];
-    onClose: () => void;
-    onSuccess: () => void;
-}) {
-    const [form, setForm] = useState({
-        demand_id: '', vehicle_name: '', sap_part_number: '',
-        part_description: '', current_stock: '', demand_quantity: ''
-    });
-    const [saving, setSaving] = useState(false);
-    const [error, setError] = useState('');
-
-    const handleDemandChange = (id: string) => {
-        const d = demands.find(d => String(d.id) === id);
-        setForm(f => ({
-            ...f,
-            demand_id: id,
-            vehicle_name: d?.model_name || '',
-            demand_quantity: d ? String(d.quantity) : ''
-        }));
-    };
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setSaving(true);
-        setError('');
-        try {
-            const res = await fetch(`${API}/admin/inventory`, {
-                method: 'POST',
-                headers: authHeaders(),
-                body: JSON.stringify({
-                    demand_id: form.demand_id ? Number(form.demand_id) : null,
-                    vehicle_name: form.vehicle_name,
-                    sap_part_number: form.sap_part_number,
-                    part_description: form.part_description,
-                    current_stock: Number(form.current_stock),
-                    demand_quantity: Number(form.demand_quantity),
-                })
-            });
-            const data = await res.json();
-            if (!data.success) throw new Error(data.message);
-            onSuccess();
-            onClose();
-        } catch (err: any) {
-            setError(err.message);
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-                <div className="flex items-center justify-between p-6 border-b border-gray-100">
-                    <h2 className="text-lg font-black text-gray-900 flex items-center gap-2">
-                        <Plus size={18} className="text-orange-500" /> Add Inventory Part
-                    </h2>
-                    <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
-                </div>
-                <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Link to Demand (auto-fills vehicle & qty)</label>
-                        <select
-                            value={form.demand_id}
-                            onChange={e => handleDemandChange(e.target.value)}
-                            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-                        >
-                            <option value="">Select a demand (optional)</option>
-                            {demands.map(d => (
-                                <option key={d.id} value={d.id}>{d.formatted_id} — {d.model_name} (Qty: {d.quantity})</option>
-                            ))}
-                        </select>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Vehicle Name</label>
-                            <input value={form.vehicle_name} onChange={e => setForm(f => ({ ...f, vehicle_name: e.target.value }))}
-                                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" required />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">SAP Part Number</label>
-                            <input value={form.sap_part_number} onChange={e => setForm(f => ({ ...f, sap_part_number: e.target.value }))}
-                                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" required />
-                        </div>
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Part Description</label>
-                        <input value={form.part_description} onChange={e => setForm(f => ({ ...f, part_description: e.target.value }))}
-                            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Current Stock</label>
-                            <input type="number" min="0" value={form.current_stock} onChange={e => setForm(f => ({ ...f, current_stock: e.target.value }))}
-                                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" required />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Demand Quantity</label>
-                            <input type="number" min="0" value={form.demand_quantity} onChange={e => setForm(f => ({ ...f, demand_quantity: e.target.value }))}
-                                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" required />
-                        </div>
-                    </div>
-                    {error && <p className="text-red-500 text-sm bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
-                    <div className="flex gap-3 pt-2">
-                        <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold hover:bg-gray-50">Cancel</button>
-                        <button type="submit" disabled={saving}
-                            className="flex-1 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold disabled:opacity-60">
-                            {saving ? 'Adding...' : 'Add Part'}
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    );
-}
 
 // ─── Shortage Request Modal ──────────────────────────────────────────────────
 
-function ShortageRequestModal({ shortageItems, deos, supervisors, lines, onClose, onSuccess }: {
+function ShortageRequestModal({ shortageItems, deos, supervisors, onClose, onSuccess }: {
     shortageItems: InventoryItem[];
     deos: DEOUser[];
     supervisors: SupervisorUser[];
@@ -243,7 +128,7 @@ function ShortageRequestModal({ shortageItems, deos, supervisors, lines, onClose
     const [error, setError] = useState('');
     const filteredDeos = deos;
     const filteredSupervisors = supervisors;
-    const loadingStaff = false;
+
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -410,12 +295,12 @@ export default function PPCInventoryPage() {
     const [search, setSearch] = useState('');
     const [filterVehicle, setFilterVehicle] = useState('');
     const [filterStatus, setFilterStatus] = useState('ALL');
-    const [filterAction, setFilterAction] = useState('ALL');
+    const [filterAction] = useState('ALL');
 
     const [currentPage, setCurrentPage] = useState(1);
     const pageSize = 10;
 
-    const [showAddModal, setShowAddModal] = useState(false);
+    const [] = useState(false);
     const [showSeedModal, setShowSeedModal] = useState(false);
     const [shortageModalItems, setShortageModalItems] = useState<InventoryItem[] | null>(null);
     const [itemToDelete, setItemToDelete] = useState<InventoryItem | null>(null);
@@ -429,8 +314,57 @@ export default function PPCInventoryPage() {
 
     // Upload logic
     const [uploading, setUploading] = useState(false);
-    const [uploadResult, setUploadResult] = useState<{ updated: number; not_found: string[] } | null>(null);
+    const [, setUploadResult] = useState<{ updated: number; not_found: string[] } | null>(null);
     const fileRef = useRef<HTMLInputElement>(null);
+
+    const dropdownRef = useRef<HTMLDivElement>(null);
+    const buttonRef = useRef<HTMLButtonElement>(null);
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [modelSearchQuery, setModelSearchQuery] = useState('');
+    const [dropdownCoords, setDropdownCoords] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 });
+
+    const toggleDropdown = () => {
+        if (buttonRef.current) {
+            const rect = buttonRef.current.getBoundingClientRect();
+            setDropdownCoords({
+                top: rect.bottom + 4,
+                left: rect.left,
+                width: rect.width
+            });
+        }
+        setIsDropdownOpen(!isDropdownOpen);
+    };
+
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            const target = event.target as Node;
+            const clickedInsideDropdown = dropdownRef.current && dropdownRef.current.contains(target);
+            const clickedInsidePortal = (event.target as Element).closest('.portal-dropdown');
+            if (!clickedInsideDropdown && !clickedInsidePortal) {
+                setIsDropdownOpen(false);
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    useEffect(() => {
+        const handleScrollOrResize = (e: Event) => {
+            const target = e.target as HTMLElement;
+            if (target && target.closest('.portal-dropdown')) {
+                return;
+            }
+            setIsDropdownOpen(false);
+        };
+        if (isDropdownOpen) {
+            window.addEventListener('scroll', handleScrollOrResize, true);
+            window.addEventListener('resize', handleScrollOrResize);
+        }
+        return () => {
+            window.removeEventListener('scroll', handleScrollOrResize, true);
+            window.removeEventListener('resize', handleScrollOrResize);
+        };
+    }, [isDropdownOpen]);
 
     const fetchAll = useCallback(async () => {
         setLoading(true);
@@ -444,7 +378,20 @@ export default function PPCInventoryPage() {
             const [invData, demData, userData, lineData] = await Promise.all([
                 invRes.json(), demRes.json(), userRes.json(), lineRes.json()
             ]);
-            if (invData.success) setItems(invData.data);
+            if (invData.success) {
+                const mapped = (invData.data || []).map((item: InventoryItem) => {
+                    if (item.current_stock >= item.demand_quantity) {
+                        return {
+                            ...item,
+                            status: 'SUFFICIENT',
+                            action: 'STOCK_OK',
+                            shortage_quantity: 0
+                        };
+                    }
+                    return item;
+                });
+                setItems(mapped);
+            }
             if (demData.success) setDemands(demData.data);
             if (userData.success) {
                 const allUsers = userData.data || [];
@@ -491,13 +438,6 @@ export default function PPCInventoryPage() {
         }
     };
 
-    // ── Derived stats ─────────────────────────────────────────────────────
-    const totalParts = items.length;
-    const sufficient = items.filter(i => i.action === 'STOCK_OK').length;
-    const shortage = items.filter(i => i.action === 'NEW_DEMAND').length;
-    const pendingDEO = items.filter(i => i.action === 'PENDING_DEO').length;
-    const completed = items.filter(i => i.status === 'COMPLETED' || i.status === 'IN_PRODUCTION').length;
-
     const demandIdMap = Object.fromEntries(demands.map(d => [d.id, d.formatted_id]));
 
     const modelOptions = Array.from(
@@ -511,6 +451,30 @@ export default function PPCInventoryPage() {
         ).values()
     ).sort((a, b) => (a.vehicleName || '').localeCompare(b.vehicleName || ''));
 
+    const filteredModelOptions = modelOptions.filter(opt => {
+        const query = modelSearchQuery.toLowerCase();
+        return (opt.formattedDemandId || '').toLowerCase().includes(query) ||
+            (opt.vehicleName || '').toLowerCase().includes(query);
+    });
+
+    const selectedOption = modelOptions.find(opt => opt.key === filterVehicle);
+
+
+
+    // Model-wise filtered items for KPI statistics
+    const selectedModelItems = filterVehicle
+        ? items.filter(item => {
+            const [vName, vDemandId] = filterVehicle.split('|');
+            return item.vehicle_name === vName && String(item.demand_id || '') === vDemandId;
+        })
+        : items;
+
+    // ── Derived stats ─────────────────────────────────────────────────────
+    const totalParts = selectedModelItems.length;
+    const sufficient = selectedModelItems.filter(i => i.action === 'STOCK_OK').length;
+    const shortage = selectedModelItems.filter(i => i.action === 'NEW_DEMAND').length;
+    const pendingDeo = selectedModelItems.filter(i => i.status === 'PENDING_DEO' || i.action === 'PENDING_DEO').length;
+
     const seededDemandIds = new Set(items.map(i => i.demand_id).filter(id => id !== null));
     const availableDemands = demands.filter(d => !seededDemandIds.has(d.id));
 
@@ -522,7 +486,16 @@ export default function PPCInventoryPage() {
             || item.vehicle_name?.toLowerCase().includes(q);
         const [vName, vDemandId] = filterVehicle.split('|');
         const matchVehicle = item.vehicle_name === vName && String(item.demand_id || '') === vDemandId;
-        const matchStatus = filterStatus === 'ALL' || item.status === filterStatus;
+
+        let matchStatus = true;
+        if (filterStatus !== 'ALL') {
+            if (filterStatus === 'PENDING') {
+                matchStatus = item.status === 'PENDING_DEO' || item.status === 'IN_PRODUCTION' || item.action === 'PENDING_DEO' || item.action === 'IN_PRODUCTION' || item.status === 'WAITING_RM_APPROVAL' || item.action === 'WAITING_RM_APPROVAL';
+            } else {
+                matchStatus = item.status === filterStatus;
+            }
+        }
+
         const matchAction = filterAction === 'ALL' || item.action === filterAction;
         return matchSearch && matchVehicle && matchStatus && matchAction;
     });
@@ -548,13 +521,55 @@ export default function PPCInventoryPage() {
     const handleSaveStock = async (id: number) => {
         try {
             const val = Number(editStockValue);
-            if (isNaN(val) || val < 0) { setEditingStockId(null); return; }
+
+            if (isNaN(val) || val < 0) {
+                setEditingStockId(null);
+                return;
+            }
+
             const res = await fetch(`${API}/admin/inventory/${id}`, {
                 method: 'PATCH',
                 headers: authHeaders(),
-                body: JSON.stringify({ current_stock: val })
+                body: JSON.stringify({
+                    current_stock: val
+                })
             });
-            if (res.ok) fetchAll();
+
+            if (!res.ok) {
+                toast.error("Update failed");
+                return;
+            }
+
+            // UPDATE LOCAL STATE ONLY
+            setItems(prev =>
+                prev.map(item => {
+                    if (item.id !== id) return item;
+
+                    const shortage =
+                        val >= item.demand_quantity
+                            ? 0
+                            : item.demand_quantity - val;
+
+                    return {
+                        ...item,
+                        current_stock: val,
+                        shortage_quantity: shortage,
+                        status:
+                            val >= item.demand_quantity
+                                ? "SUFFICIENT"
+                                : "SHORTAGE",
+                        action:
+                            val >= item.demand_quantity
+                                ? "STOCK_OK"
+                                : "NEW_DEMAND"
+                    };
+                })
+            );
+
+            toast.success("Stock updated");
+
+        } catch (err) {
+            toast.error("Update failed");
         } finally {
             setEditingStockId(null);
         }
@@ -610,91 +625,209 @@ export default function PPCInventoryPage() {
     };
 
     return (
-        <div className=" bg-gray-50/50 min-h-screen">
-            {/* Header */}
-            <div className="mb-2 bg-white p-4 shadow-sm">
-                <div className="flex items-center justify-between px-2">
-                    <div>
-                        <h1 className="text-2xl font-black text-gray-900">Inventory</h1>
+        <div className="bg-gray-50/50 flex flex-col h-[calc(100vh-96px)] overflow-hidden">
 
-                    </div>
-                    <div className="flex items-center justify-between px-2">
-                        <button onClick={fetchAll} disabled={loading}
-                            className="flex items-center gap-2 px-4 py-2 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition-all">
-                            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-                        </button>
-                        <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleFileUpload} className="hidden" id="stock-upload" />
-                        <label htmlFor="stock-upload" className={`cursor-pointer flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition-all shadow-sm ${uploading ? 'bg-gray-100 text-gray-400' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
-                            {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-                            {uploading ? 'Uploading...' : '📤 Upload Stock Excel'}
-                        </label>
+            {/* Header */}
+            <div className="bg-white border-b border-slate-100 py-1 px-4 ml-mb-1 flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-black text-slate-800 tracking-tight leading-none p-2">Inventory</h1>
+                </div>
+                <div className="flex items-center gap-4">
+                    {/* Compact Stats Bar */}
+                    <div className="flex items-center bg-white rounded-2xl border border-slate-100 p-1 shadow-sm overflow-hidden scale-90 origin-right">
+                        <div className="px-4 py-1 text-center border-r border-slate-50">
+                            <span className="block text-[8px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Total Parts Stock</span>
+                            <span className="block text-sm font-black text-slate-800 leading-none">{totalParts}</span>
+                        </div>
+                        <div className="px-4 py-1 text-center border-r border-slate-50 text-emerald-600">
+                            <span className="block text-[8px] font-black uppercase tracking-wider mb-0.5 opacity-80">Dispatch Ready</span>
+                            <span className="block text-sm font-black leading-none">{sufficient}</span>
+                        </div>
+                        <div className="px-4 py-1 text-center border-r border-slate-50 text-red-500">
+                            <span className="block text-[8px] font-black uppercase tracking-wider mb-0.5 opacity-80">Shortage Count</span>
+                            <span className="block text-sm font-black leading-none">{shortage}</span>
+                        </div>
+                        <div className="px-4 py-1 text-center text-amber-500">
+                            <span className="block text-[8px] font-black uppercase tracking-wider mb-0.5 opacity-80">Pending to DEO</span>
+                            <span className="block text-sm font-black leading-none">{pendingDeo}</span>
+                        </div>
                     </div>
                 </div>
-            </div>
-
-            {/* KPI Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 mb-2 px-2">
-                {[
-                    { label: 'Total Parts', value: totalParts, icon: Boxes, color: 'from-slate-500 to-slate-600', bg: 'bg-white', border: 'border-slate-200', text: 'text-slate-700' },
-                    { label: 'Stock OK', value: sufficient, icon: CheckCircle2, color: 'from-emerald-500 to-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' },
-                    { label: 'Shortage', value: shortage, icon: AlertTriangle, color: 'from-red-500 to-red-600', bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700' },
-                    { label: 'Pending DEO', value: pendingDEO, icon: Clock, color: 'from-amber-500 to-amber-600', bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700' },
-                    { label: 'Completed', value: completed, icon: CheckCircle, color: 'from-teal-500 to-teal-600', bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700' },
-                ].map(card => (
-                    <div key={card.label} className={`${card.bg} border ${card.border} rounded-2xl p-3 flex items-center gap-4`}>
-                        <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${card.color} flex items-center justify-center shadow-sm`}><card.icon size={18} className="text-white" /></div>
-                        <div><p className="text-[11px] text-gray-500 font-bold uppercase tracking-wider">{card.label}</p><p className={`text-2xl font-black ${card.text}`}>{card.value}</p></div>
-                    </div>
-                ))}
             </div>
 
             {/* Toolbar */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 mx-2 mb-2">
-                <div className="flex items-center gap-3 overflow-x-auto no-scrollbar">
-                    <div className="relative flex-1 min-w-48 max-w-sm">
-                        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search part, SAP number, vehicle..." className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-2 mx-2 mb-2">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 w-full">
+                    <div className="flex flex-wrap items-center gap-2">
+                        {/* Search */}
+                        <div className="relative group w-full md:w-40 flex-shrink-0">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-orange-500 transition-colors pointer-events-none" size={13} />
+                            <input
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
+                                placeholder="Search part, SAP..."
+                                className="w-full bg-white border border-slate-200 focus:border-orange-500 rounded-full h-[42px] pl-9 pr-3 text-slate-700 font-bold text-[11px] tracking-wide placeholder:text-gray-400/85 outline-none transition-all shadow-sm"
+                            />
+                        </div>
+
+                        {/* Car Model Dropdown */}
+                        <div className="relative group w-full md:w-48 flex-shrink-0" ref={dropdownRef}>
+                            <div className="absolute left-3.5 top-1/2 -translate-y-1/2 p-1 bg-orange-50 rounded text-orange-500 pointer-events-none">
+                                <Filter size={11} />
+                            </div>
+                            <button
+                                ref={buttonRef}
+                                type="button"
+                                onClick={toggleDropdown}
+                                className="w-full bg-white border border-slate-200 focus:border-orange-500 rounded-full h-[42px] pl-11 pr-8 text-slate-700 font-bold text-[11px] tracking-wide outline-none transition-all shadow-sm cursor-pointer flex items-center justify-between text-left"
+                            >
+                                <span className="truncate">
+                                    {selectedOption
+                                        ? `${selectedOption.formattedDemandId} — ${selectedOption.vehicleName}`
+                                        : 'Select Car Model...'}
+                                </span>
+                                <ChevronDown size={14} className="text-gray-400" />
+                            </button>
+
+                            {isDropdownOpen && (
+                                <div
+                                    style={{
+                                        position: 'fixed',
+                                        top: `${dropdownCoords.top}px`,
+                                        left: `${dropdownCoords.left}px`,
+                                        width: `${dropdownCoords.width}px`,
+                                        minWidth: '260px',
+                                    }}
+                                    className="bg-white border border-gray-100 rounded-2xl shadow-xl z-50 p-2.5 space-y-2 portal-dropdown"
+                                >
+                                    <div className="relative">
+                                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                        <input
+                                            type="text"
+                                            placeholder="Search Vehicle Model..."
+                                            value={modelSearchQuery}
+                                            onChange={e => setModelSearchQuery(e.target.value)}
+                                            className="w-full pl-9 pr-3 py-2 border border-gray-200 focus:border-orange-400 focus:ring-2 focus:ring-orange-100 rounded-xl text-sm focus:outline-none transition-all font-semibold"
+                                            autoFocus
+                                        />
+                                    </div>
+                                    <div className="max-h-60 overflow-y-auto py-1 space-y-1 pr-1 scrollbar-thin scrollbar-thumb-gray-200">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setFilterVehicle('');
+                                                setIsDropdownOpen(false);
+                                                setModelSearchQuery('');
+                                            }}
+                                            className={`w-full relative text-center px-4 py-2.5 text-xs font-black uppercase tracking-wider rounded-xl transition-all ${!filterVehicle
+                                                ? 'bg-orange-50 text-orange-600 font-extrabold'
+                                                : 'hover:bg-orange-50/50 hover:text-orange-600 text-gray-700 font-bold'
+                                                }`}
+                                        >
+                                            ALL VEHICLES
+                                            {!filterVehicle && (
+                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-orange-600" />
+                                            )}
+                                        </button>
+                                        {filteredModelOptions.map(opt => {
+                                            const isSelected = filterVehicle === opt.key;
+                                            return (
+                                                <button
+                                                    key={opt.key}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setFilterVehicle(opt.key);
+                                                        setIsDropdownOpen(false);
+                                                        setModelSearchQuery('');
+                                                    }}
+                                                    className={`w-full relative text-center px-4 py-2.5 text-xs font-black uppercase tracking-wider rounded-xl transition-all ${isSelected
+                                                        ? 'bg-orange-50 text-orange-600 font-extrabold'
+                                                        : 'hover:bg-orange-50/50 hover:text-orange-600 text-gray-700 font-bold'
+                                                        }`}
+                                                >
+                                                    {opt.formattedDemandId} — {opt.vehicleName}
+                                                    {isSelected && (
+                                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-orange-600" />
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
+                                        {filteredModelOptions.length === 0 && (
+                                            <p className="text-xs text-gray-400 text-center py-2">No models found</p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Status Dropdown */}
+                        <div className="relative group w-full md:w-36 flex-shrink-0">
+                            <div className="absolute left-3.5 top-1/2 -translate-y-1/2 p-1 bg-orange-50 rounded text-orange-500 pointer-events-none">
+                                <LayoutGrid size={11} />
+                            </div>
+                            <select
+                                value={filterStatus}
+                                onChange={e => setFilterStatus(e.target.value)}
+                                className="w-full bg-white border border-slate-200 focus:border-orange-500 rounded-full h-[42px] pl-11 pr-8 text-slate-700 font-bold text-[11px] tracking-wide outline-none transition-all shadow-sm cursor-pointer appearance-none"
+                            >
+                                <option value="ALL">All Status</option>
+                                <option value="SUFFICIENT">Ready to Dispatch</option>
+                                <option value="PENDING">Pending</option>
+                                <option value="SHORTAGE">Shortage</option>
+                            </select>
+                            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                                <ChevronDown size={14} />
+                            </div>
+                        </div>
                     </div>
-                    <div className="relative">
-                        <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <select value={filterVehicle} onChange={e => setFilterVehicle(e.target.value)} className="pl-8 pr-8 py-2.5 border border-gray-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-orange-400 appearance-none bg-orange-50/50 min-w-[220px]">
-                            <option value="">Select Car Model...</option>
-                            {modelOptions.map(opt => <option key={opt.key} value={opt.key}>{opt.formattedDemandId} — {opt.vehicleName}</option>)}
-                        </select>
-                        <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+
+                    <div className="flex flex-wrap items-center gap-2 md:ml-auto">
+                        {/* Import Demand Button */}
+                        <button
+                            onClick={() => setShowSeedModal(true)}
+                            className="flex items-center gap-2 px-3.5 h-[42px] bg-orange-500 hover:bg-orange-600 text-white rounded-full text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap shadow-sm flex-shrink-0"
+                        >
+                            <Boxes size={14} />
+                            IMPORT DEMAND
+                        </button>
+
+                        {/* Upload Stock Excel */}
+                        <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleFileUpload} className="hidden" id="stock-upload" />
+                        <label
+                            htmlFor="stock-upload"
+                            className={`cursor-pointer flex items-center gap-2 rounded-full px-3.5 h-[42px] text-[10px] font-black uppercase tracking-wider transition-all shadow-sm whitespace-nowrap flex-shrink-0 border border-emerald-500/20 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20`}
+                        >
+                            {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                            {uploading ? 'UPLOADING...' : 'UPLOAD STOCK EXCEL'}
+                        </label>
+
+                        {/* Export Icon Button */}
+                        <button
+                            onClick={handleExport}
+                            className="w-[42px] h-[42px] border border-red-200 bg-red-50 hover:bg-red-100 text-red-600 rounded-full transition-all flex items-center justify-center flex-shrink-0 shadow-sm"
+                            title="Export"
+                        >
+                            <Download size={15} />
+                        </button>
                     </div>
-                    <div className="relative">
-                        <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="pl-8 pr-8 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 appearance-none bg-white min-w-[140px]">
-                            <option value="ALL">All Status</option>
-                            <option value="SUFFICIENT">Sufficient</option>
-                            <option value="SHORTAGE">Shortage</option>
-                            <option value="PENDING_DEO">Pending</option>
-                            <option value="IN_PRODUCTION">Completed</option>
-                        </select>
-                        <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                    </div>
-                    <button onClick={() => setShowSeedModal(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-semibold transition-all whitespace-nowrap"><Boxes size={15} /> Import Demand</button>
-                    <button onClick={handleExport} className="group flex items-center gap-2 px-4 py-2.5 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition-all whitespace-nowrap"><Download size={15} /> Export</button>
                 </div>
             </div>
 
-            {/* Table */}
-            <div className="bg-white rounded-2xl mx-2 shadow-sm border border-gray-100 overflow-hidden">
-                <div className="overflow-x-auto max-h-[calc(100vh-320px)] overflow-y-auto">
+            <div className="flex-1 bg-white rounded-2xl mx-2 shadow-sm border border-gray-100 overflow-hidden flex flex-col mb-2">
+                <div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar">
                     <table className="w-full text-sm">
                         <thead className='sticky top-0 z-10'>
                             <tr className="border-b-2 border-[#f37021] bg-white shadow-sm">
-                                {['SN', 'Vehicle', 'SAP Part No.', 'Part Description', 'Current Stock', 'Demand Qty', 'Shortage', 'Status', 'Action'].map(h => (
+                                {['Sr.no', 'Vehicle', 'SAP Part No.', 'Current Stock', 'Demand Qty', 'Shortage', 'Status', 'Action'].map(h => (
                                     <th key={h} className="px-4 py-4 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">{h}</th>
                                 ))}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
                             {loading ? (
-                                <tr><td colSpan={9} className="py-20 text-center"><Loader2 size={32} className="animate-spin text-orange-400 mx-auto mb-4" /><p className="text-gray-400">Loading data...</p></td></tr>
+                                <tr><td colSpan={8} className="py-20 text-center"><Loader2 size={32} className="animate-spin text-orange-400 mx-auto mb-4" /><p className="text-gray-400">Loading data...</p></td></tr>
                             ) : paginatedItems.length === 0 ? (
-                                <tr><td colSpan={9} className="py-20 text-center">{!filterVehicle ? (<><Filter size={48} className="text-orange-100 mx-auto mb-4" /><p className="text-gray-500 font-black text-xl">Select a Car Model</p></>) : (<><Package size={48} className="text-gray-100 mx-auto mb-4" /><p className="text-gray-400">No matching items</p></>)}</td></tr>
+                                <tr><td colSpan={8} className="py-20 text-center">{!filterVehicle ? (<><Filter size={48} className="text-orange-100 mx-auto mb-4" /><p className="text-gray-500 font-black text-xl">Select a Car Model</p></>) : (<><Package size={48} className="text-gray-100 mx-auto mb-4" /><p className="text-gray-400">No matching items</p></>)}</td></tr>
                             ) : paginatedItems.map((item, idx) => {
                                 const isShortage = item.action === 'NEW_DEMAND';
                                 const rowBg = isShortage ? 'bg-red-50/30 hover:bg-red-50/60' : 'hover:bg-gray-50/80';
@@ -730,12 +863,7 @@ export default function PPCInventoryPage() {
                                             </span>
                                         </td>
 
-                                        {/* PART DESCRIPTION */}
-                                        <td className="px-4 py-4 max-w-[250px]">
-                                            <div className="truncate whitespace-nowrap overflow-hidden text-xs text-gray-600">
-                                                {item.part_description || '—'}
-                                            </div>
-                                        </td>
+
 
                                         {/* CURRENT STOCK */}
                                         <td className="px-4 py-4">
@@ -787,7 +915,7 @@ export default function PPCInventoryPage() {
                                                 </span>
                                             ) : (
                                                 <span className="text-sm font-bold text-emerald-600">
-                                                    ✓ OK
+                                                    ✓ Ready to Dispatch
                                                 </span>
                                             )}
                                         </td>
@@ -796,21 +924,27 @@ export default function PPCInventoryPage() {
                                         <td className="px-4 py-4 whitespace-nowrap">
                                             <span
                                                 className={`text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest border ${item.status === 'SUFFICIENT'
-                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                                        : item.status === 'SHORTAGE'
-                                                            ? 'bg-red-50 text-red-700 border-red-200'
-                                                            : 'bg-blue-50 text-blue-700 border-blue-200'
+                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                    : item.status === 'SHORTAGE'
+                                                        ? 'bg-red-50 text-red-700 border-red-200'
+                                                        : item.status === 'COMPLETED' || item.status === 'DISPATCHED' || item.status === 'PRODUCTION_DONE'
+                                                            ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                                            : 'bg-amber-50 text-amber-700 border-amber-200'
                                                     }`}
                                             >
-                                                {item.status}
+                                                {item.status === 'SUFFICIENT'
+                                                    ? 'Ready to Dispatch'
+                                                    : item.status === 'COMPLETED' || item.status === 'DISPATCHED' || item.status === 'PRODUCTION_DONE'
+                                                        ? 'Dispatched'
+                                                        : item.status}
                                             </span>
                                         </td>
 
                                         {/* ACTION */}
                                         <td className="px-4 py-4 whitespace-nowrap">
                                             <div className="flex items-center gap-2">
-                                                <ActionBadge 
-                                                    action={item.action} 
+                                                <ActionBadge
+                                                    action={item.action}
                                                     onSendToRegistry={() => handleSendToMachineRegistry(item)}
                                                     sending={sendingItemIds.has(item.id)}
                                                 />
@@ -867,14 +1001,14 @@ export default function PPCInventoryPage() {
                         Are you sure you want to delete <span className="text-rose-600 font-black">{itemToDelete?.sap_part_number}</span>? This will also remove all associated production and shortage records.
                     </p>
                     <div className="grid grid-cols-2 gap-4">
-                        <button 
+                        <button
                             onClick={() => setItemToDelete(null)}
                             disabled={isDeleting}
                             className="py-4 bg-gray-50 text-gray-500 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-gray-100 hover:bg-gray-100 transition-colors"
                         >
                             Cancel
                         </button>
-                        <button 
+                        <button
                             onClick={handleDeleteItem}
                             disabled={isDeleting}
                             className="py-4 bg-rose-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-rose-100 hover:bg-rose-700 transition-all flex items-center justify-center gap-2"

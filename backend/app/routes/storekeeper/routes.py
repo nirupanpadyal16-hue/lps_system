@@ -392,6 +392,48 @@ def get_dispatch(dispatch_id):
 # NOTIFICATIONS
 # ─────────────────────────────────────────────────────────
 
+@sk_bp.route('/dispatches/<int:dispatch_id>', methods=['PUT'])
+@jwt_required()
+@require_sk
+def update_dispatch(dispatch_id):
+    """Update an existing dispatch record."""
+    dispatch = DispatchRecord.query.get_or_404(dispatch_id)
+    data = request.json or {}
+
+    if 'quantity_dispatched' in data:
+        dispatch.quantity_dispatched = data['quantity_dispatched']
+    if 'vehicle_count' in data:
+        dispatch.vehicle_count = data['vehicle_count']
+    if 'client_name' in data:
+        dispatch.client_name = data['client_name']
+    if 'company_name' in data:
+        dispatch.client_name = data['company_name']
+    if 'challan_number' in data:
+        dispatch.challan_number = data['challan_number']
+    if 'dispatch_notes' in data:
+        dispatch.dispatch_notes = data['dispatch_notes']
+    if 'vehicle_name' in data:
+        dispatch.vehicle_name = data['vehicle_name']
+    if 'vehicle_number' in data:
+        dispatch.vehicle_number = data['vehicle_number']
+    if 'driver_name' in data:
+        dispatch.driver_name = data['driver_name']
+    if 'driver_contact' in data:
+        dispatch.driver_contact = data['driver_contact']
+    if 'transporter_name' in data:
+        dispatch.transporter_name = data['transporter_name']
+
+    # Update rich extra_details dictionary
+    if dispatch.extra_details is None:
+        dispatch.extra_details = {}
+    for k, v in data.items():
+        dispatch.extra_details[k] = v
+
+    db.session.commit()
+    return jsonify({"success": True, "data": dispatch.to_dict()})
+
+# ─────────────────────────────────────────────────────────
+
 @sk_bp.route('/notifications', methods=['GET'])
 @jwt_required()
 @require_sk

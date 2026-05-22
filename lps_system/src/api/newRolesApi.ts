@@ -58,6 +58,7 @@ export const skApi = {
   getDispatchQueue: () => axios.get(`${BASE_URL}/storekeeper/dispatch-queue`, authHeaders()),
   getDispatches: () => axios.get(`${BASE_URL}/storekeeper/dispatches`, authHeaders()),
   createDispatch: (data: any) => axios.post(`${BASE_URL}/storekeeper/dispatches`, data, authHeaders()),
+  updateDispatch: (id: number, data: any) => axios.put(`${BASE_URL}/storekeeper/dispatches/${id}`, data, authHeaders()),
 
   // Notifications
   getNotifications: () => axios.get(`${BASE_URL}/storekeeper/notifications`, authHeaders()),
@@ -77,6 +78,7 @@ export const deoMachineApi = {
   getShortageRequests: () => axios.get(`${BASE_URL}/deo/shortage-requests`, authHeaders()),
   getShortagePartsByMachine: () => axios.get(`${BASE_URL}/deo/shortage-parts-by-machine`, authHeaders()),
   getMachines: () => axios.get(`${BASE_URL}/deo/machines`, authHeaders()),
+  getLines: () => axios.get(`${BASE_URL}/admin/lines`, authHeaders()),
   getInventory: () => axios.get(`${BASE_URL}/deo/inventory`, authHeaders()),
   getNotifications: () => axios.get(`${BASE_URL}/deo/notifications`, authHeaders()),
   markNotificationRead: (id: number) =>

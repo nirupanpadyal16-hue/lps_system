@@ -41,6 +41,7 @@ interface Demand {
     supervisor_name?: string;
     supervisor_email?: string;
     customer?: string;
+    company?: string;
     createdAt: string;
     actual?: number;
 }
@@ -49,7 +50,7 @@ const DemandManagementPage = () => {
     const navigate = useNavigate();
     // Data State
     const [demands, setDemands] = useState<Demand[]>([]);
-    const [stats, setStats] = useState({ total: 0, pending: 0, inProgress: 0, completed: 0 });
+    const [stats, setStats] = useState({ total: 0, pending: 0, inProgress: 0, waitingDispatch: 0, dispatched: 0 });
     const user = getUser();
     const isManager = user?.role === 'Manager';
 
@@ -132,7 +133,8 @@ const DemandManagementPage = () => {
             total: data.length,
             pending: data.filter(d => d.status === 'PENDING').length,
             inProgress: data.filter(d => d.status === 'IN_PROGRESS').length,
-            completed: data.filter(d => d.status === 'COMPLETED').length,
+            waitingDispatch: data.filter(d => d.status === 'AWAITING_STORE_DISPATCH').length,
+            dispatched: data.filter(d => d.status === 'DISPATCHED').length,
         };
         setStats(stats);
     };
@@ -165,9 +167,9 @@ const DemandManagementPage = () => {
     if (isManager) return null;
 
     return (
-        <div className="max-w-[1800px] mx-auto bg-ind-bg/30">
-            {/* Sticky Header Container */}
-            <div className="sticky top-0 z-30 bg-white  border-t border-ind-border/60  transition-all pb-2">
+        <div className="max-w-[1800px] mx-auto bg-ind-bg/30 h-[calc(100vh-108px)] flex flex-col overflow-hidden">
+            {/* Page Header and Controls */}
+            <div className="bg-white border-t border-ind-border/60 transition-all pb-2">
                 <div className="">
                     {/* Header Row: Title & Stats */}
                     <div className="flex  xl:flex-row xl:items-center justify-between gap-4 bg-white border-b border-slate-100 mb-2 py-1">
@@ -200,9 +202,13 @@ const DemandManagementPage = () => {
                                 <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">IN PROGRESS</span>
                                 <span className="block text-lg font-black leading-none">{stats.inProgress}</span>
                             </div>
+                            <div className="px-4 py-1 text-center border-r border-ind-border/50 text-orange-500">
+                                <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">WAITING DISPATCH</span>
+                                <span className="block text-lg font-black leading-none">{stats.waitingDispatch}</span>
+                            </div>
                             <div className="px-4 py-1 text-center text-emerald-500">
-                                <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">COMPLETED</span>
-                                <span className="block text-lg font-black leading-none">{stats.completed}</span>
+                                <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">DISPATCHED</span>
+                                <span className="block text-lg font-black leading-none">{stats.dispatched}</span>
                             </div>
                         </div>
                     </div>
@@ -224,7 +230,8 @@ const DemandManagementPage = () => {
                                         { value: 'ALL', label: 'All Status' },
                                         { value: 'PENDING', label: 'Pending' },
                                         { value: 'IN_PROGRESS', label: 'In progress' },
-                                        { value: 'COMPLETED', label: 'Completed' }
+                                        { value: 'AWAITING_STORE_DISPATCH', label: 'Waiting for Dispatch' },
+                                        { value: 'DISPATCHED', label: 'Dispatched' }
                                     ].map((tab) => (
                                         <option key={tab.value} value={tab.value}>{tab.label}</option>
                                     ))}
@@ -239,7 +246,7 @@ const DemandManagementPage = () => {
                                 <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-ind-text3 group-focus-within:text-ind-primary transition-colors" size={14} />
                                 <input
                                     type="text"
-                                    placeholder="Search demands..."
+                                    placeholder="Search by demand id, model name..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     className="w-full bg-white border border-ind-border/60 focus:border-ind-primary rounded-full h-[42px] pl-14 pr-6 text-slate-700 font-bold text-[11px] tracking-wide placeholder:text-ind-text3/60 outline-none transition-all shadow-sm"
@@ -289,25 +296,30 @@ const DemandManagementPage = () => {
 
 
             {/* Scrollable Content Area */}
-            <div className="px-2 py-2">
-                <div className="overflow-x-auto rounded-2xl border border-ind-border/50 shadow-sm h-[calc(100vh-200px)] overflow-y-auto bg-white">
+            <div className="flex-1 min-h-0 px-2 py-2">
+                <div className="overflow-x-auto rounded-2xl border border-ind-border/50 shadow-sm h-full overflow-y-auto bg-white">
                     <table className="min-w-full bg-white text-sm">
 
                         {/* Header */}
                         <thead className="bg-ind-bg text-black border-b-2 border-[#f37021] uppercase text-[11px] tracking-wider sticky top-0 z-[50]">
                             <tr>
-                                <th className="px-6 py-2 text-left">Demand</th>
-                                <th className="px-6 py-2 text-center">Status</th>
-                                <th className="px-6 py-2 text-right">Plan</th>
-                                <th className="px-6 py-2 text-right">Actual</th>
-                                <th className="px-6 py-2 text-right">Actions</th>
+                                <th className="px-6 py-2 text-left whitespace-nowrap sticky top-0 bg-ind-bg z-10">Sr No:</th>
+                                <th className="px-6 py-2 text-left whitespace-nowrap sticky top-0 bg-ind-bg z-10">Demand</th>
+                                <th className="px-6 py-2 text-left whitespace-nowrap sticky top-0 bg-ind-bg z-10">Start Date</th>
+                                <th className="px-6 py-2 text-left whitespace-nowrap sticky top-0 bg-ind-bg z-10">End Date</th>
+                                <th className="px-6 py-2 text-left whitespace-nowrap sticky top-0 bg-ind-bg z-10">Customer Name</th>
+                                <th className="px-6 py-2 text-left whitespace-nowrap sticky top-0 bg-ind-bg z-10">Company Name</th>
+                                <th className="px-6 py-2 text-center whitespace-nowrap sticky top-0 bg-ind-bg z-10">Status</th>
+                                <th className="px-6 py-2 text-right whitespace-nowrap sticky top-0 bg-ind-bg z-10">Plan</th>
+                                <th className="px-6 py-2 text-right whitespace-nowrap sticky top-0 bg-ind-bg z-10">Actual</th>
+                                <th className="px-6 py-2 text-right whitespace-nowrap sticky top-0 bg-ind-bg z-10">Actions</th>
                             </tr>
                         </thead>
 
                         {/* Body */}
                         <tbody className="divide-y divide-ind-border/40">
                             <AnimatePresence>
-                                {paginatedDemands.map((demand) => (
+                                {paginatedDemands.map((demand, idx) => (
                                     <motion.tr
                                         key={demand.id}
                                         initial={{ opacity: 0, y: 10 }}
@@ -316,8 +328,13 @@ const DemandManagementPage = () => {
                                         className="hover:bg-ind-bg/40 transition-colors group"
                                     >
 
+                                        {/* Sr No: */}
+                                        <td className="px-6 py-2 text-left font-bold text-xs text-slate-800 whitespace-nowrap">
+                                            {(currentPage - 1) * itemsPerPage + idx + 1}
+                                        </td>
+
                                         {/* Demand Details */}
-                                        <td className="px-6 py-2">
+                                        <td className="px-6 py-2 whitespace-nowrap">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-ind-primary">
                                                     <Car size={20} />
@@ -333,57 +350,77 @@ const DemandManagementPage = () => {
                                             </div>
                                         </td>
 
+                                        {/* Start Date */}
+                                        <td className="px-6 py-2 text-left font-bold text-xs text-slate-800 whitespace-nowrap">
+                                            {demand.start_date || '—'}
+                                        </td>
+
+                                        {/* End Date */}
+                                        <td className="px-6 py-2 text-left font-bold text-xs text-slate-800 whitespace-nowrap">
+                                            {demand.end_date || '—'}
+                                        </td>
+
+                                        {/* Customer Name */}
+                                        <td className="px-6 py-2 text-left font-bold text-xs text-slate-800 whitespace-nowrap">
+                                            {demand.customer || '—'}
+                                        </td>
+
+                                        {/* Company Name */}
+                                        <td className="px-6 py-2 text-left font-bold text-xs text-slate-800 whitespace-nowrap">
+                                            {demand.company || '—'}
+                                        </td>
+
                                         {/* Status */}
-                                        <td className="px-6 py-2 text-center">
+                                        <td className="px-6 py-2 text-center whitespace-nowrap">
                                             <div className="flex flex-col items-center gap-1">
-                                                 <span
-                                                     className={`px-3 py-1 rounded-full text-[10px] font-bold border
+                                                <span
+                                                    className={`px-3 py-1 rounded-full text-[10px] font-bold border
                                                         ${demand.status === "PENDING" ? "bg-amber-50 text-amber-600 border-amber-100" :
-                                                          demand.status === "IN_PROGRESS" ? "bg-blue-50 text-blue-600 border-blue-100" :
-                                                          demand.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-                                                          demand.status === "PRODUCTION_DONE" ? "bg-indigo-50 text-indigo-700 border-indigo-100" :
-                                                          demand.status === "AWAITING_STORE_DISPATCH" ? "bg-orange-50 text-orange-600 border-orange-100" :
-                                                          demand.status === "DISPATCHED" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                                                          "bg-ind-bg text-ind-text2 border-ind-border"
-                                                         }`}
-                                                 >
-                                                     {demand.status.replace(/_/g, " ")}
-                                                 </span>
+                                                            demand.status === "IN_PROGRESS" ? "bg-blue-50 text-blue-600 border-blue-100" :
+                                                                demand.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                                                                    demand.status === "PRODUCTION_DONE" ? "bg-indigo-50 text-indigo-700 border-indigo-100" :
+                                                                        demand.status === "AWAITING_STORE_DISPATCH" ? "bg-orange-50 text-orange-600 border-orange-100" :
+                                                                            demand.status === "DISPATCHED" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                                                                                "bg-ind-bg text-ind-text2 border-ind-border"
+                                                        }`}
+                                                >
+                                                    {demand.status.replace(/_/g, " ")}
+                                                </span>
                                             </div>
                                         </td>
 
                                         {/* Plan */}
-                                        <td className="px-6 py-2 text-right ">
+                                        <td className="px-6 py-2 text-right whitespace-nowrap">
                                             <div className="font-bold text-xs text-slate-800">
                                                 {demand.quantity.toLocaleString()} Units
                                             </div>
                                         </td>
 
                                         {/* Actual */}
-                                        <td className="px-6 py-2 text-right">
+                                        <td className="px-6 py-2 text-right whitespace-nowrap">
                                             <div className="font-bold text-xs text-indigo-600">
                                                 {demand.actual?.toLocaleString() || '0'} Units
                                             </div>
                                         </td>
 
                                         {/* Actions */}
-                                        <td className="px-6 py-2 text-right">
+                                        <td className="px-6 py-2 text-right whitespace-nowrap">
                                             <div className="flex justify-end gap-2">
-                                                <button
+                                                {/* <button
                                                     onClick={() =>
                                                         navigate(`/manager/planning/${demand.id}`)
                                                     }
                                                     className="px-2 py-1 bg-ind-bg hover:bg-emerald-50 hover:text-emerald-600 rounded-md text-xs border"
                                                 >
                                                     <Eye size={14} />
-                                                </button>
+                                                </button> */}
 
-                                                <button
+                                                {/* <button
                                                     onClick={() => setSelectedInfoDemand(demand)}
                                                     className="p-1 hover:bg-orange-50 rounded-md"
                                                 >
                                                     <Info size={14} />
-                                                </button>
+                                                </button> */}
 
                                                 <button
                                                     onClick={() => handleEdit(demand)}
@@ -425,7 +462,7 @@ const DemandManagementPage = () => {
                             >
                                 Previous
                             </button>
-                            
+
                             <div className="flex items-center gap-1 mx-2">
                                 {[...Array(totalPages)].map((_, i) => {
                                     const page = i + 1;
@@ -434,11 +471,10 @@ const DemandManagementPage = () => {
                                             <button
                                                 key={page}
                                                 onClick={() => setCurrentPage(page)}
-                                                className={`w-9 h-9 rounded-xl text-[11px] font-black transition-all ${
-                                                    currentPage === page
-                                                        ? "bg-gradient-to-r from-[#F37021] to-orange-600 text-white shadow-lg shadow-orange-200"
-                                                        : "bg-white border border-slate-200 text-slate-400 hover:border-ind-primary hover:text-ind-primary"
-                                                }`}
+                                                className={`w-9 h-9 rounded-xl text-[11px] font-black transition-all ${currentPage === page
+                                                    ? "bg-gradient-to-r from-[#F37021] to-orange-600 text-white shadow-lg shadow-orange-200"
+                                                    : "bg-white border border-slate-200 text-slate-400 hover:border-ind-primary hover:text-ind-primary"
+                                                    }`}
                                             >
                                                 {page}
                                             </button>

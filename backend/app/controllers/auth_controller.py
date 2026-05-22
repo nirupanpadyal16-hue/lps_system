@@ -22,13 +22,17 @@ def login_controller():
     user = User.query.filter(User.username.ilike(username)).first()
 
     if not user:
+        print(f"DEBUG LOGIN: User not found for username '{username}'")
         return jsonify({"success": False, "message": "User not found"}), 401
 
     if not user.check_password(password):
+        print(f"DEBUG LOGIN: Invalid password for username '{username}'. Provided password: '{password}'")
         return jsonify({"success": False, "message": "Invalid password"}), 401
 
     if not user.is_active:
+        print(f"DEBUG LOGIN: User '{username}' is inactive")
         return jsonify({"success": False, "message": "Your account has been deactivated. Please contact administrator."}), 403
+
 
     token = create_access_token(identity=user.username)
 

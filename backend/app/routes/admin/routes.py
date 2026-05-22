@@ -540,8 +540,8 @@ def create_user():
         return jsonify({"success": False, "message": "Username already exists"}), 400
     role = data.get('role')
     line_id = data.get('assigned_line_id')
-    if role in ['Supervisor', 'DEO'] and not line_id:
-        return jsonify({"success": False, "message": f"Production line assignment is required for {role} role"}), 400
+    if role == 'DEO' and not line_id:
+        return jsonify({"success": False, "message": f"Production line assignment is required for DEO role"}), 400
 
     new_user = User(
         username=data['username'],
@@ -572,12 +572,10 @@ def update_user(username):
     if 'role' in updates:
         user.role = updates['role']
     
-    # Enforce line assignment for staff roles
+    # Enforce line assignment for staff roles if provided
     if user.role in ['Supervisor', 'DEO']:
-        line_id = updates.get('assigned_line_id') or user.assigned_line_id
-        if not line_id:
-            return jsonify({"success": False, "message": f"Production line assignment is required for {user.role} role"}), 400
-        user.assigned_line_id = line_id
+        if 'assigned_line_id' in updates:
+            user.assigned_line_id = updates['assigned_line_id']
 
     if 'name' in updates:
         user.name = updates['name']

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     Package, RefreshCw, Plus, Search, Filter, Download,
     CheckCircle2, AlertTriangle, Clock, ArrowRight, ChevronDown,
-    X, Loader2, Boxes, AlertCircle, CheckCircle, Upload, Trash2
+    X, Loader2, Boxes, AlertCircle, Upload, Trash2, LayoutGrid
 } from 'lucide-react';
 import { getToken } from '../../../lib/storage';
 import { API_BASE as API } from '../../../lib/apiConfig';
@@ -21,8 +21,8 @@ interface InventoryItem {
     current_stock: number;
     demand_quantity: number;
     shortage_quantity: number;
-    status: 'SUFFICIENT' | 'SHORTAGE' | 'PENDING_DEO' | 'IN_PRODUCTION' | 'COMPLETED';
-    action: 'STOCK_OK' | 'NEW_DEMAND' | 'PENDING_DEO' | 'GO_TO_PRODUCTION' | 'COMPLETED';
+    status: string;
+    action: string;
     machine_group?: string;
     created_at: string;
     updated_at: string;
@@ -72,9 +72,9 @@ function ActionBadge({ action, onNewDemand }: { action: string; onNewDemand?: ()
     }
     if (action === 'STOCK_OK') {
         return (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold">
                 <CheckCircle2 size={13} />
-                Stock OK
+                Dispatch Ready
             </span>
         );
     }
@@ -426,6 +426,55 @@ export default function InventoryPage() {
     const [uploadResult, setUploadResult] = useState<{ updated: number; not_found: string[] } | null>(null);
     const fileRef = useRef<HTMLInputElement>(null);
 
+    const dropdownRef = useRef<HTMLDivElement>(null);
+    const buttonRef = useRef<HTMLButtonElement>(null);
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [modelSearchQuery, setModelSearchQuery] = useState('');
+    const [dropdownCoords, setDropdownCoords] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 });
+
+    const toggleDropdown = () => {
+        if (buttonRef.current) {
+            const rect = buttonRef.current.getBoundingClientRect();
+            setDropdownCoords({
+                top: rect.bottom + 4,
+                left: rect.left,
+                width: rect.width
+            });
+        }
+        setIsDropdownOpen(!isDropdownOpen);
+    };
+
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            const target = event.target as Node;
+            const clickedInsideDropdown = dropdownRef.current && dropdownRef.current.contains(target);
+            const clickedInsidePortal = (event.target as Element).closest('.portal-dropdown');
+            if (!clickedInsideDropdown && !clickedInsidePortal) {
+                setIsDropdownOpen(false);
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    useEffect(() => {
+        const handleScrollOrResize = (e: Event) => {
+            const target = e.target as HTMLElement;
+            if (target && target.closest('.portal-dropdown')) {
+                return;
+            }
+            setIsDropdownOpen(false);
+        };
+        if (isDropdownOpen) {
+            window.addEventListener('scroll', handleScrollOrResize, true);
+            window.addEventListener('resize', handleScrollOrResize);
+        }
+        return () => {
+            window.removeEventListener('scroll', handleScrollOrResize, true);
+            window.removeEventListener('resize', handleScrollOrResize);
+        };
+    }, [isDropdownOpen]);
+
     const fetchAll = useCallback(async () => {
         setLoading(true);
         try {
@@ -438,7 +487,20 @@ export default function InventoryPage() {
             const [invData, demData, userData, lineData] = await Promise.all([
                 invRes.json(), demRes.json(), userRes.json(), lineRes.json()
             ]);
-            if (invData.success) setItems(invData.data);
+            if (invData.success) {
+                const mapped = (invData.data || []).map((item: InventoryItem) => {
+                    if (item.current_stock >= item.demand_quantity) {
+                        return {
+                            ...item,
+                            status: 'SUFFICIENT',
+                            action: 'STOCK_OK',
+                            shortage_quantity: 0
+                        };
+                    }
+                    return item;
+                });
+                setItems(mapped);
+            }
             if (demData.success) setDemands(demData.data);
             if (userData.success) {
                 const allUsers = userData.data || [];
@@ -482,13 +544,6 @@ export default function InventoryPage() {
         }
     };
 
-    // ── Derived stats ─────────────────────────────────────────────────────
-    const totalParts = items.length;
-    const sufficient = items.filter(i => i.action === 'STOCK_OK').length;
-    const shortage = items.filter(i => i.action === 'NEW_DEMAND').length;
-    const pendingDEO = items.filter(i => i.action === 'PENDING_DEO').length;
-    const completed = items.filter(i => i.status === 'COMPLETED' || i.status === 'IN_PRODUCTION').length;
-
     const demandIdMap = Object.fromEntries(demands.map(d => [d.id, d.formatted_id]));
 
     const modelOptions = Array.from(
@@ -502,8 +557,31 @@ export default function InventoryPage() {
         ).values()
     ).sort((a, b) => (a.vehicleName || '').localeCompare(b.vehicleName || ''));
 
-    const seededDemandIds = new Set(items.map(i => i.demand_id).filter(id => id !== null));
-    const availableDemands = demands.filter(d => !seededDemandIds.has(d.id));
+    const filteredModelOptions = modelOptions.filter(opt => {
+        const query = modelSearchQuery.toLowerCase();
+        return (opt.formattedDemandId || '').toLowerCase().includes(query) ||
+            (opt.vehicleName || '').toLowerCase().includes(query);
+    });
+
+    const selectedOption = modelOptions.find(opt => opt.key === filterVehicle);
+
+
+
+    // Model-wise filtered items for KPI statistics
+    const selectedModelItems = filterVehicle
+        ? items.filter(item => {
+            const [vName, vDemandId] = filterVehicle.split('|');
+            return item.vehicle_name === vName && String(item.demand_id || '') === vDemandId;
+        })
+        : items;
+
+    // ── Derived stats ─────────────────────────────────────────────────────
+    const totalParts = selectedModelItems.length;
+    const sufficient = selectedModelItems.filter(i => i.action === 'STOCK_OK').length;
+    const shortage = selectedModelItems.filter(i => i.action === 'NEW_DEMAND').length;
+    const pendingDeo = selectedModelItems.filter(i => i.status === 'PENDING_DEO' || i.action === 'PENDING_DEO').length;
+
+    const availableDemands = demands.filter(d => d.status !== 'COMPLETED');
 
     const filtered = items.filter(item => {
         if (!filterVehicle) return false;
@@ -513,7 +591,16 @@ export default function InventoryPage() {
             || item.vehicle_name?.toLowerCase().includes(q);
         const [vName, vDemandId] = filterVehicle.split('|');
         const matchVehicle = item.vehicle_name === vName && String(item.demand_id || '') === vDemandId;
-        const matchStatus = filterStatus === 'ALL' || item.status === filterStatus;
+
+        let matchStatus = true;
+        if (filterStatus !== 'ALL') {
+            if (filterStatus === 'PENDING') {
+                matchStatus = item.status === 'PENDING_DEO' || item.status === 'IN_PRODUCTION' || item.action === 'PENDING_DEO' || item.action === 'IN_PRODUCTION' || item.status === 'WAITING_RM_APPROVAL' || item.action === 'WAITING_RM_APPROVAL';
+            } else {
+                matchStatus = item.status === filterStatus;
+            }
+        }
+
         const matchAction = filterAction === 'ALL' || item.action === filterAction;
         return matchSearch && matchVehicle && matchStatus && matchAction;
     });
@@ -622,13 +709,12 @@ export default function InventoryPage() {
             </div>
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 mb-2 px-2">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-2 px-2">
                 {[
-                    { label: 'Total Parts', value: totalParts, icon: Boxes, color: 'from-slate-500 to-slate-600', bg: 'bg-white', border: 'border-slate-200', text: 'text-slate-700' },
-                    { label: 'Stock OK', value: sufficient, icon: CheckCircle2, color: 'from-emerald-500 to-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' },
-                    { label: 'Shortage', value: shortage, icon: AlertTriangle, color: 'from-red-500 to-red-600', bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700' },
-                    { label: 'Pending DEO', value: pendingDEO, icon: Clock, color: 'from-amber-500 to-amber-600', bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700' },
-                    { label: 'Completed', value: completed, icon: CheckCircle, color: 'from-teal-500 to-teal-600', bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700' },
+                    { label: 'Total Parts Stock', value: totalParts, icon: Boxes, color: 'from-slate-500 to-slate-600', bg: 'bg-white', border: 'border-slate-200', text: 'text-slate-700' },
+                    { label: 'Dispatch Ready', value: sufficient, icon: CheckCircle2, color: 'from-emerald-500 to-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' },
+                    { label: 'Shortage Count', value: shortage, icon: AlertTriangle, color: 'from-red-500 to-red-600', bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700' },
+                    { label: 'Pending to DEO', value: pendingDeo, icon: Clock, color: 'from-amber-500 to-amber-600', bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700' },
                 ].map(card => (
                     <div key={card.label} className={`${card.bg} border ${card.border} rounded-2xl p-3 flex items-center gap-4`}>
                         <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${card.color} flex items-center justify-center shadow-sm`}><card.icon size={18} className="text-white" /></div>
@@ -644,22 +730,100 @@ export default function InventoryPage() {
                         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search part, SAP number, vehicle..." className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
                     </div>
-                    <div className="relative">
-                        <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <select value={filterVehicle} onChange={e => setFilterVehicle(e.target.value)} className="pl-8 pr-8 py-2.5 border border-gray-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-orange-400 appearance-none bg-orange-50/50 min-w-[220px]">
-                            <option value="">Select Car Model...</option>
-                            {modelOptions.map(opt => <option key={opt.key} value={opt.key}>{opt.formattedDemandId} — {opt.vehicleName}</option>)}
-                        </select>
-                        <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    <div className="relative" ref={dropdownRef}>
+                        <button
+                            ref={buttonRef}
+                            type="button"
+                            onClick={toggleDropdown}
+                            className="pl-8 pr-8 py-2.5 border border-gray-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-orange-400 bg-orange-50/50 min-w-[220px] flex items-center justify-between text-left w-full gap-2"
+                        >
+                            <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                            <span className="truncate">
+                                {selectedOption
+                                    ? `${selectedOption.formattedDemandId} — ${selectedOption.vehicleName}`
+                                    : 'Select Car Model...'}
+                            </span>
+                            <ChevronDown size={12} className="text-gray-400 pointer-events-none" />
+                        </button>
+
+                        {isDropdownOpen && (
+                            <div
+                                style={{
+                                    position: 'fixed',
+                                    top: `${dropdownCoords.top}px`,
+                                    left: `${dropdownCoords.left}px`,
+                                    width: `${dropdownCoords.width}px`,
+                                    minWidth: '260px',
+                                }}
+                                className="bg-white border border-gray-100 rounded-2xl shadow-xl z-50 p-2.5 space-y-2 portal-dropdown"
+                            >
+                                <div className="relative">
+                                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search Vehicle Model..."
+                                        value={modelSearchQuery}
+                                        onChange={e => setModelSearchQuery(e.target.value)}
+                                        className="w-full pl-9 pr-3 py-2 border border-gray-200 focus:border-orange-400 focus:ring-2 focus:ring-orange-100 rounded-xl text-sm focus:outline-none transition-all font-semibold"
+                                        autoFocus
+                                    />
+                                </div>
+                                <div className="max-h-60 overflow-y-auto py-1 space-y-1 pr-1 scrollbar-thin scrollbar-thumb-gray-200">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setFilterVehicle('');
+                                            setIsDropdownOpen(false);
+                                            setModelSearchQuery('');
+                                        }}
+                                        className={`w-full relative text-center px-4 py-2.5 text-xs font-black uppercase tracking-wider rounded-xl transition-all ${!filterVehicle
+                                            ? 'bg-orange-50 text-orange-600 font-extrabold'
+                                            : 'hover:bg-orange-50/50 hover:text-orange-600 text-gray-700 font-bold'
+                                            }`}
+                                    >
+                                        ALL VEHICLES
+                                        {!filterVehicle && (
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-orange-600" />
+                                        )}
+                                    </button>
+                                    {filteredModelOptions.map(opt => {
+                                        const isSelected = filterVehicle === opt.key;
+                                        return (
+                                            <button
+                                                key={opt.key}
+                                                type="button"
+                                                onClick={() => {
+                                                    setFilterVehicle(opt.key);
+                                                    setIsDropdownOpen(false);
+                                                    setModelSearchQuery('');
+                                                }}
+                                                className={`w-full relative text-center px-4 py-2.5 text-xs font-black uppercase tracking-wider rounded-xl transition-all ${isSelected
+                                                    ? 'bg-orange-50 text-orange-600 font-extrabold'
+                                                    : 'hover:bg-orange-50/50 hover:text-orange-600 text-gray-700 font-bold'
+                                                    }`}
+                                            >
+                                                {opt.formattedDemandId} — {opt.vehicleName}
+                                                {isSelected && (
+                                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-orange-600" />
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                    {filteredModelOptions.length === 0 && (
+                                        <p className="text-xs text-gray-400 text-center py-2">No models found</p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                     <div className="relative">
                         <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="pl-8 pr-8 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 appearance-none bg-white min-w-[140px]">
                             <option value="ALL">All Status</option>
-                            <option value="SUFFICIENT">Sufficient</option>
+                            <option value="SUFFICIENT">Ready to Dispatch</option>
+                            <option value="PENDING">Pending</option>
                             <option value="SHORTAGE">Shortage</option>
-                            <option value="PENDING_DEO">Pending</option>
-                            <option value="IN_PRODUCTION">Completed</option>
+
                         </select>
                         <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     </div>
@@ -680,14 +844,14 @@ export default function InventoryPage() {
                         <thead className='sticky top-0 z-10'>
                             <tr className="border-b-2 border-[#f37021] bg-white shadow-sm">
                                 <th className="px-4 py-4 text-center">
-                                    <input 
-                                        type="checkbox" 
-                                        checked={selectedIds.size === filtered.length && filtered.length > 0} 
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedIds.size === filtered.length && filtered.length > 0}
                                         onChange={toggleSelectAll}
                                         className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
                                     />
                                 </th>
-                                {['SN', 'Vehicle', 'SAP Part No.', 'Part Description', 'Current Stock', 'Demand Qty', 'Shortage', 'Status', 'Action'].map(h => (
+                                {['SR No.', 'Vehicle', 'SAP Part No.', 'Current Stock', 'Demand Qty', 'Shortage', 'Status', 'Action'].map(h => (
                                     <th key={h} className="px-4 py-4 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">{h}</th>
                                 ))}
                             </tr>
@@ -705,9 +869,9 @@ export default function InventoryPage() {
                                 return (
                                     <tr key={item.id} className={`transition-colors ${rowBg}`}>
                                         <td className="px-4 py-4 text-center">
-                                            <input 
-                                                type="checkbox" 
-                                                checked={selectedIds.has(item.id)} 
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedIds.has(item.id)}
                                                 onChange={() => toggleSelect(item.id)}
                                                 className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
                                             />
@@ -740,12 +904,7 @@ export default function InventoryPage() {
                                             </span>
                                         </td>
 
-                                        {/* PART DESCRIPTION */}
-                                        <td className="px-4 py-4 max-w-[250px]">
-                                            <div className="truncate whitespace-nowrap overflow-hidden text-xs text-gray-600">
-                                                {item.part_description || '—'}
-                                            </div>
-                                        </td>
+
 
                                         {/* CURRENT STOCK */}
                                         <td className="px-4 py-4">
@@ -797,7 +956,7 @@ export default function InventoryPage() {
                                                 </span>
                                             ) : (
                                                 <span className="text-sm font-bold text-emerald-600">
-                                                    ✓ OK
+                                                    ✓ Ready to Dispatch
                                                 </span>
                                             )}
                                         </td>
@@ -806,22 +965,28 @@ export default function InventoryPage() {
                                         <td className="px-4 py-4 whitespace-nowrap">
                                             <span
                                                 className={`text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest border ${item.status === 'SUFFICIENT'
-                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                                        : item.status === 'SHORTAGE'
-                                                            ? 'bg-red-50 text-red-700 border-red-200'
-                                                            : 'bg-blue-50 text-blue-700 border-blue-200'
+                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                    : item.status === 'SHORTAGE'
+                                                        ? 'bg-red-50 text-red-700 border-red-200'
+                                                        : item.status === 'COMPLETED' || item.status === 'DISPATCHED' || item.status === 'PRODUCTION_DONE'
+                                                            ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                                            : 'bg-amber-50 text-amber-700 border-amber-200'
                                                     }`}
                                             >
-                                                {item.status}
+                                                {item.status === 'SUFFICIENT'
+                                                    ? 'Ready to Dispatch'
+                                                    : item.status === 'COMPLETED' || item.status === 'DISPATCHED' || item.status === 'PRODUCTION_DONE'
+                                                        ? 'Dispatched'
+                                                        : item.status}
                                             </span>
                                         </td>
 
                                         {/* ACTION */}
                                         <td className="px-4 py-4 whitespace-nowrap">
                                             <div className="flex items-center gap-2">
-                                                <ActionBadge 
-                                                    action={item.action} 
-                                                    onNewDemand={() => setShortageModalItems([item])} 
+                                                <ActionBadge
+                                                    action={item.action}
+                                                    onNewDemand={() => setShortageModalItems([item])}
                                                 />
                                                 <button
                                                     onClick={() => setItemToDelete(item)}
@@ -876,14 +1041,14 @@ export default function InventoryPage() {
                         Are you sure you want to delete <span className="text-rose-600 font-black">{itemToDelete?.sap_part_number}</span>? This will also remove all associated production and shortage records.
                     </p>
                     <div className="grid grid-cols-2 gap-4">
-                        <button 
+                        <button
                             onClick={() => setItemToDelete(null)}
                             disabled={isDeleting}
                             className="py-4 bg-gray-50 text-gray-500 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-gray-100 hover:bg-gray-100 transition-colors"
                         >
                             Cancel
                         </button>
-                        <button 
+                        <button
                             onClick={handleDeleteItem}
                             disabled={isDeleting}
                             className="py-4 bg-rose-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-rose-100 hover:bg-rose-700 transition-all flex items-center justify-center gap-2"

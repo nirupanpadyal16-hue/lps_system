@@ -68,7 +68,27 @@ interface ProductionEntry {
   deo_notes?: string;
   status: string;
   rejection_reason?: string;
+  created_at?: string;
 }
+
+const formatSubmittedDate = (dateStr?: string) => {
+  if (!dateStr) return 'N/A';
+  try {
+    const d = new Date(dateStr);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    let hours = d.getHours();
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const formattedTime = `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
+    return `${day}/${month}/${year} ${formattedTime}`;
+  } catch {
+    return dateStr;
+  }
+};
 
 const DEODailyProduction: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -387,14 +407,15 @@ const DEODailyProduction: React.FC = () => {
                 />
               </div>
               <div className="relative group w-full md:w-[160px]">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 p-0.5 bg-indigo-50/50 rounded text-indigo-400">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 p-0.5 bg-indigo-50/50 rounded text-indigo-400 pointer-events-none">
                   <Calendar size={10} />
                 </div>
                 <input
                   type="date"
                   value={filterDate}
+                  onClick={(e) => e.currentTarget.showPicker?.()}
                   onChange={(e) => setFilterDate(e.target.value)}
-                  className="w-full bg-white border border-ind-border/60 focus:border-ind-primary rounded-full h-[36px] pl-10 pr-8 text-slate-700 font-bold text-[10px] tracking-wide outline-none transition-all shadow-sm"
+                  className="w-full bg-white border border-ind-border/60 focus:border-ind-primary rounded-full h-[36px] pl-10 pr-8 text-slate-700 font-bold text-[10px] tracking-wide outline-none transition-all shadow-sm cursor-pointer"
                 />
                 {filterDate && (
                   <button onClick={() => setFilterDate('')} className="absolute right-8 top-1/2 -translate-y-1/2 text-[8px] font-black text-rose-500 px-1 bg-white hover:underline">CLEAR</button>
@@ -468,6 +489,7 @@ const DEODailyProduction: React.FC = () => {
                   <th className="px-6 py-2 text-right whitespace-nowrap">DAILY PRODUCTION</th>
                   <th className="px-6 py-2 text-right whitespace-nowrap">MACHINE RUN TIME</th>
                   <th className="px-6 py-2 text-center whitespace-nowrap">SHIFT</th>
+                  <th className="px-6 py-2 text-center whitespace-nowrap">SUBMITTED DATE</th>
                   <th className="px-6 py-2 text-center whitespace-nowrap">STATUS</th>
                   <th className="px-6 py-2 text-right whitespace-nowrap">ACTION</th>
                 </tr>
@@ -475,14 +497,14 @@ const DEODailyProduction: React.FC = () => {
               <tbody className="divide-y divide-ind-border/40">
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="px-8 py-32 text-center">
+                    <td colSpan={10} className="px-8 py-32 text-center">
                       <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
                       <span className="text-xs font-black text-ind-text3 uppercase tracking-widest">Loading...</span>
                     </td>
                   </tr>
                 ) : paginatedHistory.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-8 py-32 text-center opacity-40">
+                    <td colSpan={10} className="px-8 py-32 text-center opacity-40">
                       <LayoutGrid size={48} className="mx-auto mb-4" />
                       <span className="text-sm font-black uppercase tracking-widest">No production logs found</span>
                     </td>
@@ -519,6 +541,9 @@ const DEODailyProduction: React.FC = () => {
                         )}>
                           {getShiftLabel(entry.shift)}
                         </span>
+                      </td>
+                      <td className="px-6 py-3.5 text-center font-bold text-[11px] text-slate-500 whitespace-nowrap">
+                        {formatSubmittedDate(entry.created_at)}
                       </td>
                       <td className="px-6 py-3.5 text-center">
                         <span className={cn(
@@ -678,12 +703,13 @@ const DEODailyProduction: React.FC = () => {
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-black text-slate-900 uppercase tracking-widest ml-1">Logging Date</label>
                       <div className="relative group">
-                        <Calendar size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-orange-500 transition-colors" />
+                        <Calendar size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-orange-500 transition-colors pointer-events-none" />
                         <input
                           type="date"
                           value={formDate}
+                          onClick={(e) => e.currentTarget.showPicker?.()}
                           onChange={(e) => setFormDate(e.target.value)}
-                          className="w-full bg-white border border-slate-200 rounded-xl py-3 pl-11 pr-4 text-xs font-black text-slate-800 outline-none focus:border-orange-400 transition-all shadow-sm"
+                          className="w-full bg-white border border-slate-200 rounded-xl py-3 pl-11 pr-4 text-xs font-black text-slate-800 outline-none focus:border-orange-400 transition-all shadow-sm cursor-pointer"
                         />
                       </div>
                     </div>

@@ -36,6 +36,7 @@ interface PartDetail {
     is_ad_hoc: boolean;
     demand_quantity?: number;
     shortage_quantity?: number;
+    date?: string;
   };
   production_data: Record<string, any>;
   material_data: Record<string, any>;
@@ -57,7 +58,7 @@ const authHeaders = () => ({
 });
 
 // Memoized Table Row Component
-const TableRow = memo(({ part, idx, inventoryItems, onEdit, onRMCheck, getMaterialValue }: any) => {
+const TableRow = memo(({ part, idx, inventoryItems, onEdit, onRMCheck, getMaterialValue, startIndex }: any) => {
   const inv = useMemo(() =>
     inventoryItems.find((i: any) => i.sap_part_number?.trim().toLowerCase() === part.common.sap_part_number?.trim().toLowerCase()),
     [inventoryItems, part.common.sap_part_number]
@@ -67,16 +68,11 @@ const TableRow = memo(({ part, idx, inventoryItems, onEdit, onRMCheck, getMateri
   const isDisabled = status === 'RM_SUBMITTED' || status === 'RM_ACCEPTED';
 
   const statusConfig: Record<string, { label: string; bg: string; text: string; dot: string }> = {
-    'RM_SUBMITTED': { label: 'WAITING FOR REVIEW', bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-400' },
+    'RM_SUBMITTED': { label: 'WAITING FOR STORE KEEPER', bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-400' },
     'RM_ACCEPTED': { label: 'COMPLETED', bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-400' },
     'RM_REJECTED': { label: 'REJECTED', bg: 'bg-rose-50', text: 'text-rose-700', dot: 'bg-rose-400' },
-    'PENDING': { label: 'REVIEW RM DATA', bg: 'bg-slate-50', text: 'text-slate-500', dot: 'bg-slate-300' },
+    'PENDING': { label: 'WAITING FOR STORE KEEPER', bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-400' },
   };
-
-  const srNo = useMemo(() => {
-    const val = part.common.sr_no || part.production_data?.['SR.NO'] || part.production_data?.['SN NO'];
-    return (!val || val === 'nan') ? '—' : val;
-  }, [part.common.sr_no, part.production_data]);
 
   const partNumber = useMemo(() => {
     const val = part.common.part_number || part.common.part_no || part.production_data?.['PART NUMBER'] || part.production_data?.['PART NO'];
@@ -98,7 +94,7 @@ const TableRow = memo(({ part, idx, inventoryItems, onEdit, onRMCheck, getMateri
       transition={{ delay: Math.min(idx * 0.01, 0.3) }}
       className="hover:bg-slate-50/50 transition-colors group"
     >
-      <td className="px-6 py-4 text-[11px] font-black text-slate-600 whitespace-nowrap">{srNo}</td>
+      <td className="px-6 py-4 text-[11px] font-black text-slate-600 whitespace-nowrap">{startIndex + idx + 1}</td>
       <td className="px-6 py-4 text-[11px] font-black text-slate-800 uppercase whitespace-nowrap">{part.common.model}</td>
       <td className="px-6 py-4 whitespace-nowrap">
         <div className="flex items-center">
@@ -109,9 +105,6 @@ const TableRow = memo(({ part, idx, inventoryItems, onEdit, onRMCheck, getMateri
       </td>
       <td className="px-6 py-4 text-[11px] font-black text-orange-500 whitespace-nowrap">{part.common.sap_part_number}</td>
       <td className="px-6 py-4 text-[11px] font-bold text-slate-600 whitespace-nowrap">{partNumber}</td>
-      <td className="px-6 py-4 text-[11px] font-medium text-slate-500 truncate max-w-[250px]" title={part.common.description}>
-        {(!part.common.description || part.common.description === 'nan') ? '—' : part.common.description}
-      </td>
       <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
         {getMaterialValue(part, ['RM Thk mm', 'RM Thk Mm', 'RM Thickness'])}
       </td>
@@ -138,6 +131,9 @@ const TableRow = memo(({ part, idx, inventoryItems, onEdit, onRMCheck, getMateri
       </td>
       <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
         {getMaterialValue(part, ['VALIDITY', 'Validity'])}
+      </td>
+      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+        {part.common.date || '—'}
       </td>
       <td className="px-6 py-4 whitespace-nowrap">
         <div className={cn("inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-black tracking-wider uppercase", statusConfig[status]?.bg || statusConfig['PENDING'].bg, statusConfig[status]?.text || statusConfig['PENDING'].text)}>
@@ -178,13 +174,37 @@ const TableRow = memo(({ part, idx, inventoryItems, onEdit, onRMCheck, getMateri
 
 TableRow.displayName = 'TableRow';
 
+const mapRegistry = (data: any[]): PartDetail[] => {
+  return data.map(item => ({
+    common: {
+      id: item.id || 0,
+      model: item.vehicle_name || item.model || '',
+      part_number: item.part_number || item.part_no || item.inventory_item?.part_number || '',
+      sap_part_number: item.sap_part_number || item.inventory_item?.sap_part_number || '',
+      description: item.part_description || item.inventory_item?.description || '',
+      demand_quantity: item.demand_quantity,
+      shortage_quantity: item.shortage_quantity,
+      part_no: item.part_number || item.part_no || '',
+      sr_no: item.serial_number || item.sn_no || item.sr_no || '',
+      saleable_no: '',
+      assembly_number: item.assembly_number || item.inventory_item?.assembly_number || '',
+      is_ad_hoc: false,
+      date: item.created_at ? new Date(item.created_at).toISOString().split('T')[0] : (item.updated_at ? new Date(item.updated_at).toISOString().split('T')[0] : '')
+    },
+    production_data: {
+      'SR.NO': item.serial_number || item.sn_no || item.sr_no || item.inventory_item?.sr_no || ''
+    },
+    material_data: item.master_material_data || {}
+  }));
+};
+
 export default function PartLookupPage() {
   const [parts, setParts] = useState<PartDetail[]>([]);
-  const [models, setModels] = useState<VehicleModel[]>([]);
-  const [machines, setMachines] = useState<any[]>([]);
-  const [showMachineDropdown, setShowMachineDropdown] = useState(false);
+  const [, setModels] = useState<VehicleModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [selectedDate, setSelectedDate] = useState('');
   const [demands, setDemands] = useState<any[]>([]);
   const [selectedDemand, setSelectedDemand] = useState<string>('');
   const [selectedPart, setSelectedPart] = useState<PartDetail | null>(null);
@@ -232,14 +252,24 @@ export default function PartLookupPage() {
 
   // Memoized filtered parts
   const filteredParts = useMemo(() => {
-    if (!searchQuery) return parts;
     return parts.filter(part => {
-      const matchesSearch =
+      const matchesSearch = !searchQuery ||
         part.common.sap_part_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         part.common.description?.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesSearch;
+
+      if (!matchesSearch) return false;
+      if (selectedDate && part.common.date !== selectedDate) return false;
+      if (statusFilter === 'ALL') return true;
+
+      const inv = inventoryItems.find((i: any) => i.sap_part_number?.trim().toLowerCase() === part.common.sap_part_number?.trim().toLowerCase());
+      const status = inv?.rm_status || 'PENDING';
+
+      if (statusFilter === 'COMPLETED') return status === 'RM_ACCEPTED';
+      if (statusFilter === 'WAITING_FOR_STORE_KEEPER') return status === 'RM_SUBMITTED' || status === 'PENDING';
+
+      return true;
     });
-  }, [parts, searchQuery]);
+  }, [parts, searchQuery, statusFilter, selectedDate, inventoryItems]);
 
   // Pagination calculations
   const totalPages = Math.ceil(filteredParts.length / itemsPerPage);
@@ -271,71 +301,37 @@ export default function PartLookupPage() {
     setCurrentPage(1);
   }, [searchQuery, selectedDemand]);
 
-  // Memoized fetch function
-  const fetchData = useCallback(async (demandId?: number) => {
+  const loadInitialData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch demands and models first (shared across all views)
-      const [demandsRes, modelsRes, linesRes] = await Promise.all([
+      const [demandsRes, modelsRes] = await Promise.all([
         ppcApi.getDemands(),
-        fetch(`${API}/manager/vehicle-models`, { headers: authHeaders() }),
-        fetch(`${API}/admin/lines`, { headers: authHeaders() })
+        fetch(`${API}/manager/vehicle-models`, { headers: authHeaders() })
       ]);
-
-      const demandsData = await demandsRes.data;
-      if (demandsData.success) setDemands(demandsData.data);
+      const demandData = await demandsRes.data;
+      setDemands(demandData.data || []);
       const modelsData = await modelsRes.json();
-      if (modelsData.success) setModels(modelsData.data);
+      setModels(modelsData.data || []);
+    } catch (err) {
+      console.log(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      // Handle machine list
-      const linesBody = await linesRes.json();
-      if (linesBody.success) {
-        const machineList: any[] = [];
-        linesBody.data.forEach((item: any) => {
-          if (item.children) {
-            item.children.forEach((child: any) => {
-              machineList.push({ id: child.id, name: child.name.toUpperCase(), areaName: item.name.toUpperCase() });
-            });
-          }
-        });
-        setMachines(machineList);
-      }
+  // Memoized fetch function
+  const fetchData = useCallback(async (demandId?: number) => {
+    const activeDemandId = demandId || (selectedDemand ? demands.find(d => d.formatted_id === selectedDemand)?.id : null);
+    if (!activeDemandId) {
+      setParts([]);
+      return;
+    }
 
-      // 2. Identify the active demand ID
-      const activeDemandId = demandId || (selectedDemand ? demandsData.data.find((d: any) => d.formatted_id === selectedDemand)?.id : null);
-
-      if (!activeDemandId) {
-        setParts([]);
-        setLoading(false);
-        return;
-      }
-
-      // 3. Fetch registry data ONLY for the active demand
+    setLoading(true);
+    try {
       const invRes = await ppcApi.getMachineRegistry(activeDemandId);
-
       if (invRes.data.success) {
-        const mapped: PartDetail[] = invRes.data.data.map((item: any) => ({
-          common: {
-            id: item.id || 0,
-            model: item.vehicle_name || item.model || '',
-            part_number: item.part_number || item.part_no || item.inventory_item?.part_number || item.inventory_item?.part_no || '',
-            sap_part_number: item.sap_part_number || item.inventory_item?.sap_part_number || '',
-            description: item.part_description || item.inventory_item?.description || '',
-            saleable_no: '',
-            assembly_number: item.assembly_number || item.inventory_item?.assembly_number || '',
-            sr_no: item.serial_number || item.sn_no || item.sr_no || item.inventory_item?.sr_no || item.inventory_item?.serial_number || '',
-            is_ad_hoc: false,
-            demand_quantity: item.demand_quantity,
-            shortage_quantity: item.shortage_quantity,
-          },
-          production_data: {
-            'SR.NO': item.serial_number || item.sn_no || item.sr_no || item.inventory_item?.sr_no || item.inventory_item?.serial_number || '',
-            'Machine': item.machine_group || item.machine || '',
-            'SN NO': item.serial_number || item.sn_no || item.sr_no || item.inventory_item?.sr_no || item.inventory_item?.serial_number || ''
-          },
-          material_data: item.master_material_data || {}
-        }));
-        setParts(mapped);
+        setParts(mapRegistry(invRes.data.data));
         setInventoryItems(invRes.data.data);
       }
     } catch (error) {
@@ -343,7 +339,7 @@ export default function PartLookupPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedDemand]);
+  }, [selectedDemand, demands]);
 
   // Memoized getMaterialValue function
   const getMaterialValue = useCallback((part: PartDetail, possibleKeys: string[]) => {
@@ -363,6 +359,7 @@ export default function PartLookupPage() {
   }, []);
 
   const openEditModal = useCallback((part: PartDetail) => {
+    setSelectedPart(part);
     setFormData({
       sr_no: part.production_data?.['SN NO'] || part.production_data?.['SR NO'] || part.production_data?.['SR.NO'] || '',
       model: part.common.model || '',
@@ -412,7 +409,7 @@ export default function PartLookupPage() {
         }
       };
 
-      const url = isEdit ? `${API}/manager/master-data/${selectedPart?.common.id}` : `${API}/manager/master-data/quick-add`;
+      const url = isEdit ? `${API}/manager/master-data/${encodeURIComponent(selectedPart?.common.sap_part_number || '')}` : `${API}/manager/master-data/quick-add`;
       const response = await fetch(url, {
         method: isEdit ? 'PUT' : 'POST',
         headers: authHeaders(),
@@ -429,22 +426,6 @@ export default function PartLookupPage() {
     finally { setSubmitting(false); }
   }, [formData, selectedPart, fetchData]);
 
-  const openRMForm = useCallback(() => {
-    const inv = inventoryItems.find(i => i.sap_part_number === selectedPart?.common.sap_part_number);
-    if (!inv) return;
-    const md = selectedPart?.material_data || {};
-    setRMForm({
-      rm_thk_mm: md['RM Thk mm'] || '',
-      sheet_width: md['Sheet Width'] || '',
-      sheet_length: md['Sheet Length'] || '',
-      no_of_comp_per_sheet: md['No of comp per sheet'] || '',
-      rm_size: md['RM SIZE'] || '',
-      rm_grade: md['RM Grade'] || '',
-      act_rm_sizes: md['Act RM Sizes'] || '',
-      ppc_notes: ''
-    });
-    setShowRMModal(true);
-  }, [inventoryItems, selectedPart]);
 
   const handleRMSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -480,7 +461,7 @@ export default function PartLookupPage() {
     }
   }, [selectedPart, inventoryItems, demands, selectedDemand, rmForm, fetchData]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { loadInitialData(); }, []);
 
   // Memoized handlers for child components
   const handleEditPart = useCallback((part: PartDetail) => {
@@ -524,72 +505,98 @@ export default function PartLookupPage() {
   }, [demands, fetchData]);
 
   return (
-    <div className="bg-ind-bg flex flex-col h-[calc(100vh-64px)] overflow-hidden">
-      <div className="flex xl:flex-row xl:items-center justify-between gap-3 bg-white border-b border-slate-100 py-2 ml-2 mb-1">
-        <h1 className="text-2xl font-black text-slate-800 tracking-tight leading-none px-4">Machine Registry</h1>
+    <div className="bg-ind-bg flex flex-col h-[calc(100vh-96px)] overflow-hidden">
+      <div className="flex xl:flex-row xl:items-center justify-between gap-3 bg-white border-b border-slate-100 py-2 mb-1">
+        <h1 className="text-2xl font-black text-slate-800 tracking-tight leading-none px-4">RM Material</h1>
       </div>
 
-      <div className="px-1 py-2 flex items-center gap-1 flex-shrink-0">
-        <div className="relative group min-w-[180px]">
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-lg bg-orange-50 flex items-center justify-center">
+      <div className="px-6 py-4 flex items-center gap-4 flex-shrink-0 bg-white border-b border-slate-100">
+        <div className="relative group min-w-[200px]">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-orange-50 flex items-center justify-center">
             <Filter size={12} strokeWidth={2.5} className="text-orange-500" />
           </div>
           <select
             value={selectedDemand}
             onChange={handleDemandChange}
-            className="w-full h-10 pl-10 pr-7 bg-white border border-slate-100 rounded-xl text-[11px] font-bold text-slate-700 outline-none appearance-none shadow-sm cursor-pointer focus:border-orange-300"
+            className="w-full h-11 pl-11 pr-8 bg-white border border-slate-200/80 rounded-full text-xs font-bold text-slate-700 outline-none appearance-none shadow-sm cursor-pointer focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all hover:bg-slate-50/30"
           >
             <option value="">Select Model</option>
-            {demands.map(d => <option key={d.id} value={d.formatted_id}>{d.model_name} — {d.formatted_id}</option>)}
+            {demands
+              .filter(d => d.status !== 'COMPLETED')
+              .map(d => <option key={d.id} value={d.formatted_id}>{d.model_name} — {d.formatted_id}</option>)}
           </select>
-          <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 rotate-90" size={12} strokeWidth={2.5} />
+          <ChevronRight className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={12} strokeWidth={2.5} />
         </div>
 
-        {selectedDemand && (
-          <>
-            <div className="relative group flex-1">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={14} />
-              <input
-                type="text"
-                placeholder="Search by SAP Number, Description..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full h-10 pl-10 pr-4 bg-white border border-slate-100 rounded-xl text-xs font-medium text-slate-700 outline-none shadow-sm focus:border-orange-300 transition-all"
-              />
-            </div>
+        <div className="relative group min-w-[180px]">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-orange-50 flex items-center justify-center">
+            <Box size={12} strokeWidth={2.5} className="text-orange-500" />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="w-full h-11 pl-11 pr-8 bg-white border border-slate-200/80 rounded-full text-xs font-bold text-slate-700 outline-none appearance-none shadow-sm cursor-pointer focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all hover:bg-slate-50/30"
+          >
+            <option value="ALL">All Status</option>
+            <option value="WAITING_FOR_STORE_KEEPER">Waiting for Store Keeper</option>
+            <option value="COMPLETED">Completed</option>
+          </select>
+          <ChevronRight className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={12} strokeWidth={2.5} />
+        </div>
 
-            <button
-              onClick={handleCreateNewPart}
-              className="flex items-center gap-1 px-4 h-10 bg-ind-primary hover:bg-ind-g2 text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-all shadow-md"
-            >
-              <Plus size={16} strokeWidth={3} />
-              Create New Part
-            </button>
-          </>
-        )}
+        <div className="relative group min-w-[180px]">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-blue-50 flex items-center justify-center">
+            <FileText size={12} strokeWidth={2.5} className="text-blue-500" />
+          </div>
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="w-full h-11 pl-11 pr-4 bg-white border border-slate-200/80 rounded-full text-xs font-bold text-slate-700 outline-none shadow-sm cursor-pointer focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all hover:bg-slate-50/30"
+          />
+        </div>
+
+        <div className="relative group flex-1">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+          <input
+            type="text"
+            placeholder="Search by SAP Number, Description..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full h-11 pl-11 pr-4 bg-white border border-slate-200/80 rounded-full text-xs font-medium text-slate-700 outline-none shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all hover:bg-slate-50/30"
+          />
+        </div>
+
+        <button
+          onClick={handleCreateNewPart}
+          className="flex items-center gap-2 px-6 h-11 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-full text-xs font-black uppercase tracking-wider transition-all shadow-md hover:shadow-lg active:scale-95"
+        >
+          <Plus size={16} strokeWidth={3} />
+          Create New Part
+        </button>
       </div>
       {/* Main Content - Table View */}
       <div className="flex-1 mx-1 mb-2 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
         <div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar">
           <table className="w-full border-collapse min-w-[1500px]">
             <thead className="sticky top-0 z-10">
-              <tr className="border-b-2 border-[#f37021] bg-white">
-                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">Sn.no</th>
+              <tr className="bg-ind-bg text-black border-b-2 border-[#f37021] uppercase text-[11px] tracking-wider sticky top-0 z-[50]">
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">SR No.</th>
                 <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">VEHICLE MODEL</th>
                 <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">DEMAND QTY</th>
                 <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">SAP PART NUMBER</th>
                 <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">PART NUMBER</th>
-                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">PART DESCRIPTION</th>
-                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">RM Thk Mm</th>
-                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">Sheet Width</th>
-                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">Sheet Length</th>
-                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">No Of Comp Per Sheet</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">RM THK MM</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">SHEET WIDTH</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">SHEET LENGTH</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">NO OF COMP PER SHEET</th>
                 <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">RM SIZE</th>
-                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">RM Grade</th>
-                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">Act RM Sizes</th>
-                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">Revised</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">RM GRADE</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">ACT RM SIZES</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">REVISED</th>
                 <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">VALIDITY</th>
-                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">Status</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">DATE</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">STATUS</th>
                 <th className="px-6 py-3 text-center text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">Actions</th>
               </tr>
             </thead>
@@ -607,6 +614,7 @@ export default function PartLookupPage() {
                     key={part.common.id}
                     part={part}
                     idx={idx}
+                    startIndex={startIndex}
                     inventoryItems={inventoryItems}
                     onEdit={handleEditPart}
                     onRMCheck={handleRMCheck}

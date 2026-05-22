@@ -32,6 +32,14 @@ interface DemandFormModalProps {
 }
 
 const DemandFormModal: React.FC<DemandFormModalProps> = ({ isOpen, onClose, onSuccess, initialData, editingDemand }) => {
+    const getLocalTodayString = () => {
+        const d = new Date();
+        const offset = d.getTimezoneOffset();
+        const localDate = new Date(d.getTime() - (offset * 60 * 1000));
+        return localDate.toISOString().split('T')[0];
+    };
+    const todayStr = getLocalTodayString();
+
     const [loading, setLoading] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
     const [models, setModels] = useState<any[]>([]);
@@ -82,9 +90,6 @@ const DemandFormModal: React.FC<DemandFormModalProps> = ({ isOpen, onClose, onSu
                 setManager(editingDemand.manager || '');
                 setCustomer(editingDemand.customer || '');
                 setCompanyName(editingDemand.company || '');
-                // supervisorId might not be returned in demand, we can try to find it by name or model assignment
-                const assignedModel = models.find(m => m.name === editingDemand.model_name);
-                if (assignedModel?.supervisor_id) setSupervisorId(assignedModel.supervisor_id);
             } else if (initialData) {
                 if (initialData.model_name) {
                     // Auto-select model by name if it exists in our master list
@@ -92,11 +97,11 @@ const DemandFormModal: React.FC<DemandFormModalProps> = ({ isOpen, onClose, onSu
                     if (match) setSelectedModel(String(match.id));
                 }
                 if (initialData.quantity) setQuantity(String(initialData.quantity));
-                const today = new Date().toISOString().split('T')[0];
+                const today = todayStr;
                 setStartDate(today);
-                const end = new Date();
-                end.setDate(end.getDate() + 14);
-                setEndDate(end.toISOString().split('T')[0]);
+                const endLocal = new Date(new Date().getTime() - (new Date().getTimezoneOffset() * 60 * 1000));
+                endLocal.setDate(endLocal.getDate() + 14);
+                setEndDate(endLocal.toISOString().split('T')[0]);
                 if (initialData.customer) {
                     const cleanCustomer = initialData.customer.split(' <')[0];
                     setCustomer(cleanCustomer);
@@ -106,14 +111,27 @@ const DemandFormModal: React.FC<DemandFormModalProps> = ({ isOpen, onClose, onSu
                 }
             } else {
                 resetForm();
-                const today = new Date().toISOString().split('T')[0];
+                const today = todayStr;
                 setStartDate(today);
-                const end = new Date();
-                end.setDate(end.getDate() + 14);
-                setEndDate(end.toISOString().split('T')[0]);
+                const endLocal = new Date(new Date().getTime() - (new Date().getTimezoneOffset() * 60 * 1000));
+                endLocal.setDate(endLocal.getDate() + 14);
+                setEndDate(endLocal.toISOString().split('T')[0]);
             }
         }
     }, [isOpen]);
+
+    // Auto-select model when models and editingDemand are loaded
+    useEffect(() => {
+        if (isOpen && editingDemand && models.length > 0) {
+            const assignedModel = models.find(m => m.name === editingDemand.model_name);
+            if (assignedModel) {
+                setSelectedModel(String(assignedModel.id));
+                if (assignedModel.supervisor_id) {
+                    setSupervisorId(assignedModel.supervisor_id);
+                }
+            }
+        }
+    }, [isOpen, editingDemand, models]);
 
     // Fetch master data preview when model changes
     useEffect(() => {
@@ -340,7 +358,7 @@ const DemandFormModal: React.FC<DemandFormModalProps> = ({ isOpen, onClose, onSu
                                     <div className="px-8 py-3 flex items-start justify-between bg-white border-b border-slate-50 shrink-0">
                                         <div>
                                             <h2 className="text-2xl font-bold text-slate-800 capitalize tracking-tight">
-                                                {editingDemand ? 'EDIT PRODUCTION TARGET' : 'REGISTER NEW PRODUCTION'}
+                                                {editingDemand ? 'EDIT CREATED DEMAND' : 'CREATE NEW DEMAND'}
                                             </h2>
 
                                         </div>
@@ -410,12 +428,13 @@ const DemandFormModal: React.FC<DemandFormModalProps> = ({ isOpen, onClose, onSu
                                                                 onChange={(e) => setStartDate(e.target.value)}
                                                                 className="w-full bg-white border border-ind-border/50 rounded-xl py-2.5 px-5 text-slate-700 font-bold text-sm outline-none focus:border-ind-primary focus:ring-4 focus:ring-orange-500/5 transition-all"
                                                                 required
+                                                                min={todayStr}
                                                             />
                                                             <Calendar className="absolute right-5 top-1/2 -translate-y-1/2 text-ind-text3 pointer-events-none" size={16} />
                                                         </div>
                                                     </div>
                                                     <div className="space-y-2">
-                                                        <label className="text-xs font-bold text-black capitalize ml-1">Scheduled Finish Date</label>
+                                                        <label className="text-xs font-bold text-black capitalize ml-1">demad(end data)</label>
                                                         <div className="relative group">
                                                             <input
                                                                 type="date"
@@ -423,6 +442,7 @@ const DemandFormModal: React.FC<DemandFormModalProps> = ({ isOpen, onClose, onSu
                                                                 onChange={(e) => setEndDate(e.target.value)}
                                                                 className="w-full bg-white border border-ind-border/50 rounded-xl py-2.5 px-5 text-slate-700 font-bold text-sm outline-none focus:border-ind-primary focus:ring-4 focus:ring-orange-500/5 transition-all"
                                                                 required
+                                                                min={startDate || todayStr}
                                                             />
                                                             <Calendar className="absolute right-5 top-1/2 -translate-y-1/2 text-ind-text3 pointer-events-none" size={16} />
                                                         </div>
@@ -524,7 +544,7 @@ const DemandFormModal: React.FC<DemandFormModalProps> = ({ isOpen, onClose, onSu
 
                                                 {/* Target Quantity (Full Width) */}
                                                 <div className="space-y-2">
-                                                    <label className="text-xs font-bold text-black capitalize ml-1">TARGET QUANTITY</label>
+                                                    <label className="text-xs font-bold text-black capitalize ml-1">TARGET QUANTITY <span className="text-rose-500 font-bold ml-1">*</span></label>
                                                     <div className="relative group">
                                                         <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-200">
                                                             <CheckCircle2 size={18} />
@@ -543,7 +563,7 @@ const DemandFormModal: React.FC<DemandFormModalProps> = ({ isOpen, onClose, onSu
                                                 {/* Customer & Company Details */}
                                                 <div className="grid grid-cols-2 gap-6">
                                                     <div className="space-y-2">
-                                                        <label className="text-xs font-bold text-black capitalize ml-1">COMPANY NAME</label>
+                                                        <label className="text-xs font-bold text-black capitalize ml-1">COMPANY NAME <span className="text-rose-500 font-bold ml-1">*</span></label>
                                                         <input
                                                             type="text"
                                                             value={companyName}
@@ -554,7 +574,7 @@ const DemandFormModal: React.FC<DemandFormModalProps> = ({ isOpen, onClose, onSu
                                                         />
                                                     </div>
                                                     <div className="space-y-2">
-                                                        <label className="text-xs font-bold text-black capitalize ml-1">CUSTOMER NAME</label>
+                                                        <label className="text-xs font-bold text-black capitalize ml-1">CUSTOMER NAME <span className="text-rose-500 font-bold ml-1">*</span></label>
                                                         <input
                                                             type="text"
                                                             value={customer}
@@ -603,7 +623,7 @@ const DemandFormModal: React.FC<DemandFormModalProps> = ({ isOpen, onClose, onSu
                                             ) : (
                                                 <>
                                                     <Zap size={18} fill="white" strokeWidth={0} />
-                                                   Create Demand
+                                                    {editingDemand ? 'Update Demand' : 'Create Demand'}
                                                 </>
                                             )}
                                         </button>

@@ -136,112 +136,106 @@ export const SupervisorVerifyLogs = ({
     }, [verifications]);
 
     return (
-        <div className="space-y-1 animate-in fade-in duration-500">
-            {/* Header Console Style */}
-            <div className="bg-white border border-ind-border/50 rounded-xl overflow-hidden shadow-sm m-2">
-                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 p-4 border-b border-slate-50">
-                    <div>
-                        <h2 className="text-[24px] font-black text-ind-text tracking-tight leading-none">
-                            Verify Daily <span className="text-[#f37021]">Production</span>
-                        </h2>
+        <div className="h-full flex flex-col space-y-1 animate-in fade-in duration-700 overflow-hidden text-slate-900 bg-gray-50/30 p-0">
+            {/* Header */}
+            <div className="bg-white border-b border-slate-100 py-1 px-4 ml-mb-1 flex items-center justify-between">
+                <div className="flex flex-col gap-1">
+                    <h2 className="text-[24px] font-black text-slate-900 tracking-tight leading-none flex items-center gap-2">
+                        Verify Daily Production
+                    </h2>
+                </div>
+
+                {/* Stats Dashboard */}
+                <div className="flex items-center bg-gray-50 rounded-2xl border border-slate-200 p-1 shadow-inner scale-90 origin-right">
+                    <div className="px-4 py-1 text-center border-r border-slate-200 min-w-[80px]">
+                        <span className="block text-[8px] font-bold text-slate-400 uppercase tracking-wider">TOTAL LOGS</span>
+                        <span className="block text-lg font-black text-slate-800 leading-none">{stats.total}</span>
+                    </div>
+                    <div className="px-4 py-1 text-center border-r border-slate-200 text-orange-500 min-w-[80px]">
+                        <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">SHIFT I</span>
+                        <span className="block text-lg font-black leading-none">{stats.shift1}</span>
+                    </div>
+                    <div className="px-4 py-1 text-center border-r border-slate-200 text-blue-500 min-w-[80px]">
+                        <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">SHIFT II</span>
+                        <span className="block text-lg font-black leading-none">{stats.shift2}</span>
+                    </div>
+                    <div className="px-4 py-1 text-center text-purple-500 min-w-[80px]">
+                        <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">SHIFT III</span>
+                        <span className="block text-lg font-black leading-none">{stats.shift3}</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Filters */}
+            <div className="flex flex-col md:flex-row items-center justify-between gap-3 px-1 mb-3">
+                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                    <div className="relative group w-full md:w-48">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 p-1 bg-orange-50 rounded text-orange-500 group-focus-within:text-orange-600 pointer-events-none">
+                            <Clock size={11} />
+                        </div>
+                        <select
+                            value={filterShift}
+                            onChange={(e) => setFilterShift(e.target.value)}
+                            className="w-full bg-white border border-slate-200 focus:border-orange-500 rounded-full h-[42px] pl-12 pr-10 text-slate-700 font-bold text-[11px] tracking-wide outline-none transition-all shadow-sm cursor-pointer appearance-none uppercase"
+                        >
+                            {SHIFT_OPTIONS.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+                        </select>
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                            <ChevronDown size={14} />
+                        </div>
                     </div>
 
-                    {/* Stats Dashboard */}
-                    <div className="flex items-center bg-white backdrop-blur-md rounded-2xl border border-ind-border/50 p-1 shadow-sm overflow-hidden scale-90 origin-right mx-2">
-                        <div className="px-4 py-1 text-center border-r border-ind-border/50">
-                            <span className="block text-[8px] font-bold text-ind-text3 uppercase tracking-wider">TOTAL LOGS</span>
-                            <span className="block text-lg font-black text-slate-800 leading-none">{stats.total}</span>
+                    <div className="relative group w-full md:w-48">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 p-1 bg-orange-50 rounded text-orange-500 group-focus-within:text-orange-600 pointer-events-none">
+                            <CheckCircle2 size={11} />
                         </div>
-                        <div className="px-4 py-1 text-center border-r border-ind-border/50 text-orange-500">
-                            <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">SHIFT I</span>
-                            <span className="block text-lg font-black leading-none">{stats.shift1}</span>
+                        <select
+                            value={filterStatus}
+                            onChange={(e) => setFilterStatus(e.target.value)}
+                            className="w-full bg-white border border-slate-200 focus:border-orange-500 rounded-full h-[42px] pl-12 pr-10 text-slate-700 font-bold text-[11px] tracking-wide outline-none transition-all shadow-sm cursor-pointer appearance-none uppercase"
+                        >
+                            {STATUS_OPTIONS.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+                        </select>
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                            <ChevronDown size={14} />
                         </div>
-                        <div className="px-4 py-1 text-center border-r border-ind-border/50 text-blue-500">
-                            <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">SHIFT II</span>
-                            <span className="block text-lg font-black leading-none">{stats.shift2}</span>
-                        </div>
-                        <div className="px-4 py-1 text-center text-purple-500">
-                            <span className="block text-[8px] font-bold uppercase tracking-wider opacity-60">SHIFT III</span>
-                            <span className="block text-lg font-black leading-none">{stats.shift3}</span>
-                        </div>
+                    </div>
+
+                    <div className="relative group w-full md:w-72">
+                        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-orange-500 transition-colors" size={14} />
+                        <input
+                            type="text"
+                            placeholder="Search Machine, Part, or DEO..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full bg-white border border-slate-200 focus:border-orange-500 rounded-full h-[42px] pl-14 pr-6 text-slate-700 font-bold text-[11px] tracking-wide placeholder:text-slate-300 outline-none transition-all shadow-sm uppercase"
+                        />
                     </div>
                 </div>
 
-                {/* Filters Row */}
-                <div className="px-4 flex flex-col md:flex-row items-center justify-between gap-2 pb-2">
-                    <div className="flex items-center gap-2 w-full md:w-auto">
-                        <div className="relative group w-full md:w-64">
-                            <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#f37021] transition-colors" />
-                            <input
-                                type="text"
-                                placeholder="Search Machine, Part, or DEO..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full h-[36px] bg-white border border-ind-border/60 rounded-full pl-9 pr-3 text-[10px] font-bold text-slate-700 outline-none focus:border-[#f37021] transition-all shadow-sm placeholder:text-slate-300"
-                            />
-                        </div>
-
-                        <div className="relative group w-full md:w-[160px]">
-                            <div className="absolute left-3 top-1/2 -translate-y-1/2 p-0.5 bg-indigo-50/50 rounded text-indigo-400">
-                                <Calendar size={10} />
-                            </div>
-                            <input
-                                type="date"
-                                value={filterDate}
-                                onChange={(e) => setFilterDate(e.target.value)}
-                                className="w-full bg-white border border-ind-border/60 focus:border-ind-primary rounded-full h-[36px] pl-10 pr-8 text-slate-700 font-bold text-[10px] tracking-wide outline-none transition-all shadow-sm"
-                            />
-                            {filterDate && (
-                                <button onClick={() => setFilterDate('')} className="absolute right-8 top-1/2 -translate-y-1/2 text-[8px] font-black text-rose-500 px-1 bg-white hover:underline">CLEAR</button>
-                            )}
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-ind-text3 opacity-50">
-                                <ChevronDown size={12} />
-                            </div>
-                        </div>
-
-                        <div className="relative group w-full md:w-36">
-                            <div className="absolute left-3 top-1/2 -translate-y-1/2 p-0.5 bg-orange-50 rounded text-ind-primary">
-                                <Clock size={10} />
-                            </div>
-                            <select
-                                value={filterShift}
-                                onChange={(e) => setFilterShift(e.target.value)}
-                                className="w-full bg-white border border-ind-border/60 focus:border-ind-primary rounded-full h-[36px] pl-10 pr-8 text-slate-700 font-bold text-[10px] tracking-wide outline-none appearance-none cursor-pointer"
-                            >
-                                {SHIFT_OPTIONS.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
-                            </select>
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-ind-text3 opacity-50">
-                                <ChevronDown size={12} />
-                            </div>
-                        </div>
-
-                        <div className="relative group w-full md:w-36">
-                            <div className="absolute left-3 top-1/2 -translate-y-1/2 p-0.5 bg-orange-50 rounded text-ind-primary">
-                                <CheckCircle2 size={10} />
-                            </div>
-                            <select
-                                value={filterStatus}
-                                onChange={(e) => setFilterStatus(e.target.value)}
-                                className="w-full bg-white border border-ind-border/60 focus:border-ind-primary rounded-full h-[36px] pl-10 pr-8 text-slate-700 font-bold text-[10px] tracking-wide outline-none appearance-none cursor-pointer"
-                            >
-                                {STATUS_OPTIONS.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
-                            </select>
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-ind-text3 opacity-50">
-                                <ChevronDown size={12} />
-                            </div>
-                        </div>
+                <div className="relative group flex-shrink-0">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 p-1 bg-indigo-50/50 rounded text-indigo-400 group-focus-within:text-orange-500 pointer-events-none">
+                        <Calendar size={12} />
                     </div>
+                    <input
+                        type="date"
+                        value={filterDate}
+                        onChange={(e) => setFilterDate(e.target.value)}
+                        className="bg-white border border-slate-200 focus:border-orange-500 rounded-full h-[42px] pl-12 pr-8 text-slate-700 font-bold text-[11px] tracking-wide outline-none transition-all shadow-sm w-[180px] uppercase cursor-pointer"
+                    />
+                    {filterDate && (
+                        <button onClick={() => setFilterDate('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-black text-rose-500 px-1 bg-white hover:underline">X</button>
+                    )}
                 </div>
             </div>
 
             {/* 
                 TABLE AREA: High-Density Production Log View
-                Features a sticky header and independent vertical scrolling.
             */}
-            <div className="">
+            <div className="flex-1 overflow-hidden bg-white border border-slate-200 rounded-3xl shadow-sm flex flex-col">
                 {filteredVerifications.length > 0 ? (
-                    <div className="overflow-x-auto rounded-xl border border-ind-border/50 shadow-sm overflow-y-auto bg-white transition-all custom-scrollbar h-[calc(100vh-260px)] mx-2 flex flex-col">
-                        <div className="flex-1 overflow-auto">
+                    <>
+                        <div className="flex-1 overflow-auto custom-scrollbar">
                             <table className="min-w-full bg-white text-sm">
                                 <thead className="bg-ind-bg text-black border-b-2 border-[#f37021] uppercase text-[11px] tracking-wider sticky top-0 z-[50]">
                                     <tr>
@@ -396,7 +390,7 @@ export const SupervisorVerifyLogs = ({
                                 </div>
                             </div>
                         )}
-                    </div>
+                    </>
                 ) : (
                     <div className="flex flex-col items-center justify-center py-20 text-center">
                         <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 mb-4">

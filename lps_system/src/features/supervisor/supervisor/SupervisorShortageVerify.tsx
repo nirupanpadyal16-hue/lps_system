@@ -672,9 +672,9 @@ export default function SupervisorShortageVerify() {
     }
 
     return (
-        <div className="h-full flex flex-col space-y-1 animate-in fade-in duration-700 overflow-hidden text-slate-900 bg-gray-50/30 p-2">
+        <div className="h-full flex flex-col space-y-1 animate-in fade-in duration-700 overflow-hidden text-slate-900 bg-gray-50/30 p-0">
             {/* Header */}
-            <div className="flex xl:flex-row xl:items-center justify-between gap-4 bg-white border border-slate-200 rounded-2xl mb-2 p-4 shadow-sm">
+            <div className="bg-white border-b border-slate-100 py-1 px-4 ml-mb-1 flex items-center justify-between">
                 <div className="flex flex-col gap-1">
                     <h1 className="text-[24px] font-black text-slate-900 tracking-tight leading-none flex items-center gap-2">
                         {selectedLine ? `Shortages: ${selectedLine}` : 'Shortage Dashboard'}

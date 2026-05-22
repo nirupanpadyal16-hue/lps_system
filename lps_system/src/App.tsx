@@ -11,7 +11,6 @@ import ManagerDashboardPage from './features/manager/ManagerDashboardPage';
 import ManagerDemandPage from './features/manager/ManagerDemandPage';
 import SupervisorDashboardPage from './features/supervisor/supervisor/dashboard/SupervisorDashboardPage';
 import UserAccountsPage from './features/admin/users/UserAccountsPage';
-import DemandManagementPage from './features/admin/demand/DemandManagementPage';
 import ModelRegisterPage from './features/admin/models/ModelRegisterPage';
 import OrderInboxPage from './features/admin/orders/OrderInboxPage';
 import AdminAuditPage from './features/admin/AdminAuditPage';
@@ -21,8 +20,6 @@ import ProductionPlanningPage from './features/manager/ProductionPlanningPage';
 import TeamManagementPage from './features/supervisor/supervisor/TeamManagementPage';
 import DEODashboardPage from './features/deo/DEODashboardPage';
 import DEOMachineEntryPage from './features/deo/DEOMachineEntryPage';
-import InventoryPage from './features/admin/inventory/InventoryPage';
-import PartLookupPage from './features/admin/inventory/PartLookupPage';
 import MachineMappingPage from './features/admin/mappings/MachineMappingPage';
 import SupervisorMachineMonitorPage from './features/supervisor/SupervisorMachineMonitorPage';
 import AdminMachineMonitorPage from './features/admin/AdminMachineMonitorPage';
@@ -61,17 +58,13 @@ import {
   ADMIN_INVENTORY,
   ADMIN_PART_LOOKUP,
   SUPERVISOR_SHORTAGE,
-  SUPERVISOR_SHORTAGE_HISTORY,
   SUPERVISOR_MACHINE_MONITOR,
   DEO_MACHINE_ENTRY,
   DEO_LINES,
-  PPC_HOME,
-  SK_HOME,
 } from './config/routePaths';
 
 import { getUser } from './lib/storage';
 
-const ADMIN_MACHINE_MONITOR = '/admin/machine-monitor';
 
 
 const RoleBasedRedirect = () => {
@@ -87,7 +80,7 @@ const RoleBasedRedirect = () => {
     case UserRole.MANAGER:
       return <Navigate to="/manager/demand" replace />;
     case UserRole.SUPERVISOR:
-      return <Navigate to={SUPERVISOR_DASHBOARD} replace />;
+      return <Navigate to={SUPERVISOR_SHORTAGE} replace />;
     case UserRole.DEO:
       return <Navigate to={DEO_SHORTAGE} replace />;
     case UserRole.PPC_PLANNER:
@@ -160,7 +153,7 @@ function App() {
                         <Route path={SUPERVISOR_REPORTS} element={<SupervisorDashboardPage />} />
                         <Route path={SUPERVISOR_ALERTS} element={<SupervisorDashboardPage />} />
                         <Route path={SUPERVISOR_SHORTAGE} element={<SupervisorDashboardPage />} />
-                        <Route path={SUPERVISOR_SHORTAGE_HISTORY} element={<SupervisorDashboardPage />} />
+                        {/* <Route path={SUPERVISOR_SHORTAGE_HISTORY} element={<SupervisorDashboardPage />} /> */}
                       </Route>
                       <Route element={<AuthGuard allowedRoles={[UserRole.DEO, UserRole.ADMIN]} />}>
                         <Route path={DEO_DASHBOARD} element={<DEODashboardPage />} />

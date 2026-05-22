@@ -4,6 +4,7 @@ import {
   Search,
   Filter,
   ChevronDown,
+  ChevronRight,
   LayoutGrid,
   Loader2,
   FileText,
@@ -25,17 +26,25 @@ import toast from 'react-hot-toast';
 import { cn } from '../../lib/utils';
 
 interface RMRequest {
+  created_at: string;
   id: number;
   formatted_id: string;
   demand_formatted_id: string;
   inventory_item: {
     sap_part_number: string;
+    part_number?: string;
+    vehicle_name?: string;
+    demand_quantity?: number;
+    part_description?: string;
+    master_material_data?: Record<string, any>;
   };
   rm_grade: string;
   rm_size: string;
   rm_thk_mm: string;
   sheet_width: string;
   sheet_length: string;
+  no_of_comp_per_sheet?: string;
+  act_rm_sizes?: string;
   status: string;
   ppc_notes: string;
   rejection_reason?: string;
@@ -55,12 +64,18 @@ const PPCRMRequestsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedDemandId, setSelectedDemandId] = useState('ALL');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
   useEffect(() => {
     fetchRequests();
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, selectedDate, selectedDemandId]);
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -74,18 +89,48 @@ const PPCRMRequestsPage: React.FC = () => {
     }
   };
 
+  const demandDropdownOptions = useMemo(() => {
+    const map = new Map<string, { model: string; demandId: string }>();
+    requests.forEach(r => {
+      const model = r.inventory_item?.vehicle_name || '—';
+      const demandId = r.demand_formatted_id;
+      if (demandId) {
+        map.set(demandId, { model, demandId });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.model.localeCompare(b.model));
+  }, [requests]);
+
   const filteredRequests = useMemo(() => {
     return requests.filter(req => {
-      const matchesSearch = 
+      const matchesSearch =
         req.formatted_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         req.inventory_item?.sap_part_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         req.demand_formatted_id?.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesStatus = statusFilter === 'ALL' || req.status === statusFilter;
 
-      return matchesSearch && matchesStatus;
+      const matchesStatus =
+        statusFilter === 'ALL' ||
+        (statusFilter === 'PENDING' && (req.status === 'PENDING' || req.status === 'SUBMITTED')) ||
+        (statusFilter === 'SUBMITTED' && req.status === 'SUBMITTED') ||
+        (statusFilter === 'COMPLETED' && (req.status === 'ACCEPTED' || req.status === 'REJECTED'));
+
+      const matchesDemand =
+        selectedDemandId === 'ALL' ||
+        req.demand_formatted_id === selectedDemandId;
+
+      const dateToUse = req.submitted_at || req.created_at;
+      const matchesDate = !selectedDate || (() => {
+        if (!dateToUse) return false;
+        const reqDate = new Date(dateToUse);
+        const year = reqDate.getFullYear();
+        const month = String(reqDate.getMonth() + 1).padStart(2, '0');
+        const day = String(reqDate.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}` === selectedDate;
+      })();
+
+      return matchesSearch && matchesStatus && matchesDate && matchesDemand;
     });
-  }, [requests, searchTerm, statusFilter]);
+  }, [requests, searchTerm, statusFilter, selectedDate, selectedDemandId]);
 
   const stats = useMemo(() => {
     return {
@@ -100,15 +145,14 @@ const PPCRMRequestsPage: React.FC = () => {
   const paginatedRequests = filteredRequests.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
-    <div className="bg-ind-bg flex flex-col h-[calc(100vh-64px)] overflow-hidden">
+    <div className="bg-ind-bg flex flex-col h-[calc(100vh-96px)] overflow-hidden">
       {/* Header Section */}
       <div className="sticky top-0 z-30 bg-white border-b border-slate-100 transition-all">
         <div className="flex xl:flex-row xl:items-center justify-between gap-4 bg-white py-1 px-4 ml-2 mb-1">
           <div className="p-2">
             <h1 className="text-[24px] font-black text-slate-800 tracking-tight leading-none">
-              My RM Requests
+              RM Request History
             </h1>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Track all RM sheets submitted to Store Keeper</p>
           </div>
 
           {/* Stats Dashboard */}
@@ -133,38 +177,68 @@ const PPCRMRequestsPage: React.FC = () => {
         </div>
 
         {/* Filter Bar */}
-        <div className="px-4 py-2 flex flex-col md:flex-row items-center justify-between gap-2 border-t border-slate-50">
-          <div className="flex items-center gap-3 w-full md:w-auto">
-            <div className="relative group flex-1 md:w-80">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={14} />
-              <input 
-                type="text" 
-                placeholder="Search by ID, Part #, Demand..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full h-10 pl-10 pr-4 bg-white border border-slate-100 rounded-xl text-xs font-medium text-slate-700 outline-none shadow-sm focus:border-orange-300 transition-all"
-              />
+        <div className="px-2 py-2 flex items-center gap-2 flex-shrink-0 bg-white border-b border-slate-100">
+          {/* Status Dropdown */}
+          <div className="relative group min-w-[180px]">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-orange-50 flex items-center justify-center">
+              <Box size={12} strokeWidth={2.5} className="text-orange-500" />
             </div>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full h-11 pl-11 pr-8 bg-white border border-slate-200/80 rounded-full text-xs font-bold text-slate-700 outline-none appearance-none shadow-sm cursor-pointer focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all hover:bg-slate-50/30"
+            >
+              <option value="ALL">All Status</option>
+              <option value="PENDING">Pending</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="SUBMITTED">Submitted</option>
+            </select>
+            <ChevronRight className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={12} strokeWidth={2.5} />
+          </div>
 
-            <div className="relative group w-48">
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 p-1 bg-orange-50 rounded text-orange-500">
-                <Filter size={11} />
-              </div>
-              <select 
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full h-10 pl-10 pr-10 bg-white border border-slate-100 rounded-xl text-[11px] font-bold text-slate-700 outline-none appearance-none shadow-sm focus:border-orange-300 transition-all"
-              >
-                <option value="ALL">All Status</option>
-                <option value="PENDING">Pending</option>
-                <option value="SUBMITTED">Submitted</option>
-                <option value="ACCEPTED">Accepted</option>
-                <option value="REJECTED">Rejected</option>
-              </select>
-              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-300">
-                <ChevronDown size={14} />
-              </div>
+          {/* Select Model & Demand Dropdown */}
+          <div className="relative group min-w-[220px]">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-orange-50 flex items-center justify-center">
+              <Filter size={12} strokeWidth={2.5} className="text-orange-500" />
             </div>
+            <select
+              value={selectedDemandId}
+              onChange={(e) => setSelectedDemandId(e.target.value)}
+              className="w-full h-11 pl-11 pr-8 bg-white border border-slate-200/80 rounded-full text-xs font-bold text-slate-700 outline-none appearance-none shadow-sm cursor-pointer focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all hover:bg-slate-50/30"
+            >
+              <option value="ALL">Select Model</option>
+              {demandDropdownOptions.map(opt => (
+                <option key={opt.demandId} value={opt.demandId}>
+                  {opt.model} — {opt.demandId}
+                </option>
+              ))}
+            </select>
+            <ChevronRight className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={12} strokeWidth={2.5} />
+          </div>
+
+          {/* Search Bar */}
+          <div className="relative group flex-1">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+            <input
+              type="text"
+              placeholder="Search by ID, Part #, Demand..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full h-11 pl-11 pr-4 bg-white border border-slate-200/80 rounded-full text-xs font-medium text-slate-700 outline-none shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all hover:bg-slate-50/30"
+            />
+          </div>
+
+          {/* Date Selector */}
+          <div className="relative group min-w-[180px]">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-blue-50 flex items-center justify-center">
+              <Calendar size={12} strokeWidth={2.5} className="text-blue-500" />
+            </div>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="w-full h-11 pl-11 pr-4 bg-white border border-slate-200/80 rounded-full text-xs font-bold text-slate-700 outline-none shadow-sm cursor-pointer focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all hover:bg-slate-50/30"
+            />
           </div>
         </div>
       </div>
@@ -172,29 +246,39 @@ const PPCRMRequestsPage: React.FC = () => {
       {/* Table Area */}
       <div className="flex-1 mx-2 mb-2 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col mt-2">
         <div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar">
-          <table className="w-full border-collapse min-w-[1200px]">
+          <table className="w-full border-collapse min-w-[1800px]">
             <thead className="sticky top-0 z-10">
-              <tr className="border-b-2 border-[#f37021] bg-white">
-                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">Request ID</th>
-                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">SAP Part Number</th>
-                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">Demand ID</th>
-                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">RM Specifications</th>
-                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">Status</th>
-                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">Submitted At</th>
-                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">Notes</th>
+              <tr className="bg-ind-bg text-black border-b-2 border-[#f37021] uppercase text-[11px] tracking-wider sticky top-0 z-[50]">
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">SR No.</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">REQUEST ID</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">VEHICLE MODEL</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">DEMAND QTY</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">SAP PART NUMBER</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">PART NUMBER</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">RM THK MM</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">SHEET WIDTH</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">SHEET LENGTH</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">NO OF COMP PER SHEET</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">RM SIZE</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">RM GRADE</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">ACT RM SIZES</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">REVISED</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">STATUS</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">SUBMITTED DATE</th>
+                <th className="px-6 py-3 text-left text-[11px] font-black text-black uppercase tracking-wider whitespace-nowrap">NOTES</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="py-20 text-center">
+                  <td colSpan={17} className="py-20 text-center">
                     <Loader2 className="animate-spin text-orange-400 mx-auto mb-3" size={32} strokeWidth={2} />
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Syncing Requests...</span>
                   </td>
                 </tr>
               ) : paginatedRequests.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-32 text-center text-slate-300">
+                  <td colSpan={17} className="py-32 text-center text-slate-300">
                     <LayoutGrid size={48} strokeWidth={1} className="mx-auto mb-4 opacity-20" />
                     <p className="text-xs font-black uppercase tracking-widest">No RM requests found</p>
                   </td>
@@ -211,34 +295,47 @@ const PPCRMRequestsPage: React.FC = () => {
                       transition={{ delay: Math.min(idx * 0.01, 0.3) }}
                       className="hover:bg-slate-50/50 transition-colors group"
                     >
+                      <td className="px-6 py-4 text-[11px] font-black text-slate-600 whitespace-nowrap">
+                        {(currentPage - 1) * itemsPerPage + idx + 1}
+                      </td>
                       <td className="px-6 py-4 text-[11px] font-black text-blue-600 whitespace-nowrap">
                         {req.formatted_id}
                       </td>
                       <td className="px-6 py-4 text-[11px] font-black text-slate-800 uppercase whitespace-nowrap">
-                        {req.inventory_item?.sap_part_number}
+                        {req.inventory_item?.vehicle_name || '—'}
                       </td>
                       <td className="px-6 py-4 text-[11px] font-bold text-slate-500 whitespace-nowrap">
-                        {req.demand_formatted_id}
+                        {req.inventory_item?.demand_quantity || 0}
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                          <div className="flex items-center gap-1">
-                            <span className="text-[9px] font-black text-slate-300 uppercase tracking-wider">Grade:</span>
-                            <span className="text-[10px] font-bold text-slate-600">{req.rm_grade || '—'}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <span className="text-[9px] font-black text-slate-300 uppercase tracking-wider">Size:</span>
-                            <span className="text-[10px] font-bold text-slate-600">{req.rm_size || '—'}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <span className="text-[9px] font-black text-slate-300 uppercase tracking-wider">Thk:</span>
-                            <span className="text-[10px] font-bold text-slate-600">{req.rm_thk_mm ? `${req.rm_thk_mm}mm` : '—'}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <span className="text-[9px] font-black text-slate-300 uppercase tracking-wider">W×L:</span>
-                            <span className="text-[10px] font-bold text-slate-600">{req.sheet_width && req.sheet_length ? `${req.sheet_width}×${req.sheet_length}` : '—'}</span>
-                          </div>
-                        </div>
+                      <td className="px-6 py-4 text-[11px] font-black text-orange-500 whitespace-nowrap">
+                        {req.inventory_item?.sap_part_number}
+                      </td>
+                      <td className="px-6 py-4 text-[11px] font-bold text-slate-600 whitespace-nowrap">
+                        {req.inventory_item?.part_number || req.inventory_item?.part_description || '—'}
+                      </td>
+                      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+                        {req.rm_thk_mm ? `${req.rm_thk_mm}mm` : '—'}
+                      </td>
+                      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+                        {req.sheet_width || '—'}
+                      </td>
+                      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+                        {req.sheet_length || '—'}
+                      </td>
+                      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+                        {req.no_of_comp_per_sheet || '—'}
+                      </td>
+                      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+                        {req.rm_size || '—'}
+                      </td>
+                      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+                        {req.rm_grade || '—'}
+                      </td>
+                      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+                        {req.act_rm_sizes || '—'}
+                      </td>
+                      <td className="px-6 py-4 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+                        {req.inventory_item?.master_material_data?.Revised || req.inventory_item?.master_material_data?.revised || '—'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className={cn("inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-wider uppercase", config.bg, config.text)}>
@@ -246,17 +343,10 @@ const PPCRMRequestsPage: React.FC = () => {
                           {config.label}
                         </div>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col">
-                          <span className="text-[10px] font-black text-slate-600">
-                            {req.submitted_at ? new Date(req.submitted_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'}
-                          </span>
-                          <span className="text-[9px] font-bold text-slate-400">
-                            {req.submitted_at ? new Date(req.submitted_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}
-                          </span>
-                        </div>
+                      <td className="px-6 py-4 whitespace-nowrap text-[10px] font-bold text-slate-700">
+                        {req.submitted_at ? new Date(req.submitted_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }) : '—'}
                       </td>
-                      <td className="px-6 py-4 max-w-[200px]">
+                      <td className="px-6 py-4 max-w-[250px]">
                         {req.status === 'REJECTED' && req.rejection_reason ? (
                           <div className="p-2 bg-rose-50 rounded-lg border border-rose-100">
                             <p className="text-[9px] font-black text-rose-600 uppercase mb-0.5">REJECTION REASON</p>
@@ -269,7 +359,7 @@ const PPCRMRequestsPage: React.FC = () => {
                           </div>
                         ) : req.ppc_notes ? (
                           <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
-                            <p className="text-[10px] font-medium text-slate-500 italic leading-tight truncate" title={req.ppc_notes}>
+                            <p className="text-[10px] font-medium text-slate-500 italic leading-tight truncate animate-none" title={req.ppc_notes}>
                               "{req.ppc_notes}"
                             </p>
                           </div>

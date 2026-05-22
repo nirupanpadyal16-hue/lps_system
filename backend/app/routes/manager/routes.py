@@ -59,13 +59,22 @@ def sync_inventory_item(master_item):
             inv_item.demand_quantity = demand_qty
             inv_item.serial_number = int(sn_no) if sn_no else inv_item.serial_number
             
-        # Update status based on stock
-        curr = inv_item.current_stock or 0.0
-        req = inv_item.demand_quantity or 0.0
-        if curr < req:
-            inv_item.status = 'SHORTAGE'
-        else:
-            inv_item.status = 'SUFFICIENT'
+        # Update status based on stock, preserving active workflow statuses
+        active_workflow_statuses = {
+            'WAITING_RM_APPROVAL', 
+            'PENDING_DEO', 
+            'IN_PRODUCTION', 
+            'PRODUCTION_DONE', 
+            'DISPATCHED', 
+            'COMPLETED'
+        }
+        if inv_item.status not in active_workflow_statuses:
+            curr = inv_item.current_stock or 0.0
+            req = inv_item.demand_quantity or 0.0
+            if curr < req:
+                inv_item.status = 'SHORTAGE'
+            else:
+                inv_item.status = 'SUFFICIENT'
             
     demand_ids = [d.id for d in active_demands]
     db.session.commit()
@@ -96,8 +105,8 @@ def get_vehicle_models():
     # Get from CarModel
     car_model_names = db.session.query(CarModel.name).distinct().all()
     
-    # Combine and deduplicate
-    all_names = sorted(list(set([row[0] for row in master_names] + [row[0] for row in car_model_names])))
+    # Combine and deduplicate, filtering out None values
+    all_names = sorted(list(set([row[0] for row in master_names if row[0]] + [row[0] for row in car_model_names if row[0]])))
     
     models = [{'name': name, 'id': name} for name in all_names if name]
     return jsonify({'success': True, 'data': models})
@@ -108,6 +117,37 @@ def get_vehicle_models():
 @role_required(['Manager', 'Admin', 'Supervisor', 'DEO', 'PPC_Planner'])
 def update_master_item_by_sap(sap_number):
     service = MasterDataDBService()
+    
+    # Check if SAP Part Number is being changed
+    data = request.json or {}
+    new_sap = data.get('sap_part_number') or (data.get('common') and data.get('common').get('sap_part_number'))
+    if new_sap and new_sap != sap_number:
+        # Check if the new SAP Part Number already exists in MasterData to prevent unique constraint violation
+        exists = MasterData.query.filter_by(sap_part_number=new_sap).first()
+        if exists:
+            return jsonify({"success": False, "message": f"SAP Part Number {new_sap} already exists"}), 400
+            
+        # Update references in other tables
+        from app.models import InventoryItem, PartMachineMapping
+        from app.models.models import DEOProductionEntry
+        
+        # 1. PartMachineMapping
+        mapping = PartMachineMapping.query.filter_by(sap_part_number=sap_number).first()
+        if mapping:
+            mapping.sap_part_number = new_sap
+            
+        # 2. InventoryItem
+        inv_items = InventoryItem.query.filter_by(sap_part_number=sap_number).all()
+        for item in inv_items:
+            item.sap_part_number = new_sap
+            
+        # 3. DEOProductionEntry
+        deo_entries = DEOProductionEntry.query.filter_by(sap_part_number=sap_number).all()
+        for entry in deo_entries:
+            entry.sap_part_number = new_sap
+            
+        db.session.commit()
+
     updated_item = service.update_item('sap_part_number', sap_number, request.json)
     if updated_item:
         # Live Sync to Inventory
@@ -139,6 +179,7 @@ def delete_master_item(sap_number):
 @jwt_required()
 @role_required(['DEO', 'Supervisor', 'Manager', 'Admin', 'PPC_Planner'])
 def quick_add_master_item():
+    from app.models.models import MasterData, ProductionData, MaterialData
     data = request.json or {}
     model_name = data.get('model')
     part_number = data.get('part_number')
@@ -150,8 +191,6 @@ def quick_add_master_item():
     existing = MasterData.query.filter_by(sap_part_number=sap_part_number).first()
     if existing:
         return jsonify({"success": False, "message": "SAP Part Number already exists"}), 400
-        
-    from app.models.models import MasterData, ProductionData, MaterialData
     
     new_part = MasterData(
         model=model_name,
@@ -197,6 +236,9 @@ def quick_add_master_item():
     db.session.add(new_mat)
     db.session.commit()
     
+    # Live Sync to Inventory
+    sync_inventory_item(new_part)
+    
     # Log the ad-hoc addition
     from app.utils.audit_logger import log_audit
     log_audit("QUICK_ADD_PART")
@@ -218,6 +260,35 @@ def update_master_item_by_id(part_id):
         
     data = request.json or {}
     
+    # Check if SAP Part Number is being changed
+    new_sap = data.get('sap_part_number')
+    if new_sap and new_sap != part.sap_part_number:
+        # Check if the new SAP Part Number already exists in MasterData to prevent unique constraint violation
+        exists = MasterData.query.filter_by(sap_part_number=new_sap).first()
+        if exists:
+            return jsonify({"success": False, "message": f"SAP Part Number {new_sap} already exists"}), 400
+            
+        # Update references in other tables
+        from app.models import InventoryItem, PartMachineMapping
+        from app.models.models import DEOProductionEntry
+        
+        # 1. PartMachineMapping
+        mapping = PartMachineMapping.query.filter_by(sap_part_number=part.sap_part_number).first()
+        if mapping:
+            mapping.sap_part_number = new_sap
+            
+        # 2. InventoryItem
+        inv_items = InventoryItem.query.filter_by(sap_part_number=part.sap_part_number).all()
+        for item in inv_items:
+            item.sap_part_number = new_sap
+            
+        # 3. DEOProductionEntry
+        deo_entries = DEOProductionEntry.query.filter_by(sap_part_number=part.sap_part_number).all()
+        for entry in deo_entries:
+            entry.sap_part_number = new_sap
+            
+        db.session.commit()
+        
     # Update common fields
     if 'model' in data: part.model = data['model']
     if 'part_number' in data: part.part_number = data['part_number']
@@ -273,6 +344,10 @@ def update_master_item_by_id(part_id):
         m.additional_fields = current_fields
 
     db.session.commit()
+    
+    # Live Sync to Inventory
+    sync_inventory_item(part)
+    
     from app.utils.audit_logger import log_audit
     log_audit("UPDATE_MASTER_PART")
     

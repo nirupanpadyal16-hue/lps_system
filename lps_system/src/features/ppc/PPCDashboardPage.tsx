@@ -19,7 +19,7 @@ const PPCDashboardPage: React.FC = () => {
   const navItems = [
     { to: '/ppc/demand', label: 'New Demand', icon: '📋' },
     { to: '/ppc/inventory', label: 'Inventory', icon: '📦' },
-    { to: '/ppc/machine-registry', label: 'Machine Registry', icon: '🏭' },
+    { to: '/ppc/machine-registry', label: 'RM Material', icon: '🏭' },
     { to: '/ppc/rm-requests', label: 'RM Requests', icon: '📄', badge: unread },
   ];
 

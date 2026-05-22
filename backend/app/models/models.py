@@ -829,6 +829,7 @@ class InventoryItem(db.Model):
             "demand_formatted_id": demand_formatted_id,
             "vehicle_name": self.vehicle_name,
             "sap_part_number": self.sap_part_number,
+            "part_number": mapping.part_number if mapping else self.part_description,
             "part_description": self.part_description,
             "initial_stock": self.initial_stock,
             "produced_qty": self.produced_qty,

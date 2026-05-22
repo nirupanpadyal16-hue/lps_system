@@ -20,8 +20,10 @@ import {
     AUTH_LOGIN,
     SUPERVISOR_DASHBOARD,
     DEO_DASHBOARD,
+    DEO_SHORTAGE,
     PPC_DEMAND,
     SK_RM_QUEUE,
+    SUPERVISOR_SHORTAGE,
 } from '../../config/routePaths';
 
 const LoginPage = () => {
@@ -43,24 +45,24 @@ const LoginPage = () => {
                 setToken(response.data.access_token);
                 setUser(response.data.user);
 
-                const role = response.data.user.role;
+                const role = response.data.user.role ? response.data.user.role.toUpperCase() : '';
                 switch (role) {
-                    case UserRole.ADMIN:
+                    case UserRole.ADMIN.toUpperCase():
                         navigate(ADMIN_HOME);
                         break;
-                    case UserRole.MANAGER:
+                    case UserRole.MANAGER.toUpperCase():
                         navigate(MANAGER_DASHBOARD);
                         break;
-                    case UserRole.SUPERVISOR:
-                        navigate(SUPERVISOR_DASHBOARD);
+                    case UserRole.SUPERVISOR.toUpperCase():
+                        navigate(SUPERVISOR_SHORTAGE);
                         break;
-                    case UserRole.DEO:
-                        navigate(DEO_DASHBOARD);
+                    case UserRole.DEO.toUpperCase():
+                        navigate(DEO_SHORTAGE);
                         break;
-                    case UserRole.PPC_PLANNER:
+                    case UserRole.PPC_PLANNER.toUpperCase():
                         navigate(PPC_DEMAND);
                         break;
-                    case UserRole.STORE_KEEPER:
+                    case UserRole.STORE_KEEPER.toUpperCase():
                         navigate(SK_RM_QUEUE);
                         break;
                     default:

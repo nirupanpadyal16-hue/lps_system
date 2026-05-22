@@ -102,7 +102,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             items: [
                 { icon: Target, label: 'New Demand', path: ADMIN_DEMAND },
                 { icon: Package, label: 'Inventory', path: ADMIN_INVENTORY },
-                { icon: Search, label: 'Machine Registry', path: ADMIN_PART_LOOKUP },
+                { icon: Search, label: 'RM Material', path: ADMIN_PART_LOOKUP },
                 { icon: Activity, label: 'Production Lines', path: ADMIN_LINES },
                 { icon: Factory, label: 'Machine Monitor', path: '/admin/machine-monitor' },
                 { icon: Target, label: 'New Registration Car Model', path: ADMIN_MODELS },
@@ -123,11 +123,11 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         {
             title: 'OVERSIGHT & VERIFICATION',
             items: [
-                { icon: LayoutDashboard, label: 'Dashboard', path: SUPERVISOR_DASHBOARD },
+                // { icon: LayoutDashboard, label: 'Dashboard', path: SUPERVISOR_DASHBOARD },
                 // { icon: Factory, label: 'Machine Monitor', path: SUPERVISOR_MACHINE_MONITOR },
-                { icon: ClipboardCheck, label: 'Verify Production Logs', path: SUPERVISOR_VERIFY },
                 { icon: Mail, label: 'Verify Shortage Requests', path: SUPERVISOR_SHORTAGE },
-                { icon: History, label: 'Shortage History', path: SUPERVISOR_SHORTAGE_HISTORY },
+                { icon: ClipboardCheck, label: 'Verify Production Logs', path: SUPERVISOR_VERIFY },
+                // { icon: History, label: 'Shortage History', path: SUPERVISOR_SHORTAGE_HISTORY },
             ]
         }
     ];
@@ -140,10 +140,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         {
             title: 'OPERATOR CONSOLE',
             items: [
-                { icon: ClipboardCheck, label: 'Daily Production', path: DEO_ENTRY },
-                // { icon: ClipboardList, label: 'Machine Entry', path: DEO_MACHINE_ENTRY },
                 { icon: Mail, label: 'Shortage Requests', path: DEO_SHORTAGE },
-                { icon: History, label: 'Shortage History', path: DEO_SHORTAGE_HISTORY },
+                { icon: ClipboardCheck, label: 'Daily Request', path: DEO_ENTRY },
+                // { icon: LayoutDashboard, label: 'Dashboard', path: DEO_DASHBOARD },
             ]
         }
     ];
@@ -155,8 +154,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             items: [
                 { icon: Target, label: 'New Demand', path: PPC_DEMAND },
                 { icon: Package, label: 'Inventory', path: PPC_INVENTORY },
-                { icon: Search, label: 'Machine Registry', path: PPC_MACHINE_REGISTRY },
-                { icon: FileText, label: 'My RM Requests', path: PPC_RM_REQUESTS },
+                { icon: Search, label: 'RM Material', path: PPC_MACHINE_REGISTRY },
+                { icon: FileText, label: 'RM Request History', path: PPC_RM_REQUESTS },
             ]
         }
     ];
