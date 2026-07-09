@@ -5,7 +5,9 @@ import {
     Lock,
     User,
     ArrowRight,
-    ShieldCheck
+    ShieldCheck,
+    Code2,
+    Loader2
 } from 'lucide-react';
 import logoLps from '../../assets/logo_lps.png';
 import bgImage from '../../assets/loginpage.jpg';
@@ -26,20 +28,34 @@ import {
     SUPERVISOR_SHORTAGE,
 } from '../../config/routePaths';
 
+// ─── Developer Mode quick-login accounts ──────────────────────────────────────
+// Seeded dev/test users so testers don't have to remember passwords.
+// Safe to remove for production (or gate behind import.meta.env.DEV).
+const DEV_ACCOUNTS: { label: string; username: string; password: string; color: string }[] = [
+    { label: 'Admin',        username: 'admin',   password: 'admin',   color: 'bg-slate-800 hover:bg-slate-900' },
+    { label: 'PPC Planner',  username: 'ppc1',    password: 'test',    color: 'bg-indigo-600 hover:bg-indigo-700' },
+    { label: 'Store Keeper', username: 'sk1',     password: 'test',    color: 'bg-emerald-600 hover:bg-emerald-700' },
+    { label: 'Supervisor',   username: 'sup1',    password: 'test',    color: 'bg-sky-600 hover:bg-sky-700' },
+    { label: 'DEO',          username: 'deo1',    password: 'test',    color: 'bg-orange-600 hover:bg-orange-700' },
+    { label: 'Manager',      username: 'manager', password: 'manager', color: 'bg-purple-600 hover:bg-purple-700' },
+];
+
 const LoginPage = () => {
     const navigate = useNavigate();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
+    const [devLoading, setDevLoading] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
-    const handleLogin = async (e: React.FormEvent) => {
-        e.preventDefault();
+    // Core login routine, callable with explicit credentials (used by the
+    // normal form AND by the Developer Mode quick-login buttons).
+    const doLogin = async (uname: string, pwd: string) => {
         setError(null);
         setLoading(true);
 
         try {
-            const response = await login(username, password);
+            const response = await login(uname, pwd);
 
             if (response.success) {
                 setToken(response.data.access_token);
@@ -76,7 +92,21 @@ const LoginPage = () => {
             setError('System synchronization error. Please check your credentials.');
         } finally {
             setLoading(false);
+            setDevLoading(null);
         }
+    };
+
+    const handleLogin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        await doLogin(username, password);
+    };
+
+    const handleQuickLogin = (uname: string, pwd: string) => {
+        // Reflect the chosen creds in the fields for visual feedback, then log in.
+        setUsername(uname);
+        setPassword(pwd);
+        setDevLoading(uname);
+        doLogin(uname, pwd);
     };
 
     return (
@@ -278,6 +308,39 @@ const LoginPage = () => {
                             )}
                         </button>
                     </form>
+
+                    {/* ─── Developer Mode: one-click role login ─────────────── */}
+                    <div className="mt-6 pt-4 border-t border-dashed border-slate-200">
+                        <div className="flex items-center justify-center gap-2 mb-3">
+                            <Code2 size={13} className="text-orange-500" />
+                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                Developer Mode — Quick Login
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            {DEV_ACCOUNTS.map((acc) => (
+                                <button
+                                    key={acc.username}
+                                    type="button"
+                                    disabled={loading}
+                                    onClick={() => handleQuickLogin(acc.username, acc.password)}
+                                    title={`Login as ${acc.username} / ${acc.password}`}
+                                    className={`flex items-center justify-center gap-1.5 ${acc.color} text-white py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all active:scale-[0.98] disabled:opacity-50`}
+                                >
+                                    {devLoading === acc.username ? (
+                                        <Loader2 size={13} className="animate-spin" />
+                                    ) : (
+                                        <>
+                                            <span>{acc.label}</span>
+                                        </>
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                        <p className="text-[9px] font-bold text-slate-400 text-center mt-2.5">
+                            Test accounts — no password needed. Remove before production.
+                        </p>
+                    </div>
 
                     {/* Footer */}
                     <div className="mt-4 text-center space-y-4">

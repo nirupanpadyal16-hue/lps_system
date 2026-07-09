@@ -7,6 +7,13 @@ import {
 import { API_BASE } from '../../../lib/apiConfig';
 import { getToken } from '../../../lib/storage';
 
+interface RunningPart {
+    sap_part_number: string;
+    total_produced: number;
+    last_produced_date: string | null;
+    demand_id: number | null;
+}
+
 interface SubMachine {
     id: number;
     name: string;
@@ -18,6 +25,7 @@ interface SubMachine {
     end_date: string | null;
     coverage_day: string | null;
     shortage_status: string | null;
+    running_parts?: RunningPart[];
 }
 
 interface LineGroup {
@@ -198,6 +206,7 @@ const ProductionLinesPage = ({ canAddGroup = true }: ProductionLinesPageProps) =
                                 <tr>
                                     <th className="px-6 py-4 whitespace-nowrap">Sr.NO</th>
                                     <th className="px-6 py-4 whitespace-nowrap">Machine Name</th>
+                                    <th className="px-6 py-4 whitespace-nowrap">Parts Built (from DEO entries)</th>
                                     <th className="px-6 py-4 text-center whitespace-nowrap">Status</th>
                                     <th className="px-6 py-3 text-right whitespace-nowrap">Actions</th>
                                 </tr>
@@ -205,12 +214,15 @@ const ProductionLinesPage = ({ canAddGroup = true }: ProductionLinesPageProps) =
                             <tbody className="divide-y divide-gray-100">
                                 {selectedLine.sub_machines.length === 0 ? (
                                     <tr>
-                                        <td colSpan={4} className="py-12 text-center text-gray-400 font-bold text-xs uppercase tracking-wider bg-gray-50/20">
+                                        <td colSpan={5} className="py-12 text-center text-gray-400 font-bold text-xs uppercase tracking-wider bg-gray-50/20">
                                             No physical machines have been registered under this group
                                         </td>
                                     </tr>
                                 ) : (
-                                    selectedLine.sub_machines.map((sub, idx) => (
+                                    selectedLine.sub_machines.map((sub, idx) => {
+                                        const parts = sub.running_parts || [];
+                                        const isRunning = parts.length > 0 || sub.status === 'BUSY';
+                                        return (
                                         <tr key={sub.id} className="hover:bg-gray-50 transition-colors">
                                             <td className="px-6 py-4">
                                                 <span className="text-[11px] font-black text-gray-400">{(idx + 1).toString().padStart(2, '0')}</span>
@@ -223,11 +235,39 @@ const ProductionLinesPage = ({ canAddGroup = true }: ProductionLinesPageProps) =
                                                     <span className="text-[12px] font-black text-gray-900 tracking-tight">{sub.name}</span>
                                                 </div>
                                             </td>
+                                            <td className="px-6 py-4">
+                                                {parts.length === 0 ? (
+                                                    <span className="text-[11px] font-bold text-gray-300 uppercase tracking-wider">— Idle —</span>
+                                                ) : (
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        {parts.slice(0, 4).map(pt => (
+                                                            <span
+                                                                key={pt.sap_part_number}
+                                                                title={`${pt.total_produced} pcs · last ${pt.last_produced_date || '—'}`}
+                                                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[10px] font-black font-mono bg-blue-50 text-blue-700 border border-blue-100"
+                                                            >
+                                                                {pt.sap_part_number}
+                                                                <span className="text-[9px] font-bold text-blue-400">{pt.total_produced}</span>
+                                                            </span>
+                                                        ))}
+                                                        {parts.length > 4 && (
+                                                            <span className="text-[10px] font-black text-gray-400">+{parts.length - 4}</span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </td>
                                             <td className="px-6 py-4 text-center">
-                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase border bg-emerald-50 text-emerald-700 border-emerald-200">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                                    Active
-                                                </span>
+                                                {isRunning ? (
+                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase border bg-amber-50 text-amber-700 border-amber-200">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                                        In Production
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase border bg-emerald-50 text-emerald-700 border-emerald-200">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                                        Available
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="px-6 py-3 text-right">
                                                 <button
@@ -238,7 +278,8 @@ const ProductionLinesPage = ({ canAddGroup = true }: ProductionLinesPageProps) =
                                                 </button>
                                             </td>
                                         </tr>
-                                    ))
+                                        );
+                                    })
                                 )}
                             </tbody>
                         </table>

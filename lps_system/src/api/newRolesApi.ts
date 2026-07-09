@@ -85,6 +85,16 @@ export const deoMachineApi = {
     axios.post(`${BASE_URL}/deo/notifications/${id}/read`, {}, authHeaders()),
 };
 
+// ─── Admin Machine Monitoring APIs ───────────────────────────────────────────
+// Admin reads the SAME table the DEO writes to (MachineProductionEntry) via a
+// dedicated admin endpoint — no longer borrows the Supervisor API.
+
+export const adminMachineApi = {
+  getMachineEntries: (params?: { date?: string; shift?: string; status?: string; demand_id?: number }) =>
+    axios.get(`${BASE_URL}/admin/machine-entries`, { ...authHeaders(), params }),
+  getMachinesStatus: () => axios.get(`${BASE_URL}/admin/machines/status`, authHeaders()),
+};
+
 // ─── Supervisor Machine Monitoring APIs ──────────────────────────────────────
 
 export const supervisorMachineApi = {

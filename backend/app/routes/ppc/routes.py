@@ -308,28 +308,29 @@ def get_machine_registry():
             if d_obj: demand_id = d_obj.id
 
 
-    # Primary filter: Only show items that have an active shortage request workflow
-    query = InventoryItem.query.filter(
-        InventoryItem.status.in_(['WAITING_RM_APPROVAL', 'PENDING_DEO', 'IN_PRODUCTION'])
-    )
-
     if demand_id:
-        # If user explicitly selected a demand, show its shortages regardless of general active status
-        query = query.filter_by(demand_id=demand_id)
+        # If the user explicitly selected a demand, show ALL of its parts so RM
+        # data can be checked/submitted for any of them — and so a part stays
+        # visible after RM is submitted (previously the status filter dropped it,
+        # which is why PPC/Admin couldn't see changes the Store Keeper already saw).
+        query = InventoryItem.query.filter_by(demand_id=demand_id)
     else:
-        # Active demand IDs
+        # Overview (no demand chosen): only parts in the active RM/production
+        # workflow across all active demands.
         active_statuses = ['PENDING', 'RM_CHECK', 'RM_SENT', 'RM_ACCEPTED', 'IN_PRODUCTION', 'IN_PROGRESS', 'IN PROGRESS', 'ACTIVE']
         active_demand_ids = db.session.query(Demand.id).filter(
             Demand.status.in_(active_statuses)
         ).all()
         active_ids = [d[0] for d in active_demand_ids]
-        
+
         if not active_ids:
             return jsonify({"success": True, "data": []})
-            
-        # Otherwise, show shortages for all active demands
-        query = query.filter(InventoryItem.demand_id.in_(active_ids))
-    
+
+        query = InventoryItem.query.filter(
+            InventoryItem.demand_id.in_(active_ids),
+            InventoryItem.status.in_(['WAITING_RM_APPROVAL', 'PENDING_DEO', 'IN_PRODUCTION'])
+        )
+
     items = query.order_by(InventoryItem.demand_id, InventoryItem.serial_number).all()
 
     # Check if ANY inventory items exist for this demand (regardless of stock)
@@ -455,15 +456,23 @@ def submit_rm_to_store_keeper(item_id):
             # Create the InventoryItem on the fly
             demand = Demand.query.get_or_404(demand_id)
             master = MasterData.query.filter_by(sap_part_number=sap_part_number).first_or_404()
+            # NOTE: shortage_quantity is a COMPUTED property on InventoryItem,
+            # not a column — passing it to the constructor raises. Stock starts
+            # at 0 so shortage is derived from demand_quantity automatically.
             item = InventoryItem(
                 demand_id=demand_id,
+                car_model_id=demand.model_id,
+                vehicle_name=demand.model_name,
+                serial_number=(InventoryItem.query.filter_by(demand_id=demand_id).count() + 1),
                 sap_part_number=sap_part_number,
                 part_description=master.description,
+                initial_stock=0.0,
+                produced_qty=0.0,
                 demand_quantity=demand.quantity,
-                shortage_quantity=demand.quantity,
                 status='PENDING',
                 rm_status='RM_SUBMITTED'
             )
+            item.sync_current_stock()
             db.session.add(item)
             db.session.flush()
     else:

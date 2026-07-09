@@ -3,7 +3,7 @@ import {
     Factory, RefreshCw, Calendar, Search, Filter,
     CheckCircle2, Clock, AlertCircle, Loader2, ChevronDown
 } from 'lucide-react';
-import { supervisorMachineApi } from '../../api/newRolesApi';
+import { adminMachineApi } from '../../api/newRolesApi';
 
 const SHIFTS = ['Shift 1', 'Shift 2', 'Shift 3'];
 
@@ -34,7 +34,10 @@ const STATUS_CFG: Record<string, { bg: string; text: string; icon: JSX.Element }
 export default function AdminMachineMonitorPage() {
     const [entries, setEntries] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+    // Empty string = "All recent dates". We deliberately do NOT default to today —
+    // that silently hid every DEO entry that wasn't made on the day Admin looked.
+    const [selectedDate, setSelectedDate] = useState('');
+    const [availableDates, setAvailableDates] = useState<string[]>([]);
     const [shiftFilter, setShiftFilter] = useState('all');
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
@@ -42,11 +45,12 @@ export default function AdminMachineMonitorPage() {
     const fetchEntries = async () => {
         setLoading(true);
         try {
-            const r = await supervisorMachineApi.getMachineEntries({
-                date: selectedDate,
+            const r = await adminMachineApi.getMachineEntries({
+                date: selectedDate || undefined,
                 shift: shiftFilter === 'all' ? undefined : shiftFilter,
             });
             setEntries(r.data?.data || []);
+            if (Array.isArray(r.data?.available_dates)) setAvailableDates(r.data.available_dates);
         } catch {
             // ignore
         } finally {
@@ -135,9 +139,22 @@ export default function AdminMachineMonitorPage() {
                     <input
                         type="date"
                         value={selectedDate}
+                        list="admin-entry-dates"
                         onChange={e => setSelectedDate(e.target.value)}
                         className="bg-transparent text-sm font-bold text-gray-700 focus:outline-none"
                     />
+                    <datalist id="admin-entry-dates">
+                        {availableDates.map(d => <option key={d} value={d} />)}
+                    </datalist>
+                    {selectedDate && (
+                        <button
+                            onClick={() => setSelectedDate('')}
+                            className="text-[10px] font-black text-orange-500 uppercase tracking-widest hover:text-orange-700"
+                            title="Show all recent entries"
+                        >
+                            All
+                        </button>
+                    )}
                 </div>
 
                 {/* Shift filter */}
@@ -202,7 +219,7 @@ export default function AdminMachineMonitorPage() {
                             <Factory size={28} className="text-gray-200" />
                         </div>
                         <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">No Production Logs Found</p>
-                        <p className="text-xs text-gray-300">No entries for {selectedDate}</p>
+                        <p className="text-xs text-gray-300">{selectedDate ? `No entries for ${selectedDate}` : 'No DEO production entries yet'}</p>
                     </div>
                 ) : (
                     Object.entries(grouped).map(([machineName, machineEntries]) => (

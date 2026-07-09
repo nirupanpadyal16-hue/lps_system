@@ -57,10 +57,49 @@ def get_lines():
 @jwt_required()
 @role_required(['Admin', 'Manager', 'Supervisor', 'DEO', 'PPC_Planner'])
 def get_machines_status():
-    from app.models import ProductionLine, PartShortageRequest
+    """
+    Machine registry for the Production Lines page.
+
+    For each physical (sub) machine we now surface WHICH PARTS ARE BUILT ON IT,
+    sourced from the SAME table the DEO writes to (MachineProductionEntry).
+    This is what makes the Admin view consistent with the DEO module.
+    Shortage-request occupancy is still included for backward compatibility.
+    """
+    from app.models import ProductionLine, PartShortageRequest, MachineProductionEntry
+    from sqlalchemy import func as sqlfunc
+
     lines = ProductionLine.query.filter_by(parent_id=None).all()
+
+    # ── Bulk-load production parts per machine (avoid N+1) ────────────────────
+    # One aggregate query across all machine entries: total produced & last date
+    # grouped by (machine_id, sap_part_number). Grouped in Python afterwards.
+    all_sub_ids = [sub.id for line in lines for sub in line.children]
+    parts_by_machine = {}
+    if all_sub_ids:
+        rows = db.session.query(
+            MachineProductionEntry.machine_id,
+            MachineProductionEntry.sap_part_number,
+            sqlfunc.sum(MachineProductionEntry.parts_produced).label('total'),
+            sqlfunc.max(MachineProductionEntry.date).label('last_date'),
+            sqlfunc.max(MachineProductionEntry.demand_id).label('demand_id'),
+        ).filter(
+            MachineProductionEntry.machine_id.in_(all_sub_ids)
+        ).group_by(
+            MachineProductionEntry.machine_id,
+            MachineProductionEntry.sap_part_number,
+        ).all()
+        for machine_id, sap, total, last_date, demand_id in rows:
+            parts_by_machine.setdefault(machine_id, []).append({
+                "sap_part_number": sap,
+                "total_produced": float(total or 0),
+                "last_produced_date": last_date.isoformat() if last_date else None,
+                "demand_id": demand_id,
+            })
+    # Sort each machine's parts by most-recent production first
+    for lst in parts_by_machine.values():
+        lst.sort(key=lambda p: (p["last_produced_date"] or ""), reverse=True)
+
     result = []
-    
     for line in lines:
         line_data = {
             "id": line.id,
@@ -71,22 +110,26 @@ def get_machines_status():
             "inactive_machines": sum(1 for c in line.children if not c.is_active),
             "sub_machines": []
         }
-        
+
         for sub in line.children:
             active_shortage = PartShortageRequest.query.filter(
                 PartShortageRequest.assigned_machines.any(id=sub.id)
             ).filter(PartShortageRequest.status.in_(['PENDING', 'DEO_FILLED'])).first()
-            
+
             if not active_shortage:
                 active_shortage = PartShortageRequest.query.filter_by(
                     machine_id=sub.id
                 ).filter(PartShortageRequest.status.in_(['PENDING', 'DEO_FILLED'])).first()
-            
+
+            running_parts = parts_by_machine.get(sub.id, [])
             sub_data = {
                 "id": sub.id,
                 "name": sub.name,
                 "is_active": sub.is_active,
                 "status": sub.status, # 'AVAILABLE', 'BUSY'
+                # Which parts are (or were most recently) built on this machine —
+                # from DEO production entries. Empty list = idle.
+                "running_parts": running_parts,
                 "part_number": None,
                 "vehicle_type": None,
                 "start_date": None,
@@ -94,22 +137,87 @@ def get_machines_status():
                 "coverage_day": None,
                 "shortage_status": None
             }
-            
-            if active_shortage:
-                sub_data["part_number"] = active_shortage.inventory_item.sap_part_number
+
+            # Prefer the live production part for the headline part_number,
+            # falling back to the shortage-request assignment.
+            if running_parts:
+                sub_data["part_number"] = running_parts[0]["sap_part_number"]
+
+            if active_shortage and active_shortage.inventory_item:
+                sub_data["part_number"] = sub_data["part_number"] or active_shortage.inventory_item.sap_part_number
                 sub_data["vehicle_type"] = active_shortage.inventory_item.vehicle_name
                 sub_data["start_date"] = active_shortage.created_at.strftime("%d/%m/%Y") if active_shortage.created_at else None
                 sub_data["end_date"] = active_shortage.deadline.strftime("%d/%m/%Y") if active_shortage.deadline else None
                 sub_data["coverage_day"] = f"{max(active_shortage.days_remaining, 0)} days left" if active_shortage.days_remaining is not None else None
                 sub_data["shortage_status"] = "In-production" if active_shortage.status == 'PENDING' else "Complete"
-                
+
             line_data["sub_machines"].append(sub_data)
-            
+
         result.append(line_data)
-        
+
     return jsonify({
         "success": True,
         "data": result
+    })
+
+
+@admin_bp.route('/machine-entries', methods=['GET'])
+@jwt_required()
+@role_required(['Admin', 'Manager'])
+def admin_get_machine_entries():
+    """
+    Admin-owned read of DEO daily production — reads the SAME table the DEO
+    writes to (MachineProductionEntry). This replaces the old behaviour where
+    the Admin console borrowed the Supervisor endpoint.
+
+    Query params (all optional):
+      date      YYYY-MM-DD   — filter to a single day
+      shift     'Shift 1'..  — filter by shift
+      status    PENDING|VERIFIED|REJECTED
+      demand_id int
+
+    If no `date` is supplied we DO NOT silently default to today (which hid all
+    entries in the old UI). Instead we return the most recent entries across all
+    dates, plus `available_dates` so the UI can offer a real date picker.
+    """
+    from app.models import MachineProductionEntry
+    from sqlalchemy import func as sqlfunc
+
+    query = MachineProductionEntry.query
+
+    date_filter = request.args.get('date')
+    shift = request.args.get('shift')
+    status_f = request.args.get('status')
+    demand_id = request.args.get('demand_id', type=int)
+
+    if date_filter:
+        try:
+            query = query.filter_by(date=datetime.date.fromisoformat(date_filter))
+        except ValueError:
+            pass
+    if shift:
+        query = query.filter_by(shift=shift)
+    if status_f:
+        query = query.filter_by(status=status_f.upper())
+    if demand_id:
+        query = query.filter_by(demand_id=demand_id)
+
+    entries = query.order_by(
+        MachineProductionEntry.date.desc(),
+        MachineProductionEntry.created_at.desc()
+    ).limit(1000).all()
+
+    # Distinct dates that actually have entries (for the UI date picker)
+    date_rows = db.session.query(MachineProductionEntry.date).distinct().order_by(
+        MachineProductionEntry.date.desc()
+    ).limit(60).all()
+    available_dates = [d[0].isoformat() for d in date_rows if d[0]]
+
+    return jsonify({
+        "success": True,
+        "data": [e.to_dict() for e in entries],
+        "available_dates": available_dates,
+        "latest_date": available_dates[0] if available_dates else None,
     })
 
 @admin_bp.route('/lines', methods=['POST'])
@@ -945,36 +1053,134 @@ def get_dashboard_live():
 # INVENTORY MANAGEMENT ENDPOINTS (Admin Only)
 # ===========================================================================
 
+def _serialize_inventory_light(item, mapping_map):
+    """
+    N+1-free serialization for the inventory listing.
+
+    The heavy InventoryItem.to_dict() runs a PartMachineMapping query AND a
+    MasterData query per row (≈13k queries for ~4.5k rows — the real cause of the
+    slow load). Here we pass in a pre-built {sap_part_number: PartMachineMapping}
+    map so a page serializes with zero extra queries. All the *_stock / action /
+    shortage values are in-memory computed properties (no DB access).
+    """
+    mapping = mapping_map.get(item.sap_part_number)
+    machine_group = None
+    if mapping and mapping.machine:
+        machine_group = mapping.machine.replace(', ', ' -> ')
+    return {
+        "id": item.id,
+        "serial_number": item.serial_number,
+        "car_model_id": item.car_model_id,
+        "demand_id": item.demand_id,
+        "vehicle_name": item.vehicle_name,
+        "sap_part_number": item.sap_part_number,
+        "part_number": mapping.part_number if mapping else item.part_description,
+        "part_description": item.part_description,
+        "initial_stock": item.initial_stock,
+        "produced_qty": item.produced_qty,
+        "current_stock": item.effective_stock,
+        "demand_quantity": item.demand_quantity,
+        "shortage_quantity": item.shortage_quantity,
+        "status": item.status,
+        "rm_status": item.rm_status,
+        "action": item.action,
+        "machine_group": machine_group,
+        "created_at": item.created_at.isoformat() if item.created_at else None,
+        "updated_at": item.updated_at.isoformat() if item.updated_at else None,
+    }
+
+
 @admin_bp.route('/inventory', methods=['GET'])
 @jwt_required()
 @role_required(['Admin', 'PPC_Planner'])
 def get_inventory():
-    from app.models import InventoryItem
+    from app.models import InventoryItem, PartMachineMapping
     q = InventoryItem.query
     model_id = request.args.get('model_id')
     demand_id = request.args.get('demand_id')
     status_f = request.args.get('status')
+    search = request.args.get('search')
     if model_id:
         q = q.filter(InventoryItem.car_model_id == int(model_id))
     if demand_id:
         q = q.filter(InventoryItem.demand_id == int(demand_id))
     if status_f:
         q = q.filter(InventoryItem.status == status_f.upper())
-    items = q.order_by(InventoryItem.car_model_id.asc(), InventoryItem.serial_number.asc()).all()
-    result = [item.to_dict() for item in items]
+    if search:
+        like = f"%{search}%"
+        q = q.filter(db.or_(
+            InventoryItem.sap_part_number.ilike(like),
+            InventoryItem.part_description.ilike(like),
+            InventoryItem.vehicle_name.ilike(like),
+        ))
+    q = q.order_by(InventoryItem.car_model_id.asc(), InventoryItem.serial_number.asc())
+
+    total = q.count()
+
+    # ── Model/KPI summary across the WHOLE filtered set (not just the page) ──
+    # Uses lightweight columns only; action/shortage are in-memory properties.
+    summary_items = q.with_entities(
+        InventoryItem.car_model_id, InventoryItem.status,
+        InventoryItem.initial_stock, InventoryItem.produced_qty,
+        InventoryItem.demand_quantity
+    ).all()
+    stats = {"total_parts": total, "sufficient": 0, "shortage": 0, "pending_deo": 0}
     model_action_map = {}
-    for item in items:
-        mid = item.car_model_id
-        if mid not in model_action_map:
-            model_action_map[mid] = {'all_ok': True, 'has_pending_deo': False}
-        if item.action == 'NEW_DEMAND':
-            model_action_map[mid]['all_ok'] = False
-        if item.action == 'PENDING_DEO':
-            model_action_map[mid]['has_pending_deo'] = True
+    for car_model_id, status, init, prod, dq in summary_items:
+        eff = (init or 0.0) + (prod or 0.0)
+        if status == 'PRODUCTION_DONE':
+            action = 'READY_FOR_DISPATCH'
+        elif status == 'IN_PRODUCTION':
+            action = 'IN_PRODUCTION'
+        elif status == 'DISPATCHED':
+            action = 'DISPATCHED'
+        elif status in ('WAITING_RM_APPROVAL', 'PENDING_DEO'):
+            action = status
+        elif eff >= (dq or 0.0):
+            action = 'STOCK_OK'
+        else:
+            action = 'NEW_DEMAND'
+        if action == 'STOCK_OK':
+            stats["sufficient"] += 1
+        elif action == 'NEW_DEMAND':
+            stats["shortage"] += 1
+        elif action in ('PENDING_DEO', 'WAITING_RM_APPROVAL'):
+            stats["pending_deo"] += 1
+        m = model_action_map.setdefault(car_model_id, {'all_ok': True, 'has_pending_deo': False})
+        if action == 'NEW_DEMAND':
+            m['all_ok'] = False
+        if action == 'PENDING_DEO':
+            m['has_pending_deo'] = True
+
+    # ── Optional pagination ──────────────────────────────────────────────────
+    page = request.args.get('page', type=int)
+    limit = request.args.get('limit', type=int)
+    if page and limit:
+        limit = min(limit, 500)
+        items = q.offset((page - 1) * limit).limit(limit).all()
+    else:
+        items = q.all()
+
+    # Bulk-load machine mappings for just these rows → no per-row query.
+    saps = list({it.sap_part_number for it in items if it.sap_part_number})
+    mapping_map = {}
+    if saps:
+        for m in PartMachineMapping.query.filter(PartMachineMapping.sap_part_number.in_(saps)).all():
+            mapping_map[m.sap_part_number] = m
+
+    result = [_serialize_inventory_light(it, mapping_map) for it in items]
+
     return jsonify({
         "success": True,
         "data": result,
-        "total": len(result),
+        "total": total,
+        "stats": stats,
+        "meta": {
+            "page": page or 1,
+            "limit": limit or total,
+            "total": total,
+            "pages": ((total + limit - 1) // limit) if (page and limit) else 1,
+        },
         "model_summary": {
             str(mid): (
                 "PENDING_DEO" if v['has_pending_deo'] else

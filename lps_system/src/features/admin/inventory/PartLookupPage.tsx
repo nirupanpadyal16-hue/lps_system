@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, memo } from 'react';
 import {
   Search,
   Filter,
@@ -319,6 +319,10 @@ export default function PartLookupPage() {
     }
   };
 
+  // Guards against a slow earlier registry load overwriting a newer one
+  // (the root of "changes not reflected for Admin/PPC while data was loading").
+  const fetchSeq = useRef(0);
+
   // Memoized fetch function
   const fetchData = useCallback(async (demandId?: number) => {
     const activeDemandId = demandId || (selectedDemand ? demands.find(d => d.formatted_id === selectedDemand)?.id : null);
@@ -327,9 +331,11 @@ export default function PartLookupPage() {
       return;
     }
 
+    const seq = ++fetchSeq.current;
     setLoading(true);
     try {
       const invRes = await ppcApi.getMachineRegistry(activeDemandId);
+      if (seq !== fetchSeq.current) return; // a newer request superseded this one
       if (invRes.data.success) {
         setParts(mapRegistry(invRes.data.data));
         setInventoryItems(invRes.data.data);
@@ -337,7 +343,7 @@ export default function PartLookupPage() {
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
-      setLoading(false);
+      if (seq === fetchSeq.current) setLoading(false);
     }
   }, [selectedDemand, demands]);
 
@@ -449,6 +455,16 @@ export default function PartLookupPage() {
       // If no inventory item found, we pass 0 as the ID and the backend will create it
       const itemId = inv ? inv.id : 0;
       await ppcApi.submitRM(itemId, payload);
+
+      // Optimistically flip this part's status locally so the change is visible
+      // to the Admin/PPC immediately (matching what the Store Keeper already sees),
+      // even before the (slower) registry refetch returns.
+      const sap = selectedPart.common.sap_part_number?.trim().toLowerCase();
+      setInventoryItems(prev => prev.map(it =>
+        it.sap_part_number?.trim().toLowerCase() === sap
+          ? { ...it, rm_status: 'RM_SUBMITTED' }
+          : it
+      ));
 
       toast.success("RM data submitted successfully");
       setShowRMModal(false);

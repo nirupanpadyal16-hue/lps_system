@@ -400,7 +400,9 @@ export default function InventoryPage() {
     const [deos, setDeos] = useState<DEOUser[]>([]);
     const [supervisors, setSupervisors] = useState<SupervisorUser[]>([]);
     const [lines, setLines] = useState<ProductionLine[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
+    const [stats, setStats] = useState({ total_parts: 0, sufficient: 0, shortage: 0, pending_deo: 0 });
+    const reqSeq = useRef(0);
     const [search, setSearch] = useState('');
     const [filterVehicle, setFilterVehicle] = useState('');
     const [filterStatus, setFilterStatus] = useState('ALL');
@@ -475,32 +477,18 @@ export default function InventoryPage() {
         };
     }, [isDropdownOpen]);
 
-    const fetchAll = useCallback(async () => {
-        setLoading(true);
+    // Lightweight metadata — demands drive the model dropdown; users/lines feed modals.
+    // This no longer pulls the entire inventory table (the old ~4,500-row dump).
+    const fetchMeta = useCallback(async () => {
         try {
-            const [invRes, demRes, userRes, lineRes] = await Promise.all([
-                fetch(`${API}/admin/inventory?_t=${Date.now()}`, { headers: authHeaders() }),
+            const [demRes, userRes, lineRes] = await Promise.all([
                 fetch(`${API}/admin/demands?_t=${Date.now()}`, { headers: authHeaders() }),
                 fetch(`${API}/admin/identity/users?limit=100&_t=${Date.now()}`, { headers: authHeaders() }),
                 fetch(`${API}/admin/lines?_t=${Date.now()}`, { headers: authHeaders() }),
             ]);
-            const [invData, demData, userData, lineData] = await Promise.all([
-                invRes.json(), demRes.json(), userRes.json(), lineRes.json()
+            const [demData, userData, lineData] = await Promise.all([
+                demRes.json(), userRes.json(), lineRes.json()
             ]);
-            if (invData.success) {
-                const mapped = (invData.data || []).map((item: InventoryItem) => {
-                    if (item.current_stock >= item.demand_quantity) {
-                        return {
-                            ...item,
-                            status: 'SUFFICIENT',
-                            action: 'STOCK_OK',
-                            shortage_quantity: 0
-                        };
-                    }
-                    return item;
-                });
-                setItems(mapped);
-            }
             if (demData.success) setDemands(demData.data);
             if (userData.success) {
                 const allUsers = userData.data || [];
@@ -508,12 +496,48 @@ export default function InventoryPage() {
                 setSupervisors(allUsers.filter((u: any) => u.role === 'Supervisor'));
             }
             if (lineData.success) setLines(lineData.data);
-        } finally {
-            setLoading(false);
+        } catch {
+            // ignore — dropdown just stays empty until retried
         }
     }, []);
 
-    useEffect(() => { fetchAll(); }, [fetchAll]);
+    // Inventory is fetched ONLY for the selected demand, server-side filtered.
+    // reqSeq guards against a slow earlier response overwriting a newer one.
+    const fetchInventory = useCallback(async (demandId: string) => {
+        if (!demandId) {
+            setItems([]);
+            setStats({ total_parts: 0, sufficient: 0, shortage: 0, pending_deo: 0 });
+            return;
+        }
+        const seq = ++reqSeq.current;
+        setLoading(true);
+        try {
+            const res = await fetch(`${API}/admin/inventory?demand_id=${demandId}&_t=${Date.now()}`, { headers: authHeaders() });
+            const data = await res.json();
+            if (seq !== reqSeq.current) return; // superseded by a newer selection
+            if (data.success) {
+                const mapped = (data.data || []).map((item: InventoryItem) => {
+                    if (item.current_stock >= item.demand_quantity) {
+                        return { ...item, status: 'SUFFICIENT', action: 'STOCK_OK', shortage_quantity: 0 };
+                    }
+                    return item;
+                });
+                setItems(mapped);
+                if (data.stats) setStats(data.stats);
+            }
+        } finally {
+            if (seq === reqSeq.current) setLoading(false);
+        }
+    }, []);
+
+    // Refresh both metadata and the currently selected demand's inventory.
+    const fetchAll = useCallback(async () => {
+        await fetchMeta();
+        if (filterVehicle) await fetchInventory(filterVehicle);
+    }, [fetchMeta, fetchInventory, filterVehicle]);
+
+    useEffect(() => { fetchMeta(); }, [fetchMeta]);
+    useEffect(() => { fetchInventory(filterVehicle); }, [filterVehicle, fetchInventory]);
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -546,16 +570,17 @@ export default function InventoryPage() {
 
     const demandIdMap = Object.fromEntries(demands.map(d => [d.id, d.formatted_id]));
 
-    const modelOptions = Array.from(
-        new Map(
-            items.map(i => {
-                const dId = i.demand_id;
-                const fId = dId ? demandIdMap[dId] : 'No Demand';
-                const key = `${i.vehicle_name}|${dId || ''}`;
-                return [key, { key, vehicleName: i.vehicle_name, demandId: dId, formattedDemandId: fId }];
-            })
-        ).values()
-    ).sort((a, b) => (a.vehicleName || '').localeCompare(b.vehicleName || ''));
+    // Model dropdown is now driven by demands (small, fast) rather than derived
+    // from a full inventory dump. `key` is the demand id — a stable identifier —
+    // instead of the fragile `vehicle_name|demand_id` string that could mismatch.
+    const modelOptions = demands
+        .map(d => ({
+            key: String(d.id),
+            vehicleName: d.model_name,
+            demandId: d.id,
+            formattedDemandId: d.formatted_id,
+        }))
+        .sort((a, b) => (a.vehicleName || '').localeCompare(b.vehicleName || ''));
 
     const filteredModelOptions = modelOptions.filter(opt => {
         const query = modelSearchQuery.toLowerCase();
@@ -567,19 +592,12 @@ export default function InventoryPage() {
 
 
 
-    // Model-wise filtered items for KPI statistics
-    const selectedModelItems = filterVehicle
-        ? items.filter(item => {
-            const [vName, vDemandId] = filterVehicle.split('|');
-            return item.vehicle_name === vName && String(item.demand_id || '') === vDemandId;
-        })
-        : items;
-
-    // ── Derived stats ─────────────────────────────────────────────────────
-    const totalParts = selectedModelItems.length;
-    const sufficient = selectedModelItems.filter(i => i.action === 'STOCK_OK').length;
-    const shortage = selectedModelItems.filter(i => i.action === 'NEW_DEMAND').length;
-    const pendingDeo = selectedModelItems.filter(i => i.status === 'PENDING_DEO' || i.action === 'PENDING_DEO').length;
+    // Items are already scoped to the selected demand server-side.
+    // ── Derived stats (from the server, covering the whole demand not just a page) ──
+    const totalParts = stats.total_parts;
+    const sufficient = stats.sufficient;
+    const shortage = stats.shortage;
+    const pendingDeo = stats.pending_deo;
 
     const availableDemands = demands.filter(d => d.status !== 'COMPLETED');
 
@@ -589,8 +607,6 @@ export default function InventoryPage() {
         const matchSearch = !q || item.sap_part_number?.toLowerCase().includes(q)
             || item.part_description?.toLowerCase().includes(q)
             || item.vehicle_name?.toLowerCase().includes(q);
-        const [vName, vDemandId] = filterVehicle.split('|');
-        const matchVehicle = item.vehicle_name === vName && String(item.demand_id || '') === vDemandId;
 
         let matchStatus = true;
         if (filterStatus !== 'ALL') {
@@ -602,7 +618,7 @@ export default function InventoryPage() {
         }
 
         const matchAction = filterAction === 'ALL' || item.action === filterAction;
-        return matchSearch && matchVehicle && matchStatus && matchAction;
+        return matchSearch && matchStatus && matchAction;
     });
 
     const totalPages = Math.ceil(filtered.length / pageSize);
