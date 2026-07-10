@@ -603,6 +603,16 @@ def deo_fill_shortage_request(req_id):
         todays_stock=float(data.get('todays_stock', 0)),
         notes=data.get('notes', '')
     )
+    
+    item = psr.inventory_item
+    need_total = psr.shortage_quantity if (psr.shortage_quantity and psr.shortage_quantity > 0) else (item.demand_quantity if item else 0)
+    
+    psr_dict = psr.to_dict()
+    psr_per_day = psr_dict.get('per_day')
+    per_day = psr_per_day if (psr_per_day and psr_per_day > 0) else need_total
+    
+    if per_day > 0:
+        entry.coverage_days = round(entry.todays_stock / float(per_day), 1)
     from app.extensions import db
     db.session.add(entry)
 

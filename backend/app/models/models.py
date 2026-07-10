@@ -971,6 +971,19 @@ class PartShortageRequest(db.Model):
             delta = (self.deadline - self.created_at.date()) if isinstance(self.created_at, datetime.datetime) else (self.deadline - self.created_at)
             total_days = max(delta.days, 1)
 
+        master_machine_str = next((m.machine for m in [PartMachineMapping.query.filter_by(sap_part_number=self.inventory_item.sap_part_number).first()] if m), None) if self.inventory_item else None
+        
+        sub_machines_list = []
+        if self.assigned_machines:
+            sub_machines_list = [{"id": m.id, "name": m.name, "parent_id": m.parent_id} for m in self.assigned_machines]
+        elif master_machine_str:
+            master_names = [name.strip() for name in master_machine_str.split(',') if name.strip()]
+            if master_names:
+                parent_lines = ProductionLine.query.filter(ProductionLine.name.in_(master_names)).all()
+                for p_line in parent_lines:
+                    for child in p_line.children:
+                        sub_machines_list.append({"id": child.id, "name": child.name, "parent_id": child.parent_id})
+
         return {
             "id": self.id,
             "formatted_id": self.formatted_id,
@@ -1000,8 +1013,8 @@ class PartShortageRequest(db.Model):
             "line_name": self.production_line.name if self.production_line else None,
             "machine_id": self.machine_id,
             "machine_name": self.machine.name if self.machine else None,
-            "master_machine": next((m.machine for m in [PartMachineMapping.query.filter_by(sap_part_number=self.inventory_item.sap_part_number).first()] if m), None) if self.inventory_item else None,
-            "sub_machines": [{"id": m.id, "name": m.name, "parent_id": m.parent_id} for m in self.assigned_machines],
+            "master_machine": master_machine_str,
+            "sub_machines": sub_machines_list,
             "rejection_reason": next((e.rejection_reason for e in sorted(self.daily_entries, key=lambda x: x.id, reverse=True) if e.rejection_reason), None)
         }
 
@@ -1023,6 +1036,7 @@ class ShortageDailyEntry(db.Model):
     sap_stock = db.Column(db.Float, default=0.0)
     opening_stock = db.Column(db.Float, default=0.0)
     todays_stock = db.Column(db.Float, default=0.0)
+    coverage_days = db.Column(db.Float, default=0.0)
     
     notes = db.Column(db.Text, nullable=True)
     
@@ -1047,6 +1061,7 @@ class ShortageDailyEntry(db.Model):
             "sap_stock": self.sap_stock,
             "opening_stock": self.opening_stock,
             "todays_stock": self.todays_stock,
+            "coverage_days": self.coverage_days,
             "notes": self.notes,
             "status": self.status,
             "rejection_reason": self.rejection_reason,

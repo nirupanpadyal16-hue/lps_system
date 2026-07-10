@@ -276,7 +276,8 @@ const VerifyModal = ({ entry, onClose, onSuccess }: {
     const needTotal = (req?.shortage_quantity && req.shortage_quantity > 0) ? req.shortage_quantity : (item?.demand_quantity || 0);
     const perDay = (req?.per_day && req.per_day > 0) ? req.per_day : needTotal;
     const tStock = entry.todays_stock || 0;
-    const coverage = (perDay > 0 ? (tStock / perDay).toFixed(1) : '0.0');
+    const coverageVal = entry.coverage_days ?? (perDay > 0 ? (tStock / perDay) : 0);
+    const coverage = coverageVal.toFixed(1);
     const isGood = Number(coverage) >= 5;
 
     return (
@@ -596,9 +597,17 @@ export default function SupervisorShortageVerify() {
         const assignedEntryIds = new Set<number>();
         
         allSubMachines.forEach((sub: any) => {
-            const machineEntries = lineEntries.filter(e => 
-                e.shortage_request?.line_name?.trim().toUpperCase() === sub.name?.trim().toUpperCase()
-            );
+            const machineEntries = lineEntries.filter(e => {
+                const req = e.shortage_request;
+                if (!req) return false;
+                if (req.line_name) {
+                    return req.line_name.trim().toUpperCase() === sub.name?.trim().toUpperCase();
+                }
+                if (req.sub_machines && req.sub_machines.length > 0) {
+                    return req.sub_machines.some((m: any) => m.name?.trim().toUpperCase() === sub.name?.trim().toUpperCase());
+                }
+                return false;
+            });
             
             if (machineEntries.length > 0) {
                 // If multiple entries for the same machine, add all (though usually it's 1 active)
@@ -614,8 +623,12 @@ export default function SupervisorShortageVerify() {
         // Add any generic entries for this group that didn't match a specific sub-machine
         lineEntries.forEach(e => {
             if (!assignedEntryIds.has(e.id)) {
+                let fallbackName = e.shortage_request?.line_name || 'Generic';
+                if (fallbackName === 'Generic' && e.shortage_request?.sub_machines && e.shortage_request.sub_machines.length > 0) {
+                    fallbackName = e.shortage_request.sub_machines.map((m: any) => m.name).join(', ');
+                }
                 result.push({ 
-                    machineName: e.shortage_request?.line_name || 'Generic', 
+                    machineName: fallbackName, 
                     entry: e 
                 });
             }
@@ -850,7 +863,8 @@ export default function SupervisorShortageVerify() {
                                         const invItem = req?.inventory_item;
                                         const needTotal = (req?.shortage_quantity && req.shortage_quantity > 0) ? req.shortage_quantity : (invItem?.demand_quantity || 0);
                                         const perDay = (req?.per_day && req.per_day > 0) ? req.per_day : needTotal;
-                                        const coverage = (entry && perDay > 0 ? (entry.todays_stock / perDay).toFixed(1) : "—");
+                                        const coverageVal = entry?.coverage_days ?? (entry && perDay > 0 ? (entry.todays_stock / perDay) : null);
+                                        const coverage = coverageVal !== null ? coverageVal.toFixed(1) : "—";
                                         const machineName = item.machineName;
                                         const serialNum = (currentPage - 1) * pageSize + idx + 1;
 

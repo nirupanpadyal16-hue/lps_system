@@ -177,17 +177,18 @@ const SKDispatchPage: React.FC = () => {
 
   const refs = useRef<(HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null)[]>([]);
 
-  const openNewDispatch = (entry?: any) => {
+  const openNewDispatch = (item?: any) => {
     resetForm();
-    if (entry) {
-      setSelectedEntry(entry);
-      const d = entry.demand;
+    if (item) {
+      setSelectedEntry(item);
+      const d = item.demand;
+      const p = item.part;
       setForm(f => ({
         ...f,
         company_name: d?.customer || '',
         vehicle_model: d?.model_name || '',
         demand_id: d?.formatted_id || d?.id?.toString() || '',
-        demand_qty: entry.parts?.reduce((s: number, p: any) => s + (p.demand_quantity || 0), 0)?.toString() || '',
+        demand_qty: p?.demand_quantity?.toString() || '',
         dispatch_datetime: new Date().toISOString().slice(0, 16)
       }));
     }
@@ -225,8 +226,8 @@ const SKDispatchPage: React.FC = () => {
         ...form,
         status,
         demand_id: selectedEntry?.demand?.id,
-        inventory_item_ids: selectedEntry?.parts?.map((p: any) => p.id) || [],
-        quantity_dispatched: selectedEntry?.parts?.reduce((s: number, p: any) => s + (p.demand_quantity || 0), 0) || 0,
+        inventory_item_ids: selectedEntry?.part ? [selectedEntry.part.id] : [],
+        quantity_dispatched: selectedEntry?.part?.demand_quantity || 0,
       };
       const res = await skApi.createDispatch(payload);
       if (res.data.success) {
@@ -315,18 +316,19 @@ const SKDispatchPage: React.FC = () => {
             {/* Header */}
             <thead className="bg-ind-bg text-black border-b-2 border-[#f37021] uppercase text-[11px] tracking-wider sticky top-0 z-[50]">
               <tr>
-                <th className="px-6 py-2 text-left font-black whitespace-nowrap sticky top-0 bg-ind-bg z-10">DEMAND ID</th>
-                <th className="px-6 py-2 text-left font-black whitespace-nowrap sticky top-0 bg-ind-bg z-10">MODEL NAME</th>
-                <th className="px-6 py-2 text-left font-black whitespace-nowrap sticky top-0 bg-ind-bg z-10">CUSTOMER NAME</th>
-                <th className="px-6 py-2 text-center font-black whitespace-nowrap sticky top-0 bg-ind-bg z-10">QTY</th>
-                <th className="px-6 py-2 text-left font-black whitespace-nowrap sticky top-0 bg-ind-bg z-10">DISPATCH DATE</th>
+                <th className="px-6 py-2 text-left font-black whitespace-nowrap sticky top-0 bg-ind-bg z-10">SERIAL NO</th>
+                <th className="px-6 py-2 text-left font-black whitespace-nowrap sticky top-0 bg-ind-bg z-10">VEHICLE NAME</th>
+                <th className="px-6 py-2 text-left font-black whitespace-nowrap sticky top-0 bg-ind-bg z-10">SAP PART NUMBER</th>
+                <th className="px-6 py-2 text-center font-black whitespace-nowrap sticky top-0 bg-ind-bg z-10">CURRENT STOCK</th>
+                <th className="px-6 py-2 text-center font-black whitespace-nowrap sticky top-0 bg-ind-bg z-10">DEMAND QTY</th>
+                <th className="px-6 py-2 text-center font-black whitespace-nowrap sticky top-0 bg-ind-bg z-10">SHORTAGE</th>
                 <th className="px-6 py-2 text-center font-black whitespace-nowrap sticky top-0 bg-ind-bg z-10">STATUS</th>
                 <th className="px-6 py-2 text-right font-black whitespace-nowrap sticky top-0 bg-ind-bg z-10">ACTION</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ind-border/40">
               {loading ? (
-                <tr><td colSpan={7} className="py-20 text-center"><Loader2 size={32} className="animate-spin text-orange-500 mx-auto" /></td></tr>
+                <tr><td colSpan={8} className="py-20 text-center"><Loader2 size={32} className="animate-spin text-orange-500 mx-auto" /></td></tr>
               ) : filteredQueue.length === 0 ? (
                 <>
                   <tr className="hover:bg-slate-50 transition-colors">
@@ -336,39 +338,56 @@ const SKDispatchPage: React.FC = () => {
                     <td className="px-6 py-2 text-[11px] font-bold text-slate-300">—</td>
                     <td className="px-6 py-2 text-[11px] font-bold text-slate-300">—</td>
                     <td className="px-6 py-2 text-center text-[12px] font-black text-slate-300">—</td>
-                    <td className="px-6 py-2 text-[10px] font-bold text-slate-300">—</td>
+                    <td className="px-6 py-2 text-center text-[12px] font-black text-slate-300">—</td>
+                    <td className="px-6 py-2 text-center text-[12px] font-black text-slate-300">—</td>
                     <td className="px-6 py-2 text-center">
                       <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">—</span>
                     </td>
                     <td className="px-6 py-2 text-right">
-                      <button onClick={() => openNewDispatch()}
-                        className="w-9 h-9 bg-[#f97316] text-white rounded-xl shadow-md shadow-orange-500/20 hover:bg-orange-600 transition-all flex items-center justify-center active:scale-95 ml-auto">
-                        <Send size={16} />
-                      </button>
+                      <span className="text-[10px] font-bold text-slate-300">—</span>
                     </td>
                   </tr>
                 </>
               ) : (
                 <>
-                  {filteredQueue.map((entry) => {
-                    const qty = entry.parts?.reduce((s: number, p: any) => s + (p.demand_quantity || 0), 0) || 0;
+                  {filteredQueue.flatMap(entry => entry.parts.map((part: any) => ({ demand: entry.demand, part }))).map((item, idx) => {
+                    const { demand, part } = item;
+                    const hasShortage = part.shortage_quantity !== 0;
                     return (
-                      <tr key={entry.id} className="hover:bg-slate-50 transition-colors group">
+                      <tr key={`${demand.id}-${part.id}`} className="hover:bg-slate-50 transition-colors group">
                         <td className="px-6 py-2">
-                          <span className="font-mono text-[10px] font-black text-[#f97316] bg-orange-50 px-3 py-1 rounded-full border border-orange-100">{entry.demand?.formatted_id}</span>
+                          <span className="font-mono text-[11px] font-black text-slate-800">{part.serial_number || idx + 1}</span>
                         </td>
-                        <td className="px-6 py-2 text-[11px] font-bold text-slate-800">{entry.demand?.model_name || '—'}</td>
-                        <td className="px-6 py-2 text-[11px] font-bold text-slate-800">{entry.demand?.customer || '—'}</td>
-                        <td className="px-6 py-2 text-center text-[12px] font-black text-slate-800">{qty.toLocaleString()}</td>
-                        <td className="px-6 py-2 text-[10px] font-bold text-slate-500">{entry.dispatch_date ? new Date(entry.dispatch_date).toLocaleDateString() : '—'}</td>
+                        <td className="px-6 py-2 text-[11px] font-bold text-slate-800">{part.vehicle_name || demand.model_name || '—'}</td>
+                        <td className="px-6 py-2">
+                          <span className="font-mono text-[10px] font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100">{part.sap_part_number || '—'}</span>
+                        </td>
+                        <td className="px-6 py-2 text-center text-[12px] font-black text-slate-800">{part.current_stock?.toLocaleString() || '0'}</td>
+                        <td className="px-6 py-2 text-center text-[12px] font-black text-slate-800">{part.demand_quantity?.toLocaleString() || '0'}</td>
                         <td className="px-6 py-2 text-center">
-                          <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100 text-[9px] font-black uppercase tracking-widest">Ready</span>
+                          <span className={`text-[12px] font-black ${hasShortage ? 'text-rose-600' : 'text-emerald-600'}`}>{part.shortage_quantity?.toLocaleString() || '0'}</span>
+                        </td>
+                        <td className="px-6 py-2 text-center">
+                          {hasShortage ? (
+                            <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-100 text-[9px] font-black uppercase tracking-widest">Shortage</span>
+                          ) : (
+                            <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100 text-[9px] font-black uppercase tracking-widest">Ready</span>
+                          )}
                         </td>
                         <td className="px-6 py-2 text-right">
-                          <button onClick={() => openNewDispatch(entry)}
-                            className="w-9 h-9 bg-[#f97316] text-white rounded-xl shadow-md shadow-orange-500/20 hover:bg-orange-600 transition-all flex items-center justify-center active:scale-95 ml-auto">
-                            <Send size={16} />
-                          </button>
+                          {!hasShortage ? (
+                            <button onClick={() => openNewDispatch(item)}
+                              className="w-9 h-9 bg-[#f97316] text-white rounded-xl shadow-md shadow-orange-500/20 hover:bg-orange-600 transition-all flex items-center justify-center active:scale-95 ml-auto"
+                              title="Dispatch Part">
+                              <Send size={16} />
+                            </button>
+                          ) : (
+                            <button disabled
+                              className="w-9 h-9 bg-slate-100 text-slate-300 rounded-xl flex items-center justify-center ml-auto cursor-not-allowed border border-slate-200"
+                              title="Cannot dispatch (Shortage)">
+                              <Send size={16} />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );

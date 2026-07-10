@@ -312,7 +312,7 @@ def get_shortage_entries():
 @jwt_required()
 @role_required(['Supervisor', 'Admin', 'Manager'])
 def verify_shortage_entry(entry_id):
-    from app.models.models import ShortageDailyEntry
+    from app.models.models import ShortageDailyEntry, PartShortageRequest
     data = request.json or {}
     status = data.get('status')
     reason = data.get('reason', '')

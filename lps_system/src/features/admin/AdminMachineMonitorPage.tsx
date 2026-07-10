@@ -5,12 +5,12 @@ import {
 } from 'lucide-react';
 import { adminMachineApi } from '../../api/newRolesApi';
 
-const SHIFTS = ['Shift 1', 'Shift 2', 'Shift 3'];
+const SHIFTS = ['Shift I', 'Shift II', 'Shift III'];
 
 const SHIFT_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-    'Shift 1': { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200'  },
-    'Shift 2': { bg: 'bg-orange-50',  text: 'text-orange-700',  border: 'border-orange-200' },
-    'Shift 3': { bg: 'bg-indigo-50',  text: 'text-indigo-700',  border: 'border-indigo-200' },
+    'Shift I': { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200'  },
+    'Shift II': { bg: 'bg-orange-50',  text: 'text-orange-700',  border: 'border-orange-200' },
+    'Shift III': { bg: 'bg-indigo-50',  text: 'text-indigo-700',  border: 'border-indigo-200' },
 };
 
 const STATUS_CFG: Record<string, { bg: string; text: string; icon: JSX.Element }> = {
@@ -62,9 +62,9 @@ export default function AdminMachineMonitorPage() {
 
     // Derived stats
     const totalLogs    = entries.length;
-    const shift1Count  = entries.filter(e => e.shift === 'Shift 1').length;
-    const shift2Count  = entries.filter(e => e.shift === 'Shift 2').length;
-    const shift3Count  = entries.filter(e => e.shift === 'Shift 3').length;
+    const shift1Count  = entries.filter(e => e.shift === 'Shift I').length;
+    const shift2Count  = entries.filter(e => e.shift === 'Shift II').length;
+    const shift3Count  = entries.filter(e => e.shift === 'Shift III').length;
 
     // Filter + search
     const filtered = useMemo(() => {
